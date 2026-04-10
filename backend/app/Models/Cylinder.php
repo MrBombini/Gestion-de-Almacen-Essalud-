@@ -2,84 +2,37 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Cylinder extends Model
 {
     use HasFactory, SoftDeletes;
 
-    // Barcode es la PK (string, no autoincremental)
-    protected $primaryKey = 'barcode';
-    public $incrementing  = false;
-    protected $keyType    = 'string';
-
     protected $fillable = [
-        'barcode',
-        'serial_number_stamped',
-        'gas_type_id',
-        'capacity_id',
-        'provider_id',
-        'cylinder_model_id',
-        'asset_type',
-        'ph_test_date',
+        'serial_number',
+        'supplier_id',
+        'ownership_type_id',
+        'gas_type',
+        'capacity',
         'status',
-        'current_location_id',
+        'hydrostatic_test_date',
+        'physical_condition'
     ];
 
-    protected $casts = [
-        'ph_test_date' => 'date',
-    ];
-
-    // ─── Relaciones ─────────────────────────────────────────────
-
-    public function gasType()
+    public function supplier()
     {
-        return $this->belongsTo(GasType::class);
+        return $this->belongsTo(Supplier::class);
     }
 
-    public function capacity()
+    public function ownershipType()
     {
-        return $this->belongsTo(CylinderCapacity::class);
-    }
-
-    public function provider()
-    {
-        return $this->belongsTo(Provider::class); // Dueño legal del balón
-    }
-
-    public function cylinderModel()
-    {
-        return $this->belongsTo(CylinderModel::class); // Marca: JD, KIOSHI...
-    }
-
-    public function location()
-    {
-        return $this->belongsTo(Location::class, 'current_location_id');
+        return $this->belongsTo(OwnershipType::class);
     }
 
     public function movements()
     {
-        return $this->hasMany(InventoryMovement::class, 'cylinder_barcode', 'barcode');
-    }
-
-    public function statusLogs()
-    {
-        return $this->hasMany(CylinderStatuslog::class, 'cylinder_barcode', 'barcode');
-    }
-
-    // ─── Helpers ─────────────────────────────────────────────────
-
-    /** ¿La prueba hidrostática está vencida o vence en menos de 30 días? */
-    public function isPhExpiringSoon(): bool
-    {
-        return $this->ph_test_date && $this->ph_test_date->diffInDays(now(), false) >= -30;
-    }
-
-    /** ¿La PH ya venció? */
-    public function isPhExpired(): bool
-    {
-        return $this->ph_test_date && $this->ph_test_date->isPast();
+        return $this->hasMany(CylinderMovement::class);
     }
 }

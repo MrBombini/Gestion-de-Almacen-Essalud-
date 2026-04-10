@@ -10,15 +10,13 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
-            $table->string('operator_code')->unique(); // ID Único de EsSalud (ej: 444, 111)
-            $table->string('name');
-            $table->string('email')->nullable()->unique(); // Opcional
-            $table->timestamp('email_verified_at')->nullable();
+            $table->string('operator_code', 50)->unique();
             $table->string('password');
-            $table->enum('role', ['engineer', 'technician', 'viewer'])->default('technician'); 
-            $table->rememberToken();
+            $table->string('name', 100);
+            $table->string('role', 50);
+            $table->string('status', 20)->default('active'); // 'active', 'inactive'
             $table->timestamps();
-            $table->softDeletes(); // Auditoría: nunca borramos un operario
+            $table->softDeletes();
         });
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {
@@ -29,7 +27,7 @@ return new class extends Migration
 
         Schema::create('sessions', function (Blueprint $table) {
             $table->string('id')->primary();
-            $table->foreignId('user_id')->nullable()->index();
+            $table->foreignId('usuario_id')->nullable()->index();
             $table->string('ip_address', 45)->nullable();
             $table->text('user_agent')->nullable();
             $table->longText('payload');
@@ -39,7 +37,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('users');
+        Schema::dropIfExists('usuarios');
         Schema::dropIfExists('password_reset_tokens');
         Schema::dropIfExists('sessions');
     }

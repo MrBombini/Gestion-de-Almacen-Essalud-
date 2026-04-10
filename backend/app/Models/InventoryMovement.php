@@ -2,56 +2,53 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class InventoryMovement extends Model
 {
-    use HasFactory;
+    use SoftDeletes;
 
     protected $fillable = [
-        'user_id', 
-        'cylinder_barcode', 
-        'type', 
-        'location_from_id', 
-        'location_to_id', 
-        'batch_number', 
-        'gas_expiration_date', 
-        'quantity_loaded', 
-        'notes', 
-        'transaction_group_id',
-        'movement_at'
+        'type',
+        'shift',
+        'reference_document',
+        'patient_id',
+        'service_id',
+        'bed_id',
+        'prescription_id',
+        'user_id',
+        'movement_at',
+        'notes'
     ];
 
-    protected $casts = [
-        'gas_expiration_date' => 'date',
-        'movement_at' => 'datetime',
-    ];
+    public function patient()
+    {
+        return $this->belongsTo(Patient::class);
+    }
 
-    // Relaciones
+    public function service()
+    {
+        return $this->belongsTo(Service::class);
+    }
+
+    public function bed()
+    {
+        return $this->belongsTo(Bed::class);
+    }
+
+    public function prescription()
+    {
+        return $this->belongsTo(Prescription::class);
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    public function cylinder()
+    public function cylinderMovements()
     {
-        return $this->belongsTo(Cylinder::class, 'cylinder_barcode', 'barcode');
-    }
-
-    public function fromLocation()
-    {
-        return $this->belongsTo(Location::class, 'location_from_id');
-    }
-
-    public function toLocation()
-    {
-        return $this->belongsTo(Location::class, 'location_to_id');
-    }
-
-    // Scope para agrupar transacciones (ej: cambios de balón)
-    public function scopeByGroup($query, $groupId)
-    {
-        return $query->where('transaction_group_id', $groupId);
+        return $this->hasMany(CylinderMovement::class);
     }
 }

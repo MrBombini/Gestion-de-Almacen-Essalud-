@@ -6,17 +6,27 @@ use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
+    /**
+     * Seed the application's database.
+     */
     public function run(): void
     {
+        // 1. Master Data Seeders
         $this->call([
-            UserSeeder::class,              // 1. Operarios (todos los técnicos)
-            GasTypeSeeder::class,           // 2. Tipos de Gas (Oxígeno, Nitrógeno...)
-            ProviderSeeder::class,          // 3. Dueños (Linde, Praxair, EsSalud...)
-            LocationSeeder::class,          // 4. Camas, Almacenes y Pacientes PADOMI
-            CylinderCapacitySeeder::class,  // 5. Capacidades (1, 6, 10 m3...)
-            CylinderModelSeeder::class,     // 6. Marcas (JD, KIOSHI, PRAXAIR...)  ← NUEVO
-            PatientSeeder::class,           // 7. Ficha PADOMI (busca ubicaciones del paso 4)
-            CylinderSeeder::class,          // 8. Balones (une Gas + Proveedor + Capacidad + Modelo)
+            OwnershipTypeSeeder::class,
+            UserSeeder::class,
+            SupplierSeeder::class,
         ]);
+
+        // 2. Patients (5)
+        \App\Models\Patient::factory(5)->create();
+
+        // 3. Services (3) with 5 Beds each
+        \App\Models\Service::factory(3)
+            ->has(\App\Models\Bed::factory()->count(5))
+            ->create();
+
+        // 4. Cylinders (20)
+        \App\Models\Cylinder::factory(20)->create();
     }
 }

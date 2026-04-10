@@ -2,77 +2,78 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\CylinderController;
-use App\Http\Controllers\LocationController;
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\PatientController;
-use App\Http\Controllers\ProviderController;
-use App\Http\Controllers\CylinderCapacityController;
-use App\Http\Controllers\GasTypeController;
-use App\Http\Controllers\CylinderModelController;
+use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\BedController;
+use App\Http\Controllers\CylinderController;
+use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\LiquidController;
 use App\Http\Controllers\InventoryMovementController;
-use App\Http\Controllers\TankReadingController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\UserController;
 
 /*
 |--------------------------------------------------------------------------
-| ESSALUD GESTIÓN DE GASES MEDICINALES - API ROUTES (SISTEMA FINAL DINÁMICO)
+| API Routes
 |--------------------------------------------------------------------------
 */
 
-// MANTENIMIENTO INDIVIDUAL (Capacidades y Dueños)
-Route::controller(CylinderCapacityController::class)->group(function () {
-    Route::get('/capacities', 'index');
-    Route::post('/capacities', 'store'); // Crear 10m3, 6m3, etc.
-});
+// ==========================================
+// 1. PUBLIC ROUTES
+// ==========================================
+Route::post('/auth/login', [AuthController::class, 'login']);
 
-Route::controller(ProviderController::class)->group(function () {
-    Route::get('/providers', 'index');
-    Route::post('/providers', 'store'); // Crear Linde, Praxair, etc.
-});
+// ==========================================
+// PROTECTED ROUTES (Requires Sanctum Bearer Token)
+// ==========================================
+Route::middleware(['auth:sanctum'])->group(function () {
+    
+    // 2. General Session Routes
+    Route::post('/auth/logout', [AuthController::class, 'logout']);
+    Route::get('/auth/me', function (Request $request) {
+        return response()->json([
+            'user' => $request->user(),
+        ]);
+    });
 
-Route::controller(GasTypeController::class)->group(function () {
-    Route::get('/gas-types', 'index');
-    Route::post('/gas-types', 'store');
-});
+    // 3. Operator Routes (Operators, Administrators, Engineers)
+    Route::middleware(['role:Operator,Administrator,Engineer'])->group(function () {
+        
+        // Catalogs (CRUD)
+        Route::apiResource('patients', PatientController::class);
+        Route::apiResource('services', ServiceController::class);
+        Route::apiResource('beds', BedController::class);
+        Route::apiResource('cylinders', CylinderController::class);
+        Route::apiResource('suppliers', SupplierController::class);
 
-Route::controller(CylinderModelController::class)->group(function () {
-    Route::get('/cylinder-models', 'index');
-    Route::post('/cylinder-models', 'store');
-});
+        // Liquid Module
+        Route::prefix('liquid')->group(function () {
+            Route::post('/refill', [LiquidController::class, 'storeRefill']);
+            Route::post('/daily-reading', [LiquidController::class, 'storeDailyReading']);
+        });
 
-// Opciones dinámicas para el FRONTEND (Dropdowns)
-Route::get('/cylinders/form-options', [CylinderController::class, 'getFormOptions']);
+        // Inventory Movements Module
+        Route::prefix('inventory')->group(function () {
+            Route::post('/exchange', [InventoryMovementController::class, 'createExchange']);
+            Route::post('/decanting', [InventoryMovementController::class, 'createDecanting']);
+            Route::post('/supplier-entry', [InventoryMovementController::class, 'createSupplierEntry']);
+        });
+        
+    });
 
-// Gestión de Cilindros
-Route::controller(CylinderController::class)->group(function () {
-    Route::get('/cylinders', 'index');
-    Route::post('/cylinders', 'store');
-    Route::get('/cylinders/{barcode}', 'show');
-    Route::put('/cylinders/{barcode}', 'update');
-});
+    // 4. Administrator / Engineer Routes
+    Route::middleware(['role:Administrator,Engineer'])->group(function () {
+        
+        // Users Management
+        Route::apiResource('users', UserController::class);
+        Route::patch('/users/{id}/deactivate', [UserController::class, 'deactivate']);
 
-// Gestión de Ubicaciones (Camas/Servicios)
-Route::controller(LocationController::class)->group(function () {
-    Route::get('/locations', 'index');
-    Route::post('/locations', 'store');
-    Route::put('/locations/{id}', 'update');
-});
-
-// Gestión de Pacientes (PADOMI)
-Route::controller(PatientController::class)->group(function () {
-    Route::get('/patients', 'index');
-    Route::post('/patients', 'store');
-    Route::get('/patients/{dni}', 'show');
-    Route::put('/patients/{id}', 'update');
-});
-
-// Movimientos de Inventario (Kardex Transaccional)
-Route::controller(InventoryMovementController::class)->group(function () {
-    Route::get('/movements', 'index');
-    Route::post('/movements', 'store');
-});
-
-// Lecturas de Tanques Criogénicos
-Route::controller(TankReadingController::class)->group(function () {
-    Route::get('/tank-readings', 'index');
-    Route::post('/tank-readings', 'store');
+        // Reports
+        Route::prefix('reports')->group(function () {
+            Route::get('/kardex', [ReportController::class, 'kardexGeneral']);
+            Route::get('/consumption', [ReportController::class, 'dailyConsumptionSummary']);
+        });
+        
+    });
 });

@@ -6,39 +6,57 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Laravel\Sanctum\HasApiTokens;
+
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, SoftDeletes;
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
 
     protected $fillable = [
-        'operator_code', 'name', 'email', 'password', 'role',
+        'operator_code', 
+        'name', 
+        'password', 
+        'role',
+        'status'
     ];
 
-    protected $hidden = ['password', 'remember_token'];
+    protected $hidden = [
+        'password', 
+        'remember_token'
+    ];
 
     protected function casts(): array
     {
-        return ['password' => 'hashed'];
+        return [
+            'password' => 'hashed'
+        ];
     }
 
-    // Relaciones
-    public function movements()
-    {
-        return $this->hasMany(InventoryMovement::class);
-    }
-
-    public function statusLogs()
-    {
-        return $this->hasMany(CylinderStatusLog::class);
-    }
-
-    public function tankReadings()
-    {
-        return $this->hasMany(TankReading::class);
+    // Helper: verificar estado
+    public function isActive(): bool 
+    { 
+        return $this->status === 'active'; 
     }
 
     // Helper: verificar rol
-    public function isEngineer(): bool { return $this->role === 'engineer'; }
-    public function isTechnician(): bool { return $this->role === 'technician'; }
+    public function hasRole(...$roles): bool 
+    { 
+        return in_array($this->role, $roles); 
+    }
+
+    public function liquidRefills()
+    {
+        return $this->hasMany(LiquidRefill::class);
+    }
+
+    public function dailyReadings()
+    {
+        return $this->hasMany(DailyReading::class);
+    }
+
+    public function inventoryMovements()
+    {
+        return $this->hasMany(InventoryMovement::class);
+    }
 }

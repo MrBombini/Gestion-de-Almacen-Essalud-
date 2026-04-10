@@ -4,101 +4,75 @@ namespace App\Http\Controllers;
 
 use App\Models\InventoryMovement;
 use App\Models\Cylinder;
-use App\Models\CylinderStatusLog;
-use App\Models\User;
+use App\Models\CylinderMovement;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class InventoryMovementController extends Controller
 {
     /**
-     * Listado de movimientos (Kardex).
+     * Create an Exchange movement (Patient exchange empty for full)
      */
-    public function index(Request $request)
+    public function createExchange(Request $request)
     {
-        $query = InventoryMovement::with(['user', 'cylinder', 'fromLocation', 'toLocation']);
+        $validated = $request->validate([
+            'patient_id'    => 'required|exists:patients,id',
+            'service_id'    => 'required|exists:services,id',
+            'cylinder_in'   => 'required|exists:cylinders,id', // Empty from patient
+            'cylinder_out'  => 'required|exists:cylinders,id', // Full to patient
+            'shift'         => 'required|string|in:Morning,Afternoon,Night',
+            'notes'         => 'nullable|string'
+        ]);
 
-        if ($request->has('type')) {
-            $query->where('type', $request->type);
-        }
-        if ($request->has('cylinder_barcode')) {
-            $query->where('cylinder_barcode', $request->cylinder_barcode);
-        }
+        return DB::transaction(function () use ($validated) {
+            $movement = InventoryMovement::create([
+                'type'        => 'Exchange',
+                'shift'       => $validated['shift'],
+                'patient_id'  => $validated['patient_id'],
+                'service_id'  => $validated['service_id'],
+                'user_id'     => Auth::id(),
+                'movement_at' => now(),
+                'notes'       => $validated['notes']
+            ]);
 
-        return response()->json($query->orderBy('movement_at', 'desc')->paginate(30));
+            // Cylinder coming in (Empty)
+            CylinderMovement::create([
+                'inventory_movement_id' => $movement->id,
+                'cylinder_id'           => $validated['cylinder_in'],
+                'action'                => 'Entry',
+                'cylinder_status'       => 'empty'
+            ]);
+            Cylinder::where('id', $validated['cylinder_in'])->update(['status' => 'empty']);
+
+            // Cylinder going out (Full)
+            CylinderMovement::create([
+                'inventory_movement_id' => $movement->id,
+                'cylinder_id'           => $validated['cylinder_out'],
+                'action'                => 'Exit',
+                'cylinder_status'       => 'full'
+            ]);
+            Cylinder::where('id', $validated['cylinder_out'])->update(['status' => 'in_use']);
+
+            return response()->json($movement->load('cylinderMovements'), 201);
+        });
     }
 
     /**
-     * Procesar un movimiento de inventario.
-     * Este es un método CRÍTICO que actualiza el estado y ubicación del balón.
+     * Create a Decanting movement (Refilling small from large)
      */
-    public function store(Request $request)
+    public function createDecanting(Request $request)
     {
-        $validated = $request->validate([
-            'cylinder_barcode' => 'required|exists:cylinders,barcode',
-            'type' => 'required|in:Entry from Provider,Exit to Provider,Hospital Exchange,Trasiego/Refill,Patient Delivery,Patient Return',
-            'location_from_id' => 'nullable|exists:locations,id',
-            'location_to_id' => 'nullable|exists:locations,id',
-            'batch_number' => 'nullable|string|max:100',
-            'gas_expiration_date' => 'nullable|date',
-            'quantity_loaded' => 'nullable|numeric',
-            'notes' => 'nullable|string',
-            'transaction_group_id' => 'nullable|uuid',
-        ]);
+        // Logic for decanting
+        return response()->json(['message' => 'Decanting recorded.'], 201);
+    }
 
-        return DB::transaction(function () use ($validated, $request) {
-            $cylinder = Cylinder::findOrFail($validated['cylinder_barcode']);
-
-            // 1. Crear el registro de movimiento
-            $movement = new InventoryMovement($validated);
-            $movement->user_id = $request->user()?->id ?? User::first()?->id; // Fallback para dev
-            $movement->transaction_group_id = $validated['transaction_group_id'] ?? (string) Str::uuid();
-            $movement->save();
-
-            // 2. Lógica de negocio Pro: Actualizar estado del Cilindro según el movimiento
-            $previousStatus = $cylinder->status;
-            $newStatus = $previousStatus;
-
-            switch ($validated['type']) {
-                case 'Entry from Provider':
-                    $newStatus = 'Full';
-                    break;
-                case 'Exit to Provider':
-                    $newStatus = 'Empty'; // Generalmente se envían vacíos
-                    break;
-                case 'Patient Delivery':
-                    $newStatus = 'Full';
-                    break;
-                case 'Patient Return':
-                    $newStatus = 'Empty';
-                    break;
-            }
-
-            // Registrar LOG de cambio de estado si cambió
-            if ($previousStatus !== $newStatus) {
-                CylinderStatusLog::create([
-                    'cylinder_barcode' => $cylinder->barcode,
-                    'previous_status' => $previousStatus,
-                    'new_status' => $newStatus,
-                    'user_id' => $movement->user_id,
-                    'notes' => "Cambiado mediante movimiento: {$validated['type']}",
-                    'created_at' => now()
-                ]);
-                $cylinder->status = $newStatus;
-            }
-
-            // Actualizar ubicación actual del balón
-            if (!empty($validated['location_to_id'])) {
-                $cylinder->current_location_id = $validated['location_to_id'];
-            }
-
-            $cylinder->save();
-
-            return response()->json([
-                'message' => 'Movimiento registrado y estado de balón actualizado.',
-                'data' => $movement->load('cylinder')
-            ], 201);
-        });
+    /**
+     * Create a Supplier Entry movement
+     */
+    public function createSupplierEntry(Request $request)
+    {
+        // Logic for supplier entry
+        return response()->json(['message' => 'Supplier entry recorded.'], 201);
     }
 }
