@@ -5,9 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\InventoryMovement;
 use App\Models\Cylinder;
 use App\Models\CylinderMovement;
+use App\Models\Decanting;
+use App\Models\Prescription;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class InventoryMovementController extends Controller
 {
@@ -17,42 +20,85 @@ class InventoryMovementController extends Controller
     public function createExchange(Request $request)
     {
         $validated = $request->validate([
-            'patient_id'    => 'required|exists:patients,id',
-            'service_id'    => 'required|exists:services,id',
-            'cylinder_in'   => 'required|exists:cylinders,id', // Empty from patient
-            'cylinder_out'  => 'required|exists:cylinders,id', // Full to patient
-            'shift'         => 'required|string|in:Morning,Afternoon,Night',
-            'notes'         => 'nullable|string'
+            'patient_id'      => ['nullable', 'exists:patients,id'],
+            'service_id'      => ['nullable', 'exists:services,id'],
+            'bed_id'          => ['nullable', 'exists:beds,id'],
+            'prescription_id' => ['nullable', 'exists:prescriptions,id'],
+            'cylinder_in'     => ['required', 'exists:cylinders,id'],
+            'cylinder_out'    => ['nullable', 'exists:cylinders,id'],
+            'shift'           => ['required', 'string', 'in:Morning,Afternoon,Night'],
+            'notes'           => ['nullable', 'string']
         ]);
+
+        if (empty($validated['patient_id']) && empty($validated['service_id'])) {
+            return response()->json(['message' => 'Debe seleccionar un Paciente o un Servicio.'], 422);
+        }
+
+        // Validación de Receta para Pacientes
+        if (!empty($validated['patient_id'])) {
+            if (empty($validated['prescription_id'])) {
+                return response()->json(['message' => 'Se requiere una receta activa para realizar un intercambio a un paciente.'], 422);
+            }
+            
+            $prescription = Prescription::find($validated['prescription_id']);
+            $today = Carbon::now()->format('Y-m-d');
+            
+            if (!$prescription || $today > $prescription->expires_at) {
+                return response()->json(['message' => 'La receta del paciente ha expirado o es inválida.'], 422);
+            }
+        }
 
         return DB::transaction(function () use ($validated) {
             $movement = InventoryMovement::create([
-                'type'        => 'Exchange',
-                'shift'       => $validated['shift'],
-                'patient_id'  => $validated['patient_id'],
-                'service_id'  => $validated['service_id'],
-                'user_id'     => Auth::id(),
-                'movement_at' => now(),
-                'notes'       => $validated['notes']
+                'type'            => 'Exchange',
+                'shift'           => $validated['shift'],
+                'patient_id'      => $validated['patient_id'] ?? null,
+                'service_id'      => $validated['service_id'] ?? null,
+                'bed_id'          => $validated['bed_id'] ?? null,
+                'prescription_id' => $validated['prescription_id'] ?? null,
+                'user_id'         => Auth::id(),
+                'notes'           => $validated['notes'] ?? null,
+                'movement_at'     => Carbon::now()
             ]);
 
-            // Cylinder coming in (Empty)
+            // Determinar la nueva ubicación según el destino
+            $newLocation = 'CENTRAL';
+            if ($validated['patient_id']) $newLocation = 'PADOMI';
+            elseif ($validated['service_id']) $newLocation = 'HOSPITALIZACION';
+
+            // 1. Cilindro Recibido (SIEMPRE REQUERIDO: Entra vacío al almacén)
             CylinderMovement::create([
                 'inventory_movement_id' => $movement->id,
                 'cylinder_id'           => $validated['cylinder_in'],
                 'action'                => 'Entry',
                 'cylinder_status'       => 'empty'
             ]);
-            Cylinder::where('id', $validated['cylinder_in'])->update(['status' => 'empty']);
-
-            // Cylinder going out (Full)
-            CylinderMovement::create([
-                'inventory_movement_id' => $movement->id,
-                'cylinder_id'           => $validated['cylinder_out'],
-                'action'                => 'Exit',
-                'cylinder_status'       => 'full'
+            
+            Cylinder::where('id', $validated['cylinder_in'])->update([
+                'status'             => 'empty',
+                'location'           => 'CENTRAL',
+                'current_patient_id' => null,
+                'current_service_id' => null,
+                'current_bed_id'     => null
             ]);
-            Cylinder::where('id', $validated['cylinder_out'])->update(['status' => 'in_use']);
+
+            // 2. Cilindro Entregado (OPCIONAL: Solo si el paciente se lleva uno lleno)
+            if (!empty($validated['cylinder_out'])) {
+                CylinderMovement::create([
+                    'inventory_movement_id' => $movement->id,
+                    'cylinder_id'           => $validated['cylinder_out'],
+                    'action'                => 'Exit',
+                    'cylinder_status'       => 'in_use'
+                ]);
+                
+                Cylinder::where('id', $validated['cylinder_out'])->update([
+                    'status'             => 'in_use',
+                    'location'           => $newLocation,
+                    'current_patient_id' => $validated['patient_id'] ?? null,
+                    'current_service_id' => $validated['service_id'] ?? null,
+                    'current_bed_id'     => $validated['bed_id'] ?? null
+                ]);
+            }
 
             return response()->json($movement->load('cylinderMovements'), 201);
         });
@@ -63,16 +109,195 @@ class InventoryMovementController extends Controller
      */
     public function createDecanting(Request $request)
     {
-        // Logic for decanting
-        return response()->json(['message' => 'Decanting recorded.'], 201);
+        $validated = $request->validate([
+            'cylinder_id'        => ['required', 'exists:cylinders,id'],
+            'refilled_amount'    => ['required', 'numeric', 'min:0'],
+            'shift'              => ['required', 'string', 'in:Morning,Afternoon,Night'],
+            'service_id'         => ['nullable', 'exists:services,id'],
+            'bed_id'             => ['nullable', 'exists:beds,id'],
+            'patient_id'         => ['nullable', 'exists:patients,id'],
+            'prescription_id'    => ['nullable', 'exists:prescriptions,id'],
+            'manual_destination' => ['nullable', 'string', 'max:150']
+        ]);
+
+        if (!empty($validated['patient_id'])) {
+            if (empty($validated['prescription_id'])) {
+                return response()->json(['message' => 'Se requiere una receta para recargar un balón a un paciente.'], 422);
+            }
+
+            $prescription = Prescription::find($validated['prescription_id']);
+            if (!$prescription || Carbon::now()->format('Y-m-d') > $prescription->expires_at) {
+                return response()->json(['message' => 'La receta del paciente ha expirado o es inválida.'], 422);
+            }
+        }
+
+        return DB::transaction(function () use ($validated) {
+            $decanting = Decanting::create([
+                'cylinder_id'        => $validated['cylinder_id'],
+                'refilled_amount'    => $validated['refilled_amount'],
+                'shift'              => $validated['shift'],
+                'service_id'         => $validated['service_id'] ?? null,
+                'bed_id'             => $validated['bed_id'] ?? null,
+                'patient_id'         => $validated['patient_id'] ?? null,
+                'prescription_id'    => $validated['prescription_id'] ?? null,
+                'manual_destination' => $validated['manual_destination'] ?? null,
+                'user_id'            => Auth::id(),
+                'decanted_at'        => Carbon::now()
+            ]);
+
+            // Ubicación según destino de trasiego
+            $newLocation = 'CENTRAL';
+            if ($validated['patient_id']) $newLocation = 'PADOMI';
+            elseif ($validated['service_id']) $newLocation = 'HOSPITALIZACION';
+
+            Cylinder::where('id', $validated['cylinder_id'])->update([
+                'status'             => 'in_use',
+                'location'           => $newLocation,
+                'current_patient_id' => $validated['patient_id'] ?? null,
+                'current_service_id' => $validated['service_id'] ?? null,
+                'current_bed_id'     => $validated['bed_id'] ?? null
+            ]);
+
+            return response()->json($decanting, 201);
+        });
     }
 
-    /**
-     * Create a Supplier Entry movement
-     */
+    public function createSupplierMovement(Request $request)
+    {
+        $validated = $request->validate([
+            'supplier_id'        => ['required', 'exists:suppliers,id'],
+            'reference_document' => ['required', 'string', 'max:100'],
+            'shift'              => ['required', 'string', 'in:Morning,Afternoon,Night'],
+            'cylinders_in'       => ['nullable', 'array'], // Balones que entran LLENOS
+            'cylinders_in.*'     => ['exists:cylinders,id'],
+            'cylinders_out'      => ['nullable', 'array'], // Balones que salen VACÍOS
+            'cylinders_out.*'    => ['exists:cylinders,id'],
+            'notes'              => ['nullable', 'string']
+        ]);
+
+        return DB::transaction(function () use ($validated) {
+            $movement = InventoryMovement::create([
+                'type'               => 'SupplierMovement',
+                'supplier_id'        => $validated['supplier_id'],
+                'reference_document' => $validated['reference_document'],
+                'shift'              => $validated['shift'],
+                'user_id'            => Auth::id(),
+                'movement_at'        => Carbon::now(),
+                'notes'              => $validated['notes'] ?? null
+            ]);
+
+            // Procesar Entradas (Vienen del proveedor LLENOS)
+            if (!empty($validated['cylinders_in'])) {
+                foreach ($validated['cylinders_in'] as $cylinderId) {
+                    CylinderMovement::create([
+                        'inventory_movement_id' => $movement->id,
+                        'cylinder_id'           => $cylinderId,
+                        'action'                => 'Entry',
+                        'cylinder_status'       => 'full'
+                    ]);
+
+                    Cylinder::where('id', $cylinderId)->update([
+                        'status'             => 'full',
+                        'location'           => 'CENTRAL', // Regresa al almacén central
+                        'current_patient_id' => null,
+                        'current_service_id' => null,
+                        'current_bed_id'     => null
+                    ]);
+                }
+            }
+
+            // Procesar Salidas (Se van al proveedor VACÍOS)
+            if (!empty($validated['cylinders_out'])) {
+                foreach ($validated['cylinders_out'] as $cylinderId) {
+                    CylinderMovement::create([
+                        'inventory_movement_id' => $movement->id,
+                        'cylinder_id'           => $cylinderId,
+                        'action'                => 'Exit',
+                        'cylinder_status'       => 'in_transit'
+                    ]);
+
+                    Cylinder::where('id', $cylinderId)->update([
+                        'status'             => 'in_transit',
+                        'location'           => 'PROVEEDOR', // Se va a recarga
+                        'current_patient_id' => null,
+                        'current_service_id' => null,
+                        'current_bed_id'     => null
+                    ]);
+                }
+            }
+
+            return response()->json($movement->load('cylinderMovements'), 201);
+        });
+    }
+
+    public function createServiceBulkExchange(Request $request)
+    {
+        $validated = $request->validate([
+            'service_id'         => ['required', 'exists:services,id'],
+            'reference_document' => ['nullable', 'string', 'max:100'],
+            'shift'              => ['required', 'string', 'in:Morning,Afternoon,Night'],
+            'cylinders_in'       => ['nullable', 'array'], 
+            'cylinders_in.*'     => ['exists:cylinders,id'],
+            'cylinders_out'      => ['nullable', 'array'], 
+            'cylinders_out.*'    => ['exists:cylinders,id'],
+            'notes'              => ['nullable', 'string']
+        ]);
+
+        return DB::transaction(function () use ($validated) {
+            $movement = InventoryMovement::create([
+                'type'               => 'ServiceBulkExchange',
+                'service_id'         => $validated['service_id'],
+                'reference_document' => $validated['reference_document'] ?? null,
+                'shift'              => $validated['shift'],
+                'user_id'            => Auth::id(),
+                'movement_at'        => Carbon::now(),
+                'notes'              => $validated['notes'] ?? null
+            ]);
+
+            if (!empty($validated['cylinders_in'])) {
+                foreach ($validated['cylinders_in'] as $cylinderId) {
+                    CylinderMovement::create([
+                        'inventory_movement_id' => $movement->id,
+                        'cylinder_id'           => $cylinderId,
+                        'action'                => 'Entry',
+                        'cylinder_status'       => 'empty'
+                    ]);
+
+                    Cylinder::where('id', $cylinderId)->update([
+                        'status'             => 'empty',
+                        'location'           => 'CENTRAL',
+                        'current_patient_id' => null,
+                        'current_service_id' => null,
+                        'current_bed_id'     => null
+                    ]);
+                }
+            }
+
+            if (!empty($validated['cylinders_out'])) {
+                foreach ($validated['cylinders_out'] as $cylinderId) {
+                    CylinderMovement::create([
+                        'inventory_movement_id' => $movement->id,
+                        'cylinder_id'           => $cylinderId,
+                        'action'                => 'Exit',
+                        'cylinder_status'       => 'in_use'
+                    ]);
+
+                    Cylinder::where('id', $cylinderId)->update([
+                        'status'             => 'in_use',
+                        'location'           => 'HOSPITALIZACION', // Destino genérico para servicios
+                        'current_patient_id' => null,
+                        'current_service_id' => $validated['service_id'],
+                        'current_bed_id'     => null
+                    ]);
+                }
+            }
+
+            return response()->json($movement->load('cylinderMovements'), 201);
+        });
+    }
+
     public function createSupplierEntry(Request $request)
     {
-        // Logic for supplier entry
-        return response()->json(['message' => 'Supplier entry recorded.'], 201);
+        return $this->createSupplierMovement($request);
     }
 }

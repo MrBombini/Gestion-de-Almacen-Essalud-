@@ -12,9 +12,9 @@ return new class extends Migration
             $table->id();
             $table->date('reading_date');
             $table->string('shift', 20); // Morning, Afternoon, Night
-            $table->decimal('ext_tank_reserve', 10, 2);
-            $table->decimal('int_warehouse_consumption', 10, 2);
-            $table->decimal('calculated_consumption', 10, 2);
+            $table->decimal('tank_level', 10, 2); // Nivel del Tanque (%)
+            $table->decimal('flow_meter_reading', 10, 2); // Lectura del Flujómetro (m3)
+            $table->decimal('calculated_consumption', 10, 2)->nullable(); // Consumo entre turnos
             $table->foreignId('user_id')->constrained('users');
             $table->timestamps();
             $table->softDeletes();

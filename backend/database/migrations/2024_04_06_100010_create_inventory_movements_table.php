@@ -13,6 +13,7 @@ return new class extends Migration
             $table->string('type', 50); // Exchange, Decanting, SupplierEntry
             $table->string('shift', 20); // Morning, Afternoon, Night
             $table->string('reference_document', 100)->nullable();
+            $table->foreignId('supplier_id')->nullable()->constrained('suppliers');
             $table->foreignId('patient_id')->nullable()->constrained('patients');
             $table->foreignId('service_id')->nullable()->constrained('services');
             $table->foreignId('bed_id')->nullable()->constrained('beds');

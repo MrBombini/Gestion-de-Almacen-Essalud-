@@ -10,12 +10,18 @@ class DailyReading extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'reading_date', 
-        'shift', 
-        'ext_tank_reserve', 
-        'int_warehouse_consumption', 
-        'calculated_consumption', 
+        'reading_date',
+        'shift',
+        'tank_level',
+        'flow_meter_reading',
+        'calculated_consumption',
         'user_id'
+    ];
+
+    protected $casts = [
+        'tank_level' => 'float',
+        'flow_meter_reading' => 'float',
+        'calculated_consumption' => 'float',
     ];
 
     public function user()

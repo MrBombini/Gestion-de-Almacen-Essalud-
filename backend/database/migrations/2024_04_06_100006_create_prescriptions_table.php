@@ -16,6 +16,8 @@ return new class extends Migration
             $table->string('usage_time', 50);     // Ej: 15 horas al día
             $table->date('issued_at');
             $table->date('expires_at');
+            $table->date('authorization_date')->nullable();
+            $table->string('promissory_note', 100)->nullable();
             $table->string('status', 20)->default('active'); // active, expired, canceled
             $table->timestamps();
             $table->softDeletes();

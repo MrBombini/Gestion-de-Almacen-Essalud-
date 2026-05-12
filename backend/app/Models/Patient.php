@@ -14,7 +14,10 @@ class Patient extends Model
         'full_name',
         'dni',
         'trasiego_code',
-        'exchange_code'
+        'exchange_code',
+        'address',
+        'phone1',
+        'phone2'
     ];
 
     public function prescriptions()
@@ -25,5 +28,10 @@ class Patient extends Model
     public function inventoryMovements()
     {
         return $this->hasMany(InventoryMovement::class);
+    }
+
+    public function cylinders()
+    {
+        return $this->hasMany(Cylinder::class);
     }
 }

@@ -16,6 +16,8 @@ class Prescription extends Model
         'usage_time', 
         'issued_at', 
         'expires_at', 
+        'authorization_date',
+        'promissory_note',
         'status'
     ];
 

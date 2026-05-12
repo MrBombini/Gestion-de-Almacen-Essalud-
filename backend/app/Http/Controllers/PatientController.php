@@ -3,13 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Models\Patient;
+use App\Models\Prescription;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class PatientController extends Controller
 {
     public function index()
     {
-        return response()->json(Patient::all());
+        // Traemos el paciente con su receta más reciente
+        return response()->json(Patient::with(['prescriptions' => function($q) {
+            $q->orderBy('created_at', 'desc');
+        }])->get());
     }
 
     public function store(Request $request)
@@ -17,17 +22,44 @@ class PatientController extends Controller
         $validated = $request->validate([
             'full_name'     => 'required|string|max:150',
             'dni'           => 'nullable|string|max:15|unique:patients,dni',
-            'trasiego_code' => 'nullable|string|max:20',
-            'exchange_code' => 'nullable|string|max:20',
+            'trasiego_code' => 'nullable|string|max:100',
+            'exchange_code' => 'nullable|string|max:100',
+            'address'       => 'nullable|string|max:255',
+            'phone1'        => 'nullable|string|max:20',
+            'phone2'        => 'nullable|string|max:20',
+            // Campos de la Receta
+            'dosage'        => 'nullable|string',
+            'usage_time'    => 'nullable|string',
+            'expires_at'    => 'nullable|date',
+            'promissory_note' => 'nullable|string',
+            'authorization_date' => 'nullable|date',
         ]);
 
-        $patient = Patient::create($validated);
-        return response()->json($patient, 201);
+        return DB::transaction(function() use ($validated) {
+            $patient = Patient::create($validated);
+
+            // Crear receta inicial si hay datos
+            if (!empty($validated['dosage']) || !empty($validated['expires_at'])) {
+                Prescription::create([
+                    'patient_id' => $patient->id,
+                    'service_id' => 1, // Por defecto Almacén Central o similar
+                    'dosage'     => $validated['dosage'],
+                    'usage_time' => $validated['usage_time'],
+                    'expires_at' => $validated['expires_at'],
+                    'promissory_note' => $validated['promissory_note'],
+                    'authorization_date' => $validated['authorization_date'],
+                    'status'     => 'active',
+                    'issued_at'  => now(),
+                ]);
+            }
+
+            return response()->json($patient->load('prescriptions'), 201);
+        });
     }
 
     public function show($id)
     {
-        return response()->json(Patient::findOrFail($id));
+        return response()->json(Patient::with('prescriptions')->findOrFail($id));
     }
 
     public function update(Request $request, $id)
@@ -39,10 +71,46 @@ class PatientController extends Controller
             'dni'           => 'nullable|string|max:15|unique:patients,dni,' . $id,
             'trasiego_code' => 'nullable|string|max:20',
             'exchange_code' => 'nullable|string|max:20',
+            'address'       => 'nullable|string|max:255',
+            'phone1'        => 'nullable|string|max:20',
+            'phone2'        => 'nullable|string|max:20',
+            // Campos de la Receta
+            'dosage'        => 'nullable|string',
+            'usage_time'    => 'nullable|string',
+            'expires_at'    => 'nullable|date',
+            'promissory_note' => 'nullable|string',
+            'authorization_date' => 'nullable|date',
         ]);
 
-        $patient->update($validated);
-        return response()->json($patient);
+        return DB::transaction(function() use ($patient, $validated) {
+            $patient->update($validated);
+
+            // Actualizar o crear la receta activa
+            $prescription = Prescription::where('patient_id', $patient->id)
+                ->where('status', 'active')
+                ->first();
+
+            $prescriptionData = [
+                'dosage'     => $validated['dosage'],
+                'usage_time' => $validated['usage_time'],
+                'expires_at' => $validated['expires_at'],
+                'promissory_note' => $validated['promissory_note'],
+                'authorization_date' => $validated['authorization_date'],
+            ];
+
+            if ($prescription) {
+                $prescription->update($prescriptionData);
+            } else {
+                Prescription::create(array_merge($prescriptionData, [
+                    'patient_id' => $patient->id,
+                    'service_id' => 1,
+                    'status'     => 'active',
+                    'issued_at'  => now(),
+                ]));
+            }
+
+            return response()->json($patient->load('prescriptions'));
+        });
     }
 
     public function destroy($id)
