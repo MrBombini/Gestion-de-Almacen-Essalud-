@@ -13,6 +13,11 @@ import DailyReading from './pages/DailyReading';
 import LiquidRefill from './pages/LiquidRefill';
 import Kardex from './pages/Kardex';
 import Users from './pages/Users';
+import Suppliers from './pages/Suppliers';
+import SupplierMovement from './pages/SupplierMovement';
+import PeripheryExchange from './pages/PeripheryExchange';
+import Reports from './pages/Reports';
+import OwnershipTypes from './pages/OwnershipTypes';
 
 
 function App() {
@@ -29,15 +34,20 @@ function App() {
             <Route path="/patients" element={<Patients />} />
             <Route path="/services" element={<Services />} />
             <Route path="/cylinders" element={<Cylinders />} />
+            <Route path="/suppliers" element={<Suppliers />} />
+            <Route path="/ownership-types" element={<OwnershipTypes />} />
             <Route path="/beds" element={<Beds />} />
 
             <Route path="/inventory/exchange" element={<Exchange />} />
             <Route path="/inventory/decanting" element={<Decanting />} />
+            <Route path="/inventory/supplier" element={<SupplierMovement />} />
+            <Route path="/inventory/periphery" element={<PeripheryExchange />} />
 
             <Route path="/liquid/daily" element={<DailyReading />} />
             <Route path="/liquid/refill" element={<LiquidRefill />} />
 
-            <Route path="/admin/reports" element={<Kardex />} />
+            <Route path="/admin/reports" element={<Reports />} />
+            <Route path="/admin/kardex" element={<Kardex />} />
             <Route path="/admin/users" element={<Users />} />
 
             <Route path="*" element={<Navigate to="/" replace />} />

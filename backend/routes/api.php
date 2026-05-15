@@ -12,6 +12,9 @@ use App\Http\Controllers\LiquidController;
 use App\Http\Controllers\InventoryMovementController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\OwnershipTypeController;
+use App\Http\Controllers\DailyReadingController;
+use App\Http\Controllers\PrescriptionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -46,6 +49,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::apiResource('beds', BedController::class);
         Route::apiResource('cylinders', CylinderController::class);
         Route::apiResource('suppliers', SupplierController::class);
+        Route::apiResource('daily-readings', DailyReadingController::class);
+        Route::apiResource('ownership-types', OwnershipTypeController::class);
+
+        // Prescriptions (Sub-CRUD de Pacientes)
+        Route::get('patients/{id}', [PatientController::class, 'show']);
+        Route::post('prescriptions', [PrescriptionController::class, 'store']);
+        Route::put('prescriptions/{id}', [PrescriptionController::class, 'update']);
+        Route::delete('prescriptions/{id}', [PrescriptionController::class, 'destroy']);
 
         // Liquid Module
         Route::prefix('liquid')->group(function () {
@@ -57,6 +68,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::prefix('inventory')->group(function () {
             Route::post('/exchange', [InventoryMovementController::class, 'createExchange']);
             Route::post('/decanting', [InventoryMovementController::class, 'createDecanting']);
+            Route::post('/supplier', [InventoryMovementController::class, 'createSupplierMovement']);
+            Route::post('/periphery-exchange', [InventoryMovementController::class, 'createServiceBulkExchange']);
             Route::post('/supplier-entry', [InventoryMovementController::class, 'createSupplierEntry']);
         });
         
@@ -71,8 +84,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         // Reports
         Route::prefix('reports')->group(function () {
+            Route::get('/inventory', [ReportController::class, 'inventoryReport']);
+            Route::get('/stagnant', [ReportController::class, 'stagnantCylinders']);
+            Route::get('/history/{id}', [ReportController::class, 'cylinderHistory']);
+            Route::get('/shift-closure', [ReportController::class, 'shiftClosure']);
+            Route::get('/consumption', [ReportController::class, 'consumptionReport']);
+            Route::get('/daily-kardex', [ReportController::class, 'dailyKardex']);
+            Route::get('/consumption-dashboard', [ReportController::class, 'dailyConsumptionDashboard']);
             Route::get('/kardex', [ReportController::class, 'kardexGeneral']);
-            Route::get('/consumption', [ReportController::class, 'dailyConsumptionSummary']);
         });
         
     });

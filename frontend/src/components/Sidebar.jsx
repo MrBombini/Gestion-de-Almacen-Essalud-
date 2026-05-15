@@ -13,7 +13,8 @@ import {
   MdPeople,
   MdInsertChartOutlined,
   MdPropaneTank,
-  MdAirlineSeatFlat 
+  MdAirlineSeatFlat,
+  MdSwapCalls
 } from 'react-icons/md';
 import { FaGasPump, FaBedPulse } from 'react-icons/fa6';
 
@@ -65,9 +66,13 @@ const Sidebar = () => {
             <FaGasPump className="text-lg" />
             <span>Trasiego (Cascada)</span>
           </NavLink>
-          <NavLink to="/inventory/supplier-entry" className={navLinkClass}>
+          <NavLink to="/inventory/supplier" className={navLinkClass}>
             <MdLocalShipping className="text-lg" />
-            <span>Entrada Proveedor</span>
+            <span>Mov. Proveedor</span>
+          </NavLink>
+          <NavLink to="/inventory/periphery" className={navLinkClass}>
+            <MdSwapCalls className="text-lg" />
+            <span>Canje de Red</span>
           </NavLink>
         </div>
 
@@ -103,10 +108,6 @@ const Sidebar = () => {
             <MdAirlineSeatFlat className='text-lg'/>
             <span>Camas</span>
           </NavLink>
-          <NavLink to="/suppliers" className={navLinkClass}>
-            <MdBusiness className="text-lg" />
-            <span>Proveedores</span>
-          </NavLink>
         </div>
 
         {/* SECCIÓN: ADMINISTRACIÓN (Condicional) */}
@@ -119,7 +120,11 @@ const Sidebar = () => {
             </NavLink>
             <NavLink to="/admin/reports" className={navLinkClass}>
               <MdInsertChartOutlined className="text-lg" />
-              <span>Kardex / Reportes</span>
+              <span>Reportes / Alertas</span>
+            </NavLink>
+            <NavLink to="/admin/kardex" className={navLinkClass}>
+              <MdAssignment className="text-lg" />
+              <span>Kardex General</span>
             </NavLink>
           </div>
         )}

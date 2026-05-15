@@ -12,8 +12,11 @@ return new class extends Migration
             $table->id();
             $table->string('full_name', 150);
             $table->string('dni', 15)->unique()->nullable();
-            $table->string('trasiego_code', 20)->nullable();
-            $table->string('exchange_code', 20)->nullable();
+            $table->string('trasiego_code', 100)->nullable();
+            $table->string('exchange_code', 100)->nullable();
+            $table->string('address', 255)->nullable();
+            $table->string('phone1', 20)->nullable();
+            $table->string('phone2', 20)->nullable();
             $table->timestamps();
             $table->softDeletes();
         });

@@ -17,10 +17,16 @@ class InventoryMovement extends Model
         'service_id',
         'bed_id',
         'prescription_id',
+        'supplier_id',
         'user_id',
         'movement_at',
         'notes'
     ];
+
+    public function supplier()
+    {
+        return $this->belongsTo(Supplier::class);
+    }
 
     public function patient()
     {

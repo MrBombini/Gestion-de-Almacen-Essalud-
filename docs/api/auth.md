@@ -1,70 +1,177 @@
-# Authentication Module
+# Autenticación
 
-Endpoints for session management.
+> **Prefijo:** `/api/auth`
+> **Librería:** Laravel Sanctum (tokens opacos)
 
-## Login
-Authenticates a user and returns a Sanctum token.
+El sistema usa autenticación por **Bearer Token**. Al iniciar sesión, el servidor genera un token único que debe incluirse en todas las peticiones protegidas.
 
-- **URL**: `/api/auth/login`
-- **Method**: `POST`
-- **Payload**:
+---
+
+## POST `/api/auth/login`
+
+Inicia sesión y devuelve un Bearer Token de acceso.
+
+- **Acceso:** Público (no requiere token)
+- **Método:** `POST`
+- **URL:** `/api/auth/login`
+
+### Request Body
+
 ```json
 {
-  "operator_code": "OP123456",
-  "password": "your_password",
-  "shift": "Morning"
+    "operator_code": "OP001",
+    "password": "secreto123",
+    "shift": "Morning"
 }
 ```
-*Note: `shift` must be "Morning", "Afternoon", or "Night".*
 
-- **Response (200 OK)**:
+| Campo | Tipo | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `operator_code` | string | ✅ | Código único del operador |
+| `password` | string | ✅ | Contraseña del usuario |
+| `shift` | string | ✅ | Turno actual: `Morning`, `Afternoon`, `Night` |
+
+### Respuesta Exitosa — `200 OK`
+
 ```json
 {
-  "message": "Login successful",
-  "token": "1|abc123token...",
-  "user": {
-    "id": 1,
-    "operator_code": "OP123456",
-    "name": "Juan Perez",
-    "role": "Operator",
-    "status": "active"
-  },
-  "current_shift": "Morning"
+    "message": "Login successful",
+    "token": "1|abc123def456xyz...",
+    "user": {
+        "id": 1,
+        "operator_code": "OP001",
+        "name": "Juan Pérez",
+        "role": "Operator",
+        "status": "active",
+        "created_at": "2026-01-15T08:00:00.000000Z",
+        "updated_at": "2026-01-15T08:00:00.000000Z"
+    },
+    "current_shift": "Morning"
+}
+```
+
+### Respuestas de Error
+
+```json
+// 401 — Credenciales incorrectas
+{
+    "message": "Invalid credentials."
+}
+
+// 403 — Cuenta inactiva
+{
+    "message": "This account is inactive."
+}
+
+// 422 — Campos faltantes o turno inválido
+{
+    "message": "The shift field must be one of Morning, Afternoon, Night.",
+    "errors": {
+        "shift": ["The shift field is required."]
+    }
+}
+```
+
+### Ejemplo de uso (JavaScript)
+
+```javascript
+const response = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        operator_code: 'OP001',
+        password: 'secreto123',
+        shift: 'Morning'
+    })
+});
+
+const data = await response.json();
+// Guardar el token para las siguientes peticiones
+localStorage.setItem('token', data.token);
+```
+
+---
+
+## POST `/api/auth/logout`
+
+Cierra la sesión actual revocando el token de acceso.
+
+- **Acceso:** Requiere autenticación
+- **Método:** `POST`
+- **URL:** `/api/auth/logout`
+
+### Headers Requeridos
+
+```
+Authorization: Bearer {token}
+```
+
+### Request Body
+
+*(Sin cuerpo — vacío)*
+
+### Respuesta Exitosa — `200 OK`
+
+```json
+{
+    "message": "Logged out successfully"
+}
+```
+
+> **Importante:** Después del logout, el token queda invalidado permanentemente. Para iniciar sesión nuevamente, se debe llamar a `POST /api/auth/login`.
+
+---
+
+## GET `/api/auth/me`
+
+Devuelve los datos del usuario actualmente autenticado.
+
+- **Acceso:** Requiere autenticación
+- **Método:** `GET`
+- **URL:** `/api/auth/me`
+
+### Headers Requeridos
+
+```
+Authorization: Bearer {token}
+```
+
+### Respuesta Exitosa — `200 OK`
+
+```json
+{
+    "user": {
+        "id": 1,
+        "operator_code": "OP001",
+        "name": "Juan Pérez",
+        "role": "Administrator",
+        "status": "active",
+        "created_at": "2026-01-15T08:00:00.000000Z",
+        "updated_at": "2026-01-15T08:00:00.000000Z"
+    }
 }
 ```
 
 ---
 
-## Logout
-Revokes the current access token.
+## Uso del Token en Peticiones
 
-- **URL**: `/api/auth/logout`
-- **Method**: `POST`
-- **Headers**: `Authorization: Bearer {token}`
-- **Response (200 OK)**:
-```json
-{
-  "message": "Logged out successfully"
-}
+Una vez obtenido el token del login, inclúyelo en el header `Authorization` de todas las peticiones protegidas:
+
+```javascript
+// Ejemplo con fetch
+const response = await fetch('/api/cylinders', {
+    headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    }
+});
 ```
 
----
-
-## Get Current User (Me)
-Returns the information of the authenticated user.
-
-- **URL**: `/api/auth/me`
-- **Method**: `GET`
-- **Headers**: `Authorization: Bearer {token}`
-- **Response (200 OK)**:
-```json
-{
-  "user": {
-    "id": 1,
-    "operator_code": "OP123456",
-    "name": "Juan Perez",
-    "role": "Operator",
-    "status": "active"
-  }
-}
+```bash
+# Ejemplo con cURL
+curl -X GET http://localhost:8000/api/cylinders \
+  -H "Authorization: Bearer 1|abc123def456xyz" \
+  -H "Accept: application/json"
 ```

@@ -8,25 +8,14 @@ class DatabaseSeeder extends Seeder
 {
     /**
      * Seed the application's database.
+     * Solo carga los usuarios iniciales.
+     * El resto de datos maestros (Tipos de Propiedad, Proveedores, Servicios)
+     * se gestionan desde los CRUDs del sistema.
      */
     public function run(): void
     {
-        // 1. Master Data Seeders
         $this->call([
-            OwnershipTypeSeeder::class,
             UserSeeder::class,
-            SupplierSeeder::class,
         ]);
-
-        // 2. Patients (5)
-        \App\Models\Patient::factory(5)->create();
-
-        // 3. Services (3) with 5 Beds each
-        \App\Models\Service::factory(3)
-            ->has(\App\Models\Bed::factory()->count(5))
-            ->create();
-
-        // 4. Cylinders (20)
-        \App\Models\Cylinder::factory(20)->create();
     }
 }

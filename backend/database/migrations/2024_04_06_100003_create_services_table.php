@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('services', function (Blueprint $table) {
             $table->id();
             $table->string('name', 100)->unique();
-            $table->string('type', 50); // Hospital, PADOMI, etc.
+            $table->string('type', 50)->default('Hospital'); // Hospital, PADOMI, etc.
             $table->timestamps();
             $table->softDeletes();
         });

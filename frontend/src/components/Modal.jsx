@@ -1,13 +1,15 @@
 import { MdClose } from 'react-icons/md';
 
-const Modal = ({ isOpen, onClose, title, children }) => {
+const Modal = ({ isOpen, onClose, title, children, elevated = false, maxWidth = 'max-w-md' }) => {
   // Si no está abierto, no renderizamos nada
   if (!isOpen) return null;
 
+  const zClass = elevated ? 'z-[200]' : 'z-50';
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+    <div className={`fixed inset-0 ${zClass} flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4`}>
       {/* Contenedor del Modal */}
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up">
+      <div className={`bg-white rounded-2xl shadow-2xl w-full ${maxWidth} overflow-hidden animate-fade-in-up`}>
         
         {/* Cabecera del Modal */}
         <div className="flex justify-between items-center px-6 py-4 border-b border-slate-200 bg-slate-50">

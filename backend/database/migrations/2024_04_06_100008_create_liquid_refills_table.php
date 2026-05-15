@@ -13,6 +13,8 @@ return new class extends Migration
             $table->foreignId('supplier_id')->constrained('suppliers');
             $table->decimal('level_before', 10, 2);
             $table->decimal('level_after', 10, 2);
+            $table->decimal('weight_before', 10, 2);
+            $table->decimal('weight_after', 10, 2);
             $table->decimal('ticket_amount', 10, 2)->nullable();
             $table->string('reference_document', 100)->nullable(); // Ej: Guía de Remisión
             $table->foreignId('user_id')->constrained('users');

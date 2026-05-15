@@ -17,6 +17,16 @@ class Service extends Model
         return $this->hasMany(Bed::class);
     }
 
+    public function inventoryMovements()
+    {
+        return $this->hasMany(InventoryMovement::class);
+    }
+
+    public function cylinders()
+    {
+        return $this->hasMany(Cylinder::class);
+    }
+
     public function prescriptions()
     {
         return $this->hasMany(Prescription::class);

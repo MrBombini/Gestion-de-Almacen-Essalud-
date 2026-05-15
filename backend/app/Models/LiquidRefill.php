@@ -13,6 +13,8 @@ class LiquidRefill extends Model
         'supplier_id', 
         'level_before', 
         'level_after', 
+        'weight_before',
+        'weight_after',
         'ticket_amount', 
         'reference_document', 
         'user_id', 

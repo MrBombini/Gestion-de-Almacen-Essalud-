@@ -3,22 +3,23 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Supplier extends Model
 {
-    use HasFactory, SoftDeletes;
+    use SoftDeletes;
 
-    protected $fillable = ['name', 'description'];
+    protected $fillable = [
+        'name',
+        'ruc',
+        'address',
+        'phone',
+        'email',
+        'description'
+    ];
 
     public function cylinders()
     {
         return $this->hasMany(Cylinder::class);
-    }
-
-    public function liquidRefills()
-    {
-        return $this->hasMany(LiquidRefill::class);
     }
 }
