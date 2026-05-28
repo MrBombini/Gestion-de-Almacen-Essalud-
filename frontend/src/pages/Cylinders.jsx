@@ -173,7 +173,12 @@ const Cylinders = () => {
     e.preventDefault();
     setActionLoading(true);
     const finalData = { ...formData };
-    if (formData.ownership_type_id !== 3) finalData.patient_id = null;
+    
+    const ownershipName = ownershipTypesList.find(t => t.id === formData.ownership_type_id)?.name;
+    if (ownershipName !== 'Propio Paciente') {
+      finalData.patient_id = null;
+    }
+    
     try {
       if (editingId) {
         await execute({ url: `/cylinders/${editingId}`, method: 'PUT', body: finalData });

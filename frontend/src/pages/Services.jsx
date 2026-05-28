@@ -157,8 +157,11 @@ const Services = () => {
                                             <td className="px-6 py-4 text-sm text-slate-500">#{service.id}</td>
                                             <td className="px-6 py-4 text-sm font-medium text-slate-800">{service.name}</td>
                                             <td className="px-6 py-4 text-sm">
-                                                <span className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${service.type === 'Hospital'
+                                                <span className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${
+                                                    service.type === 'Hospital'
                                                         ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                                        : service.type === 'PERIFERIE'
+                                                        ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
                                                         : 'bg-purple-50 text-purple-700 border-purple-100'
                                                     }`}>
                                                     {service.type}
@@ -219,6 +222,7 @@ const Services = () => {
                         >
                             <option value="Hospital">Área Médica (Hospitalización)</option>
                             <option value="Manifold">Área de Recarga (Manifold)</option>
+                            <option value="PERIFERIE">Hospital Periférico (Red / Periferia)</option>
                         </select>
                     </div>
 

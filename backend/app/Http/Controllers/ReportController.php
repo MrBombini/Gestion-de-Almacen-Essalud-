@@ -72,7 +72,8 @@ class ReportController extends Controller
             'date' => $date,
             'stock_summary' => $stockSummary,
             'initial_balance' => $initialBalance,
-            'shifts' => $formattedShifts
+            'shifts' => $formattedShifts,
+            'note' => 'El saldo inicial detallado y por propietario muestra una captura en tiempo real del estado actual del almacén.'
         ]);
     }
 
@@ -140,7 +141,7 @@ class ReportController extends Controller
             'almacen_vacios' => $emptyStock,
             'resumen_final' => [
                 'total_ingreso' => InventoryMovement::whereDate('movement_at', $date)
-                    ->where('type', 'SupplierEntry')
+                    ->whereIn('type', ['SupplierEntry', 'SupplierMovement'])
                     ->join('cylinder_movements', 'inventory_movements.id', '=', 'cylinder_movements.inventory_movement_id')
                     ->where('cylinder_movements.action', 'Entry')
                     ->count()
@@ -151,11 +152,12 @@ class ReportController extends Controller
     /**
      * Reporte Auxiliar: Kardex General (Listado simple)
      */
-    public function kardexGeneral()
+    public function kardexGeneral(Request $request)
     {
+        $perPage = $request->query('per_page', 100);
         $kardex = InventoryMovement::with(['user', 'patient', 'service', 'cylinderMovements.cylinder'])
             ->orderBy('movement_at', 'desc')
-            ->get();
+            ->paginate($perPage);
                            
         return response()->json($kardex);
     }

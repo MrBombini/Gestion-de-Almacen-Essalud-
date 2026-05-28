@@ -36,26 +36,4 @@ class LiquidController extends Controller
 
         return response()->json($refill, 201);
     }
-
-    public function storeDailyReading(Request $request)
-    {
-        $validated = $request->validate([
-            'ext_tank_reserve'          => 'required|numeric',
-            'int_warehouse_consumption' => 'required|numeric',
-            'calculated_consumption'    => 'required|numeric',
-            'reading_date'              => 'required|date',
-            'shift'                     => 'required|string|in:Morning,Afternoon,Night',
-        ]);
-
-        $reading = DailyReading::create([
-            'ext_tank_reserve'          => $validated['ext_tank_reserve'],
-            'int_warehouse_consumption' => $validated['int_warehouse_consumption'],
-            'calculated_consumption'    => $validated['calculated_consumption'],
-            'reading_date'              => $validated['reading_date'],
-            'shift'                     => $validated['shift'],
-            'user_id'                   => Auth::id(),
-        ]);
-
-        return response()->json($reading, 201);
-    }
 }

@@ -42,7 +42,7 @@ class PatientController extends Controller
             if (!empty($validated['dosage']) || !empty($validated['expires_at'])) {
                 Prescription::create([
                     'patient_id' => $patient->id,
-                    'service_id' => 1, // Por defecto Almacén Central o similar
+                    'service_id' => null, // Por defecto nullable
                     'dosage'     => $validated['dosage'],
                     'usage_time' => $validated['usage_time'],
                     'expires_at' => $validated['expires_at'],
@@ -69,8 +69,8 @@ class PatientController extends Controller
         $validated = $request->validate([
             'full_name'     => 'required|string|max:150',
             'dni'           => 'nullable|string|max:15|unique:patients,dni,' . $id,
-            'trasiego_code' => 'nullable|string|max:20',
-            'exchange_code' => 'nullable|string|max:20',
+            'trasiego_code' => 'nullable|string|max:100',
+            'exchange_code' => 'nullable|string|max:100',
             'address'       => 'nullable|string|max:255',
             'phone1'        => 'nullable|string|max:20',
             'phone2'        => 'nullable|string|max:20',
@@ -85,28 +85,30 @@ class PatientController extends Controller
         return DB::transaction(function() use ($patient, $validated) {
             $patient->update($validated);
 
-            // Actualizar o crear la receta activa
-            $prescription = Prescription::where('patient_id', $patient->id)
-                ->where('status', 'active')
-                ->first();
+            // [M-6] Solo actualizar o crear la receta activa si se envían datos esenciales de receta
+            if (!empty($validated['dosage']) || !empty($validated['expires_at'])) {
+                $prescription = Prescription::where('patient_id', $patient->id)
+                    ->where('status', 'active')
+                    ->first();
 
-            $prescriptionData = [
-                'dosage'     => $validated['dosage'],
-                'usage_time' => $validated['usage_time'],
-                'expires_at' => $validated['expires_at'],
-                'promissory_note' => $validated['promissory_note'],
-                'authorization_date' => $validated['authorization_date'],
-            ];
+                $prescriptionData = [
+                    'dosage'     => $validated['dosage'],
+                    'usage_time' => $validated['usage_time'] ?? null,
+                    'expires_at' => $validated['expires_at'],
+                    'promissory_note' => $validated['promissory_note'] ?? null,
+                    'authorization_date' => $validated['authorization_date'] ?? null,
+                ];
 
-            if ($prescription) {
-                $prescription->update($prescriptionData);
-            } else {
-                Prescription::create(array_merge($prescriptionData, [
-                    'patient_id' => $patient->id,
-                    'service_id' => 1,
-                    'status'     => 'active',
-                    'issued_at'  => now(),
-                ]));
+                if ($prescription) {
+                    $prescription->update($prescriptionData);
+                } else {
+                    Prescription::create(array_merge($prescriptionData, [
+                        'patient_id' => $patient->id,
+                        'service_id' => null, // [C-4] nullable service_id
+                        'status'     => 'active',
+                        'issued_at'  => now(),
+                    ]));
+                }
             }
 
             return response()->json($patient->load('prescriptions'));

@@ -8,9 +8,9 @@ import { format } from 'date-fns';
 const Exchange = () => {
   const { shift } = useAuth();
 
-  const { data: patients, loading: loadingP } = useFetch('/patients');
+  const { data: patients, loading: loadingP, refetch: refetchP } = useFetch('/patients');
   const { data: services, loading: loadingS } = useFetch('/services');
-  const { data: cylinders, loading: loadingC } = useFetch('/cylinders');
+  const { data: cylinders, loading: loadingC, refetch: refetchC } = useFetch('/cylinders');
 
   const { execute, loading: actionLoading } = useFetch('/inventory/exchange', 'POST', null, false);
 
@@ -61,7 +61,7 @@ const Exchange = () => {
       if (patient?.prescriptions && patient.prescriptions.length > 0) {
         const activePrescription = patient.prescriptions.find(pr => pr.status === 'active');
         if (activePrescription) {
-          const today = new Date().toISOString().split('T')[0];
+          const today = format(new Date(), 'yyyy-MM-dd');
           if (today > activePrescription.expires_at) {
             setPrescriptionAlert({
               type: 'error',
@@ -157,8 +157,8 @@ const Exchange = () => {
       if (!formData.service_id) return setErrorMessage('No se encontró el servicio de Manifold en la base de datos.');
     }
 
-    if (!formData.cylinder_in) {
-      return setErrorMessage('Debes seleccionar al menos el cilindro que se RECIBE (entrada).');
+    if (!formData.cylinder_in && !formData.cylinder_out) {
+      return setErrorMessage('Debes seleccionar al menos un cilindro de entrada (recibido) o de salida (entregado).');
     }
 
     try {
@@ -172,6 +172,8 @@ const Exchange = () => {
         prescription_id: '', cylinder_in: '', cylinder_out: '', notes: ''
       });
       setPrescriptionAlert(null);
+      refetchC();
+      refetchP();
     } catch (err) {
       setErrorMessage(err.response?.data?.message || 'Error en el registro.');
     }
@@ -244,7 +246,7 @@ const Exchange = () => {
               <div className="space-y-4 animate-fade-in">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2"><MdLocalHospital className="text-slate-400" /> Servicio</label>
-                  <Select options={serviceOptions.filter(s => s.type === 'HOSPITALIZACION')} styles={customStyles} placeholder="-- Seleccionar Servicio --" value={serviceOptions.find(o => o.value === formData.service_id) || null} onChange={(s) => setFormData({ ...formData, service_id: s?.value || '', bed_id: '' })} />
+                  <Select options={serviceOptions.filter(s => s.type?.toUpperCase() === 'HOSPITALIZACION' || s.type?.toLowerCase() === 'hospital')} styles={customStyles} placeholder="-- Seleccionar Servicio --" value={serviceOptions.find(o => o.value === formData.service_id) || null} onChange={(s) => setFormData({ ...formData, service_id: s?.value || '', bed_id: '' })} />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2"><MdHotel className="text-slate-400" /> Cama Específica</label>
@@ -267,9 +269,9 @@ const Exchange = () => {
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Seleccione el Manifold (Lado)</label>
                   <Select 
-                    options={serviceOptions.filter(s => s.label.includes('MANIFOLD'))} 
+                    options={serviceOptions.filter(s => s.type?.toLowerCase() === 'manifold' || s.label?.toUpperCase().includes('MANIFOLD'))} 
                     styles={customStyles} 
-                    placeholder="-- Elegir Manifold 1 o 2 --" 
+                    placeholder="-- Elegir Manifold Lado A o B --" 
                     value={serviceOptions.find(o => o.value === formData.service_id) || null} 
                     onChange={(s) => setFormData({ ...formData, service_id: s?.value || '' })} 
                   />
@@ -285,7 +287,7 @@ const Exchange = () => {
 
             <div>
               <label className="block text-sm font-semibold text-emerald-700 mb-1 font-mono uppercase tracking-wider">Cilindro ENTREGADO (Lleno)</label>
-              <Select options={cylinderOutOptions} styles={customStyles} placeholder="-- Seleccionar Lleno de Almacén --" value={cylinderOutOptions.find(o => o.value === formData.cylinder_out) || null} onChange={(s) => setFormData({ ...formData, cylinder_out: s?.value || '' })} />
+              <Select options={cylinderOutOptions} styles={customStyles} isClearable placeholder="-- Seleccionar Lleno de Almacén --" value={cylinderOutOptions.find(o => o.value === formData.cylinder_out) || null} onChange={(s) => setFormData({ ...formData, cylinder_out: s?.value || '' })} />
             </div>
 
             <div>
@@ -293,6 +295,7 @@ const Exchange = () => {
               <Select
                 options={cylinderInOptions}
                 styles={customStyles}
+                isClearable
                 isDisabled={(destinationType === 'patient' && !formData.patient_id) || (destinationType === 'service' && !formData.bed_id) || (destinationType === 'manifold' && !formData.service_id)}
                 placeholder="-- Seleccionar Balón que el destino devuelve --"
                 value={cylinderInOptions.find(o => o.value === formData.cylinder_in) || null}

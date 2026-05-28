@@ -20,7 +20,7 @@ class PrescriptionController extends Controller
         ]);
 
         $prescription = Prescription::create(array_merge($validated, [
-            'service_id' => 1,
+            'service_id' => null,
             'issued_at'  => now(),
         ]));
 

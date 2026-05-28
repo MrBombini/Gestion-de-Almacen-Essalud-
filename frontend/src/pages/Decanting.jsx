@@ -3,13 +3,14 @@ import { MdSave, MdCompress, MdPropaneTank, MdLocalHospital, MdPerson } from 're
 import Select from 'react-select';
 import useFetch from '../hooks/useFetch';
 import { useAuth } from '../context/AuthContext';
+import { format } from 'date-fns';
 
 const Decanting = () => {
   const { shift } = useAuth();
 
-  const { data: cylinders, loading: loadingC } = useFetch('/cylinders');
+  const { data: cylinders, loading: loadingC, refetch: refetchC } = useFetch('/cylinders');
   const { data: services, loading: loadingS } = useFetch('/services');
-  const { data: patients, loading: loadingP } = useFetch('/patients');
+  const { data: patients, loading: loadingP, refetch: refetchP } = useFetch('/patients');
 
   const { execute, loading: actionLoading } = useFetch('/inventory/decanting', 'POST', null, false);
 
@@ -46,8 +47,8 @@ const Decanting = () => {
   const cylinderOptions = cylindersList
     .filter(c => (c.status === 'empty' || c.status === 'in_use') && Number(c.capacity) >= 1 && Number(c.capacity) <= 10)
     .filter(c => {
-      if (destinationType === 'service') return c.ownership_type?.name === 'EsSalud';
-      if (destinationType === 'patient') return c.ownership_type?.name === 'Propio Paciente' && c.patient_id === formData.patient_id;
+      if (destinationType === 'service') return c.ownership_type?.name?.toLowerCase().includes('essalud');
+      if (destinationType === 'patient') return c.ownership_type?.name?.toLowerCase().includes('propio') && c.patient_id === formData.patient_id;
       return false;
     })
     .map(c => ({
@@ -66,7 +67,7 @@ const Decanting = () => {
     if (destinationType === 'patient' && formData.patient_id) {
       const patient = patientOptions.find(p => p.value === formData.patient_id);
       if (patient) {
-        const today = new Date().toISOString().split('T')[0];
+        const today = format(new Date(), 'yyyy-MM-dd');
         const validPrescription = patient.prescriptions.find(
           rx => rx.status === 'active' && rx.expires_at >= today
         );
@@ -126,6 +127,8 @@ const Decanting = () => {
       });
       setSelectedCylinderData(null);
       setPrescriptionAlert(null);
+      refetchC();
+      refetchP();
     } catch (err) {
       setErrorMessage(err.response?.data?.message || 'Error al registrar el trasiego. Verifica los datos.');
     }
