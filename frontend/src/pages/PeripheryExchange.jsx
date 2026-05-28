@@ -8,7 +8,7 @@ const PeripheryExchange = () => {
   const { shift } = useAuth();
   
   const { data: services, loading: loadingS } = useFetch('/services');
-  const { data: cylinders, loading: loadingC } = useFetch('/cylinders');
+  const { data: cylinders, loading: loadingC, refetch: refetchC } = useFetch('/cylinders');
   
   const { execute, loading: actionLoading } = useFetch('/inventory/periphery-exchange', 'POST', null, false);
 
@@ -37,7 +37,7 @@ const PeripheryExchange = () => {
 
   // Balones para RECIBIR (Deben estar asociados al servicio o ser de su propiedad)
   const cylindersInOptions = cylindersList
-    .filter(c => c.gas_type === 'OXÍGENO MEDICINAL' && c.ownership_type_id !== 3 && Number(c.capacity) === 10)
+    .filter(c => c.gas_type === 'OXÍGENO MEDICINAL' && c.ownership_type?.name?.toLowerCase() !== 'propio paciente' && Number(c.capacity) === 10)
     .filter(c => c.status !== 'full' || c.current_service_id === formData.service_id)
     .map(c => ({
       value: c.id,
@@ -46,7 +46,7 @@ const PeripheryExchange = () => {
 
   // Balones para ENTREGAR (Deben estar llenos en el almacén)
   const cylindersOutOptions = cylindersList
-    .filter(c => c.gas_type === 'OXÍGENO MEDICINAL' && c.ownership_type_id !== 3 && Number(c.capacity) === 10)
+    .filter(c => c.gas_type === 'OXÍGENO MEDICINAL' && c.ownership_type?.name?.toLowerCase() !== 'propio paciente' && Number(c.capacity) === 10)
     .filter(c => c.status === 'full' && !c.current_service_id)
     .map(c => ({
       value: c.id,
@@ -81,6 +81,7 @@ const PeripheryExchange = () => {
         cylinders_out: [],
         notes: ''
       });
+      refetchC();
     } catch (err) {
       setErrorMessage(err.response?.data?.message || 'Error en el registro.');
     }

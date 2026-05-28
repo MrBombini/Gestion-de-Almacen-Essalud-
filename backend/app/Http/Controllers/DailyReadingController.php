@@ -22,7 +22,13 @@ class DailyReadingController extends Controller
             'flow_meter_reading' => 'required|numeric|min:0',
         ]);
 
-        $lastReading = DailyReading::orderBy('id', 'desc')->first();
+        $lastReading = DailyReading::where('reading_date', '<', $validated['reading_date'])
+            ->orWhere(function($query) use ($validated) {
+                $query->where('reading_date', $validated['reading_date']);
+            })
+            ->orderBy('reading_date', 'desc')
+            ->orderBy('id', 'desc')
+            ->first();
         $calculatedConsumption = 0;
         
         if ($lastReading) {
@@ -49,8 +55,17 @@ class DailyReadingController extends Controller
             'flow_meter_reading' => 'required|numeric|min:0',
         ]);
 
-        // Recalcular consumo comparando con la lectura anterior (la inmediatamente antes por ID)
-        $prevReading = DailyReading::where('id', '<', $id)->orderBy('id', 'desc')->first();
+        // Recalcular consumo comparando con la lectura anterior en orden cronológico
+        $prevReading = DailyReading::where(function($query) use ($id, $validated) {
+            $query->where('reading_date', '<', $validated['reading_date'])
+                ->orWhere(function($q) use ($id, $validated) {
+                    $q->where('reading_date', $validated['reading_date'])
+                      ->where('id', '<', $id);
+                });
+        })
+        ->orderBy('reading_date', 'desc')
+        ->orderBy('id', 'desc')
+        ->first();
         $calculatedConsumption = 0;
 
         if ($prevReading) {

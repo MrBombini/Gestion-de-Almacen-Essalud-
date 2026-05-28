@@ -24,7 +24,7 @@ class InventoryMovementController extends Controller
             'service_id'      => ['nullable', 'exists:services,id'],
             'bed_id'          => ['nullable', 'exists:beds,id'],
             'prescription_id' => ['nullable', 'exists:prescriptions,id'],
-            'cylinder_in'     => ['required', 'exists:cylinders,id'],
+            'cylinder_in'     => ['nullable', 'exists:cylinders,id'],
             'cylinder_out'    => ['nullable', 'exists:cylinders,id'],
             'shift'           => ['required', 'string', 'in:Morning,Afternoon,Night'],
             'notes'           => ['nullable', 'string']
@@ -32,6 +32,10 @@ class InventoryMovementController extends Controller
 
         if (empty($validated['patient_id']) && empty($validated['service_id'])) {
             return response()->json(['message' => 'Debe seleccionar un Paciente o un Servicio.'], 422);
+        }
+
+        if (empty($validated['cylinder_in']) && empty($validated['cylinder_out'])) {
+            return response()->json(['message' => 'Debe seleccionar al menos un cilindro de entrada (recibido) o de salida (entregado).'], 422);
         }
 
         // Validación de Receta para Pacientes
@@ -45,6 +49,27 @@ class InventoryMovementController extends Controller
             
             if (!$prescription || $today > $prescription->expires_at) {
                 return response()->json(['message' => 'La receta del paciente ha expirado o es inválida.'], 422);
+            }
+        }
+
+        // [C-3] Validar pertenencia/ubicación de cylinder_in si se proporciona
+        if (!empty($validated['cylinder_in'])) {
+            $cylinderInCheck = Cylinder::find($validated['cylinder_in']);
+            if (!$cylinderInCheck) {
+                return response()->json(['message' => 'El cilindro de entrada no existe.'], 422);
+            }
+
+            if (!empty($validated['patient_id'])) {
+                if ($cylinderInCheck->current_patient_id != $validated['patient_id']) {
+                    return response()->json(['message' => 'El cilindro a recibir no está asignado actualmente a este paciente.'], 422);
+                }
+            } elseif (!empty($validated['service_id'])) {
+                if ($cylinderInCheck->current_service_id != $validated['service_id']) {
+                    return response()->json(['message' => 'El cilindro a recibir no está asignado actualmente a este servicio.'], 422);
+                }
+                if (!empty($validated['bed_id']) && $cylinderInCheck->current_bed_id != $validated['bed_id']) {
+                    return response()->json(['message' => 'El cilindro a recibir no está asignado a la cama especificada.'], 422);
+                }
             }
         }
 
@@ -66,21 +91,25 @@ class InventoryMovementController extends Controller
             if ($validated['patient_id']) $newLocation = 'PADOMI';
             elseif ($validated['service_id']) $newLocation = 'HOSPITALIZACION';
 
-            // 1. Cilindro Recibido (SIEMPRE REQUERIDO: Entra vacío al almacén)
-            CylinderMovement::create([
-                'inventory_movement_id' => $movement->id,
-                'cylinder_id'           => $validated['cylinder_in'],
-                'action'                => 'Entry',
-                'cylinder_status'       => 'empty'
-            ]);
-            
-            Cylinder::where('id', $validated['cylinder_in'])->update([
-                'status'             => 'empty',
-                'location'           => 'CENTRAL',
-                'current_patient_id' => null,
-                'current_service_id' => null,
-                'current_bed_id'     => null
-            ]);
+            // 1. Cilindro Recibido (Entra vacío al almacén si se provee)
+            if (!empty($validated['cylinder_in'])) {
+                CylinderMovement::create([
+                    'inventory_movement_id' => $movement->id,
+                    'cylinder_id'           => $validated['cylinder_in'],
+                    'action'                => 'Entry',
+                    'cylinder_status'       => 'empty'
+                ]);
+                
+                // [A-4] DB pessimistic locking
+                $cylinderIn = Cylinder::where('id', $validated['cylinder_in'])->lockForUpdate()->first();
+                $cylinderIn->update([
+                    'status'             => 'empty',
+                    'location'           => 'CENTRAL',
+                    'current_patient_id' => null,
+                    'current_service_id' => null,
+                    'current_bed_id'     => null
+                ]);
+            }
 
             // 2. Cilindro Entregado (OPCIONAL: Solo si el paciente se lleva uno lleno)
             if (!empty($validated['cylinder_out'])) {
@@ -91,7 +120,9 @@ class InventoryMovementController extends Controller
                     'cylinder_status'       => 'in_use'
                 ]);
                 
-                Cylinder::where('id', $validated['cylinder_out'])->update([
+                // [A-4] DB pessimistic locking
+                $cylinderOut = Cylinder::where('id', $validated['cylinder_out'])->lockForUpdate()->first();
+                $cylinderOut->update([
                     'status'             => 'in_use',
                     'location'           => $newLocation,
                     'current_patient_id' => $validated['patient_id'] ?? null,
@@ -111,7 +142,7 @@ class InventoryMovementController extends Controller
     {
         $validated = $request->validate([
             'cylinder_id'        => ['required', 'exists:cylinders,id'],
-            'refilled_amount'    => ['required', 'numeric', 'min:0'],
+            'refilled_amount'    => ['required', 'numeric', 'min:0.01'],
             'shift'              => ['required', 'string', 'in:Morning,Afternoon,Night'],
             'service_id'         => ['nullable', 'exists:services,id'],
             'bed_id'             => ['nullable', 'exists:beds,id'],
@@ -119,6 +150,15 @@ class InventoryMovementController extends Controller
             'prescription_id'    => ['nullable', 'exists:prescriptions,id'],
             'manual_destination' => ['nullable', 'string', 'max:150']
         ]);
+
+        $cylinderCheck = Cylinder::find($validated['cylinder_id']);
+        if (!$cylinderCheck) {
+            return response()->json(['message' => 'El cilindro a recargar no existe.'], 422);
+        }
+
+        if ($validated['refilled_amount'] > $cylinderCheck->capacity) {
+            return response()->json(['message' => "La cantidad recargada ({$validated['refilled_amount']} m³) supera la capacidad máxima del cilindro ({$cylinderCheck->capacity} m³)."], 422);
+        }
 
         if (!empty($validated['patient_id'])) {
             if (empty($validated['prescription_id'])) {
@@ -150,7 +190,9 @@ class InventoryMovementController extends Controller
             if ($validated['patient_id']) $newLocation = 'PADOMI';
             elseif ($validated['service_id']) $newLocation = 'HOSPITALIZACION';
 
-            Cylinder::where('id', $validated['cylinder_id'])->update([
+            // [A-4] DB pessimistic locking
+            $cylinder = Cylinder::where('id', $validated['cylinder_id'])->lockForUpdate()->first();
+            $cylinder->update([
                 'status'             => 'in_use',
                 'location'           => $newLocation,
                 'current_patient_id' => $validated['patient_id'] ?? null,
@@ -162,7 +204,7 @@ class InventoryMovementController extends Controller
         });
     }
 
-    public function createSupplierMovement(Request $request)
+    public function createSupplierMovement(Request $request, $type = 'SupplierMovement')
     {
         $validated = $request->validate([
             'supplier_id'        => ['required', 'exists:suppliers,id'],
@@ -175,9 +217,14 @@ class InventoryMovementController extends Controller
             'notes'              => ['nullable', 'string']
         ]);
 
-        return DB::transaction(function () use ($validated) {
+        // [M-8] Validar que al menos uno tenga datos
+        if (empty($validated['cylinders_in']) && empty($validated['cylinders_out'])) {
+            return response()->json(['message' => 'Debe ingresar al menos un cilindro de entrada o de salida.'], 422);
+        }
+
+        return DB::transaction(function () use ($validated, $type) {
             $movement = InventoryMovement::create([
-                'type'               => 'SupplierMovement',
+                'type'               => $type,
                 'supplier_id'        => $validated['supplier_id'],
                 'reference_document' => $validated['reference_document'],
                 'shift'              => $validated['shift'],
@@ -196,7 +243,9 @@ class InventoryMovementController extends Controller
                         'cylinder_status'       => 'full'
                     ]);
 
-                    Cylinder::where('id', $cylinderId)->update([
+                    // [A-4] DB pessimistic locking
+                    $cylinder = Cylinder::where('id', $cylinderId)->lockForUpdate()->first();
+                    $cylinder->update([
                         'status'             => 'full',
                         'location'           => 'CENTRAL', // Regresa al almacén central
                         'current_patient_id' => null,
@@ -216,7 +265,9 @@ class InventoryMovementController extends Controller
                         'cylinder_status'       => 'in_transit'
                     ]);
 
-                    Cylinder::where('id', $cylinderId)->update([
+                    // [A-4] DB pessimistic locking
+                    $cylinder = Cylinder::where('id', $cylinderId)->lockForUpdate()->first();
+                    $cylinder->update([
                         'status'             => 'in_transit',
                         'location'           => 'PROVEEDOR', // Se va a recarga
                         'current_patient_id' => null,
@@ -263,7 +314,9 @@ class InventoryMovementController extends Controller
                         'cylinder_status'       => 'empty'
                     ]);
 
-                    Cylinder::where('id', $cylinderId)->update([
+                    // [A-4] DB pessimistic locking
+                    $cylinder = Cylinder::where('id', $cylinderId)->lockForUpdate()->first();
+                    $cylinder->update([
                         'status'             => 'empty',
                         'location'           => 'CENTRAL',
                         'current_patient_id' => null,
@@ -282,7 +335,9 @@ class InventoryMovementController extends Controller
                         'cylinder_status'       => 'in_use'
                     ]);
 
-                    Cylinder::where('id', $cylinderId)->update([
+                    // [A-4] DB pessimistic locking
+                    $cylinder = Cylinder::where('id', $cylinderId)->lockForUpdate()->first();
+                    $cylinder->update([
                         'status'             => 'in_use',
                         'location'           => 'HOSPITALIZACION', // Destino genérico para servicios
                         'current_patient_id' => null,
@@ -298,6 +353,6 @@ class InventoryMovementController extends Controller
 
     public function createSupplierEntry(Request $request)
     {
-        return $this->createSupplierMovement($request);
+        return $this->createSupplierMovement($request, 'SupplierEntry');
     }
 }

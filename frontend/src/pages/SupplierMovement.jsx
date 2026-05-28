@@ -8,7 +8,7 @@ const SupplierMovement = () => {
   const { shift } = useAuth();
   
   const { data: suppliers, loading: loadingS } = useFetch('/suppliers');
-  const { data: cylinders, loading: loadingC } = useFetch('/cylinders');
+  const { data: cylinders, loading: loadingC, refetch: refetchC } = useFetch('/cylinders');
   
   const { execute, loading: actionLoading } = useFetch('/inventory/supplier', 'POST', null, false);
 
@@ -35,7 +35,7 @@ const SupplierMovement = () => {
 
   // Balones disponibles para SALIR (Deben estar vacíos, de 10m3 y NO de pacientes)
   const cylindersOutOptions = cylindersList
-    .filter(c => c.status === 'empty' && Number(c.capacity) === 10 && c.ownership_type_id !== 3)
+    .filter(c => c.status === 'empty' && Number(c.capacity) === 10 && c.ownership_type?.name?.toLowerCase() !== 'propio paciente')
     .map(c => ({
       value: c.id,
       label: `${c.serial_number} | ${c.ownership_type?.name || 'S/D'} | ${Number(c.capacity)}m³`
@@ -43,7 +43,7 @@ const SupplierMovement = () => {
 
   // Balones que podrían estar ENTRANDO (Los que están en el proveedor o vacíos para retorno rápido)
   const cylindersInOptions = cylindersList
-    .filter(c => (c.status === 'in_transit' || c.status === 'empty') && Number(c.capacity) === 10 && c.ownership_type_id !== 3)
+    .filter(c => (c.status === 'in_transit' || c.status === 'empty') && Number(c.capacity) === 10 && c.ownership_type?.name?.toLowerCase() !== 'propio paciente')
     .map(c => ({
       value: c.id,
       label: `${c.serial_number} | ${c.ownership_type?.name || 'S/D'} | ${Number(c.capacity)}m³${c.status === 'in_transit' ? ' [EN PROVEEDOR]' : ''}`
@@ -78,6 +78,7 @@ const SupplierMovement = () => {
         cylinders_out: [],
         notes: ''
       });
+      refetchC();
     } catch (err) {
       setErrorMessage(err.response?.data?.message || 'Error en el registro.');
     }

@@ -3,6 +3,7 @@ import { MdTimeline, MdSave, MdWaterDrop, MdSpeed, MdHistory, MdDelete, MdEdit, 
 import useFetch from '../hooks/useFetch';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import { format } from 'date-fns';
 
 const DailyReading = () => {
   const { shift } = useAuth();
@@ -12,7 +13,7 @@ const DailyReading = () => {
   const { execute, loading: actionLoading } = useFetch('/daily-readings', 'POST', null, false);
 
   const [formData, setFormData] = useState({
-    reading_date: new Date().toISOString().split('T')[0],
+    reading_date: format(new Date(), 'yyyy-MM-dd'),
     shift: shift || 'Morning',
     tank_level: '',
     flow_meter_reading: ''

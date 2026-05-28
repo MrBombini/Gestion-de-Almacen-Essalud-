@@ -53,7 +53,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::apiResource('ownership-types', OwnershipTypeController::class);
 
         // Prescriptions (Sub-CRUD de Pacientes)
-        Route::get('patients/{id}', [PatientController::class, 'show']);
         Route::post('prescriptions', [PrescriptionController::class, 'store']);
         Route::put('prescriptions/{id}', [PrescriptionController::class, 'update']);
         Route::delete('prescriptions/{id}', [PrescriptionController::class, 'destroy']);
@@ -61,7 +60,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // Liquid Module
         Route::prefix('liquid')->group(function () {
             Route::post('/refill', [LiquidController::class, 'storeRefill']);
-            Route::post('/daily-reading', [LiquidController::class, 'storeDailyReading']);
         });
 
         // Inventory Movements Module

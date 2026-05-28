@@ -16,7 +16,6 @@ class OwnershipTypeController extends Controller
     {
         $validated = $request->validate([
             'name'        => 'required|string|max:100|unique:ownership_types,name',
-            'description' => 'nullable|string|max:255',
         ]);
 
         $type = OwnershipType::create($validated);
@@ -34,7 +33,6 @@ class OwnershipTypeController extends Controller
 
         $validated = $request->validate([
             'name'        => 'required|string|max:100|unique:ownership_types,name,' . $id,
-            'description' => 'nullable|string|max:255',
         ]);
 
         $type->update($validated);
