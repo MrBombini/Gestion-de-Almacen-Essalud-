@@ -43,10 +43,10 @@ class InventoryMovementController extends Controller
             if (empty($validated['prescription_id'])) {
                 return response()->json(['message' => 'Se requiere una receta activa para realizar un intercambio a un paciente.'], 422);
             }
-            
+
             $prescription = Prescription::find($validated['prescription_id']);
             $today = Carbon::now()->format('Y-m-d');
-            
+
             if (!$prescription || $today > $prescription->expires_at) {
                 return response()->json(['message' => 'La receta del paciente ha expirado o es inválida.'], 422);
             }
@@ -99,7 +99,7 @@ class InventoryMovementController extends Controller
                     'action'                => 'Entry',
                     'cylinder_status'       => 'empty'
                 ]);
-                
+
                 // [A-4] DB pessimistic locking
                 $cylinderIn = Cylinder::where('id', $validated['cylinder_in'])->lockForUpdate()->first();
                 $cylinderIn->update([
@@ -119,7 +119,7 @@ class InventoryMovementController extends Controller
                     'action'                => 'Exit',
                     'cylinder_status'       => 'in_use'
                 ]);
-                
+
                 // [A-4] DB pessimistic locking
                 $cylinderOut = Cylinder::where('id', $validated['cylinder_out'])->lockForUpdate()->first();
                 $cylinderOut->update([
@@ -131,7 +131,11 @@ class InventoryMovementController extends Controller
                 ]);
             }
 
-            return response()->json($movement->load('cylinderMovements'), 201);
+            return response()->json($movement->load([
+                'cylinderMovements.cylinder.ownershipType', // Trae el nombre de la propiedad del cilindro
+                'service',                                  // Trae el nombre del servicio (Hospital Urubamba, etc.)
+                'patient'                                   // Trae datos del paciente
+            ]), 201);
         });
     }
 
@@ -200,7 +204,7 @@ class InventoryMovementController extends Controller
                 'current_bed_id'     => $validated['bed_id'] ?? null
             ]);
 
-            return response()->json($decanting, 201);
+            return response()->json($decanting->load(['service', 'patient', 'cylinder.ownershipType']), 201);
         });
     }
 
@@ -277,7 +281,10 @@ class InventoryMovementController extends Controller
                 }
             }
 
-            return response()->json($movement->load('cylinderMovements'), 201);
+            return response()->json($movement->load([
+                'cylinderMovements.cylinder.ownershipType', // Trae el nombre de la propiedad
+                'supplier'                                  // Trae el nombre del proveedor (sdfs, etc.)
+            ]), 201);
         });
     }
 
@@ -287,9 +294,9 @@ class InventoryMovementController extends Controller
             'service_id'         => ['required', 'exists:services,id'],
             'reference_document' => ['nullable', 'string', 'max:100'],
             'shift'              => ['required', 'string', 'in:Morning,Afternoon,Night'],
-            'cylinders_in'       => ['nullable', 'array'], 
+            'cylinders_in'       => ['nullable', 'array'],
             'cylinders_in.*'     => ['exists:cylinders,id'],
-            'cylinders_out'      => ['nullable', 'array'], 
+            'cylinders_out'      => ['nullable', 'array'],
             'cylinders_out.*'    => ['exists:cylinders,id'],
             'notes'              => ['nullable', 'string']
         ]);
@@ -347,7 +354,10 @@ class InventoryMovementController extends Controller
                 }
             }
 
-            return response()->json($movement->load('cylinderMovements'), 201);
+            return response()->json($movement->load([
+                'cylinderMovements.cylinder.ownershipType',
+                'service'
+            ]), 201);
         });
     }
 
