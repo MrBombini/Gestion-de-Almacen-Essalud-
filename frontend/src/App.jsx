@@ -18,6 +18,9 @@ import SupplierMovement from './pages/SupplierMovement';
 import PeripheryExchange from './pages/PeripheryExchange';
 import Reports from './pages/Reports';
 import OwnershipTypes from './pages/OwnershipTypes';
+import TicketControl from './pages/Reports/TicketControl';
+import SupplierReport from './pages/Reports/SupplierReport';
+import PeripheryReport from './pages/Reports/PeripheryReport';
 
 
 function App() {
@@ -45,6 +48,10 @@ function App() {
 
             <Route path="/liquid/daily" element={<DailyReading />} />
             <Route path="/liquid/refill" element={<LiquidRefill />} />
+
+            <Route path="/reports/ticketcontrol" element={<TicketControl />} />
+            <Route path="/reports/supplier" element={<SupplierReport />} />
+            <Route path="/reports/periphery" element={<PeripheryReport />} />
 
             <Route path="/admin/reports" element={<Reports />} />
             <Route path="/admin/kardex" element={<Kardex />} />

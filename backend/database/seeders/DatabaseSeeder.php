@@ -6,16 +6,22 @@ use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
-    /**
-     * Seed the application's database.
-     * Solo carga los usuarios iniciales.
-     * El resto de datos maestros (Tipos de Propiedad, Proveedores, Servicios)
-     * se gestionan desde los CRUDs del sistema.
-     */
     public function run(): void
     {
         $this->call([
             UserSeeder::class,
+            OwnershipTypeSeeder::class,
+            ServiceSeeder::class,
+            SupplierSeeder::class,
+            PatientSeeder::class,
+            BedSeeder::class,
+            CylinderSeeder::class,
+            PrescriptionSeeder::class,
+            LiquidRefillSeeder::class,
+            DailyReadingSeeder::class,
+            InventoryMovementSeeder::class,
+            CylinderMovementSeeder::class,
+            DecantingSeeder::class,
         ]);
     }
 }

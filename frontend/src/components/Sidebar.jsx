@@ -2,12 +2,12 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 // Importamos los iconos
-import { 
-  MdDashboard, 
-  MdSwapHoriz, 
-  MdLocalShipping, 
-  MdAssignment, 
-  MdAcUnit, 
+import {
+  MdDashboard,
+  MdSwapHoriz,
+  MdLocalShipping,
+  MdAssignment,
+  MdAcUnit,
   MdLocalHospital,
   MdBusiness,
   MdPeople,
@@ -23,10 +23,9 @@ const Sidebar = () => {
 
   // Función para dar estilo a los links activos
   const navLinkClass = ({ isActive }) =>
-    `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mb-1 ${
-      isActive 
-        ? 'bg-blue-600 text-white shadow-md' 
-        : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+    `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mb-1 ${isActive
+      ? 'bg-blue-600 text-white shadow-md'
+      : 'text-slate-300 hover:bg-slate-700 hover:text-white'
     }`;
 
   // Verificar si es admin o ingeniero
@@ -34,18 +33,18 @@ const Sidebar = () => {
 
   return (
     <aside className="w-64 bg-slate-900 h-screen flex flex-col text-sm shadow-xl shrink-0">
-      
+
       {/* Cabecera del Sidebar */}
       <div className="p-6 border-b border-slate-800 flex items-center justify-center">
         <div className="text-white font-bold text-xl tracking-wider flex items-center gap-3">
-          <MdLocalHospital className="text-3xl text-blue-500" /> 
+          <MdLocalHospital className="text-3xl text-blue-500" />
           EsSalud
         </div>
       </div>
 
       {/* Menú de Navegación (Aquí aplicamos el scrollbar-hide) */}
       <nav className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-hide">
-        
+
         {/* SECCIÓN: PRINCIPAL */}
         <div>
           <p className="px-4 text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Principal</p>
@@ -61,6 +60,10 @@ const Sidebar = () => {
           <NavLink to="/inventory/exchange" className={navLinkClass}>
             <MdSwapHoriz className="text-lg" />
             <span>Intercambio</span>
+          </NavLink>
+          <NavLink to="/reports/ticketcontrol" className={navLinkClass}>
+            <MdPeople className="text-lg" />
+            <span>Control de Atencion</span>
           </NavLink>
           <NavLink to="/inventory/decanting" className={navLinkClass}>
             <FaGasPump className="text-lg" />
@@ -105,8 +108,33 @@ const Sidebar = () => {
             <span>Servicios</span>
           </NavLink>
           <NavLink to="/beds" className={navLinkClass}>
-            <MdAirlineSeatFlat className='text-lg'/>
+            <MdAirlineSeatFlat className='text-lg' />
             <span>Camas</span>
+          </NavLink>
+        </div>
+
+        <div>
+          <p className="px-4 text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Reportes</p>
+          
+          <NavLink to="/reports/supplier" className={navLinkClass}>
+            <MdInsertChartOutlined className="text-lg" />
+            <span>Proveedores Ingreso y Salida</span>
+          </NavLink>
+          <NavLink to="/reports/periphery" className={navLinkClass}>
+            <MdAssignment className="text-lg" />
+            <span>Periferia Reportes</span>
+          </NavLink>
+          <NavLink to="/admin/kardex3" className={navLinkClass}>
+            <MdAssignment className="text-lg" />
+            <span>Hospitalizacion (Manifold)</span>
+          </NavLink>
+          <NavLink to="/admin/kardex4" className={navLinkClass}>
+            <MdAssignment className="text-lg" />
+            <span>Hospitalizacion (Servicios)</span>
+          </NavLink>
+          <NavLink to="/admin/kardex5" className={navLinkClass}>
+            <MdAssignment className="text-lg" />
+            <span>Cilindros Seguimiento</span>
           </NavLink>
         </div>
 
@@ -118,10 +146,10 @@ const Sidebar = () => {
               <MdPeople className="text-lg" />
               <span>Usuarios</span>
             </NavLink>
-            <NavLink to="/admin/reports" className={navLinkClass}>
+            {/* <NavLink to="/admin/reports" className={navLinkClass}>
               <MdInsertChartOutlined className="text-lg" />
               <span>Reportes / Alertas</span>
-            </NavLink>
+            </NavLink> */}
             <NavLink to="/admin/kardex" className={navLinkClass}>
               <MdAssignment className="text-lg" />
               <span>Kardex General</span>
