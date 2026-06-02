@@ -28,6 +28,18 @@ class Cylinder extends Model
         'physical_condition'
     ];
 
+    protected $appends = ['ownership_type_name', 'supplier_name'];
+
+    public function getOwnershipTypeNameAttribute()
+    {
+        return $this->ownershipType?->name;
+    }
+
+    public function getSupplierNameAttribute()
+    {
+        return $this->supplier?->name;
+    }
+
     public function supplier()
     {
         return $this->belongsTo(Supplier::class);
