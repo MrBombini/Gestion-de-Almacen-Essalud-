@@ -18,7 +18,7 @@ class DailyReadingController extends Controller
         $validated = $request->validate([
             'reading_date'       => 'required|date',
             'shift'              => 'required|string|in:Morning,Afternoon,Night',
-            'tank_level'         => 'required|numeric|min:0|max:100',
+            'tank_level'         => 'required|numeric|min:0',
             'flow_meter_reading' => 'required|numeric|min:0',
         ]);
 
@@ -51,7 +51,7 @@ class DailyReadingController extends Controller
         $validated = $request->validate([
             'reading_date'       => 'required|date',
             'shift'              => 'required|string|in:Morning,Afternoon,Night',
-            'tank_level'         => 'required|numeric|min:0|max:100',
+            'tank_level'         => 'required|numeric|min:0',
             'flow_meter_reading' => 'required|numeric|min:0',
         ]);
 
