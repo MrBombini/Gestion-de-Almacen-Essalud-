@@ -5,7 +5,7 @@ import useFetch from '../../hooks/useFetch';
 const ControlAtencion = () => {
   // 1. Usamos tu custom hook para traer el historial del Kardex
   const { data: kardexData, loading, error } = useFetch('/reports/kardex');
-  
+
   // Extraemos la lista de forma segura (Laravel suele envolver colecciones en 'data')
   const kardexList = Array.isArray(kardexData) ? kardexData : (kardexData?.data || []);
 
@@ -17,8 +17,8 @@ const ControlAtencion = () => {
   const ticketRef = useRef(null);
 
   // Filtrado rápido por número de ticket o nombre del paciente
-  const filteredExchanges = exchanges.filter(mov => 
-    mov.id.toString().includes(searchTerm) || 
+  const filteredExchanges = exchanges.filter(mov =>
+    mov.id.toString().includes(searchTerm) ||
     mov.patient?.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -27,7 +27,7 @@ const ControlAtencion = () => {
   // ==========================================
   const patient = selectedTicket?.patient || {};
   const user = selectedTicket?.user || {};
-  
+
   // Formateo de fecha al estilo YYYY/MM/DD
   const rawDate = selectedTicket?.movement_at ? new Date(selectedTicket.movement_at) : new Date();
   const formattedDate = `${rawDate.getFullYear()}/${String(rawDate.getMonth() + 1).padStart(2, '0')}/${String(rawDate.getDate()).padStart(2, '0')}`;
@@ -38,32 +38,100 @@ const ControlAtencion = () => {
   const cylinderIn = cylinderMovements.find(m => m.action === 'Entry')?.cylinder || {};
 
   // ==========================================
-  // FUNCIÓN 1: IMPRIMIR (Formato Ticketera 80mm)
+  // FUNCIÓN 1: IMPRIMIR (Formato Etiqueta 76*76mm)
   // ==========================================
   const handlePrint = () => {
     if (!ticketRef.current) return;
-    const printContent = ticketRef.current.innerHTML;
+    const printContent = ticketRef.current.outerHTML;
     const printWindow = window.open('', '', 'width=400,height=600');
     printWindow.document.write(`
       <html>
         <head>
           <title>Control de Atención N° ${selectedTicket.id}</title>
           <style>
+            @page {
+              size: 76mm 76mm;
+              margin: 0 !important;
+            }
             body { 
               font-family: Arial, sans-serif; 
               margin: 0; 
-              padding: 10px;
+              padding: 4mm 4mm;
               color: #000;
-              width: 80mm; /* Ancho estándar de ticketera */
+              width: 74mm;
+              height: 74mm;
+              box-sizing: border-box;
+              font-size: 11px;
+              line-height: 1.3;
+              overflow: hidden;
             }
-            .ticket-header { text-align: center; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #000; padding-bottom: 5px;}
-            .line { margin-bottom: 8px; font-size: 14px; }
-            .bold { font-weight: bold; }
-            table { text-align: left; border-collapse: collapse; margin-top: 10px; margin-bottom: 15px; width: 100%; font-size: 14px;}
-            th { border-bottom: 1px dashed #000; padding-bottom: 5px; text-decoration: underline; }
-            td { padding: 5px 0; }
-            .signatures { margin-top: 30px; width: 100%; font-size: 14px;}
-            .sign-line { border-top: 1px solid #000; padding-top: 5px; margin-bottom: 5px;}
+            .ticket-container {
+              width: 100%;
+              height: 100%;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              box-sizing: border-box;
+            }
+            .ticket-header { 
+              text-align: center; 
+              border-bottom: 1.5px solid #000; 
+              margin-bottom: 5px;
+              padding-bottom: 3px;
+            }
+            .ticket-header h3 {
+              margin: 0;
+              font-size: 14px;
+              font-weight: bold;
+            }
+            .ticket-body {
+              flex-grow: 1;
+            }
+            .line { 
+              margin-bottom: 3px; 
+              font-size: 11px; 
+            }
+            .bold { 
+              font-weight: bold; 
+            }
+            table { 
+              text-align: left; 
+              border-collapse: collapse; 
+              margin-top: 4px; 
+              margin-bottom: 4px; 
+              width: 100%; 
+              font-size: 10.5px;
+            }
+            th { 
+              border-bottom: 1px dashed #000; 
+              padding-bottom: 2px; 
+              font-weight: bold;
+              text-decoration: underline;
+            }
+            td { 
+              padding: 3px 0; 
+            }
+            .cylinder-number {
+              font-weight: bold;
+              font-size: 12px;
+            }
+            .ticket-footer {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-end;
+              margin-top: 4px;
+            }
+            .footer-info {
+              font-size: 10.5px;
+            }
+            .signatures { 
+              width: 120px; 
+              font-size: 10px;
+            }
+            .sign-line { 
+              border-top: 1px solid #000; 
+              padding-top: 2px;
+            }
           </style>
         </head>
         <body>
@@ -97,7 +165,7 @@ const ControlAtencion = () => {
     `;
     const footer = "</body></html>";
     const sourceHTML = header + ticketRef.current.innerHTML + footer;
-    
+
     // Cambiamos el tipo MIME a application/vnd.ms-excel
     const source = 'data:application/vnd.ms-excel;charset=utf-8,' + encodeURIComponent(sourceHTML);
     const fileDownload = document.createElement("a");
@@ -111,7 +179,7 @@ const ControlAtencion = () => {
 
   return (
     <div className="space-y-6">
-      
+
       {/* Cabecera Principal */}
       <div className="flex items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
         <div className="p-4 bg-indigo-50 text-indigo-600 rounded-xl">
@@ -126,15 +194,15 @@ const ControlAtencion = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
+
         {/* COLUMNA IZQUIERDA: Buscador y Lista */}
         <div className="lg:col-span-1 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[600px]">
           <div className="p-4 border-b border-slate-200 bg-slate-50">
             <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-slate-300 focus-within:ring-2 focus-within:ring-indigo-500 transition-shadow">
               <MdSearch className="text-slate-400 text-xl" />
-              <input 
-                type="text" 
-                placeholder="Buscar N° Atención o Paciente..." 
+              <input
+                type="text"
+                placeholder="Buscar N° Atención o Paciente..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="bg-transparent border-none outline-none text-sm w-full text-slate-700"
@@ -149,11 +217,10 @@ const ControlAtencion = () => {
               <button
                 key={mov.id}
                 onClick={() => setSelectedTicket(mov)}
-                className={`w-full text-left p-4 rounded-xl border transition-all ${
-                  selectedTicket?.id === mov.id 
-                    ? 'bg-indigo-50 border-indigo-200' 
-                    : 'bg-white border-slate-100 hover:border-indigo-100 hover:bg-slate-50'
-                }`}
+                className={`w-full text-left p-4 rounded-xl border transition-all ${selectedTicket?.id === mov.id
+                  ? 'bg-indigo-50 border-indigo-200'
+                  : 'bg-white border-slate-100 hover:border-indigo-100 hover:bg-slate-50'
+                  }`}
               >
                 <div className="flex justify-between items-start mb-1">
                   <span className="font-bold text-slate-800">N° {mov.id}</span>
@@ -170,7 +237,7 @@ const ControlAtencion = () => {
 
         {/* COLUMNA DERECHA: Visualizador del Ticket */}
         <div className="lg:col-span-2 bg-slate-100 rounded-2xl border border-slate-200 p-8 flex flex-col items-center justify-center min-h-[600px] relative">
-          
+
           {!selectedTicket ? (
             <div className="text-slate-400 text-center">
               <MdReceipt className="text-6xl mx-auto mb-4 opacity-50" />
@@ -189,68 +256,72 @@ const ControlAtencion = () => {
                 </button>
               </div>
 
-              {/* TICKET FÍSICO (Idéntico a la imagen) */}
-              <div className="bg-white p-8 rounded-sm shadow-xl w-full max-w-[400px] border border-slate-200 mt-10">
-                <div ref={ticketRef} className="text-black font-sans">
-                  
+              {/* TICKET FÍSICO */}
+              <div className="bg-white p-6 rounded-sm shadow-xl w-full max-w-[360px] border border-slate-200 mt-10">
+                <div ref={ticketRef} className="ticket-container text-black font-sans">
+
                   {/* Cabecera */}
-                  <div className="ticket-header" style={{ textAlign: 'center', borderBottom: '1px solid black', paddingBottom: '10px', marginBottom: '15px' }}>
-                    <h3 style={{ margin: 0, fontSize: '18px' }}>CONTROL DE ATENCIÓN N° {selectedTicket.id}</h3>
+                  <div className="ticket-header border-b-2 border-black pb-1 mb-2 text-center">
+                    <h3 className="text-sm font-bold tracking-wide">CONTROL DE ATENCIÓN N° {selectedTicket.id}</h3>
                   </div>
 
-                  {/* Datos del Paciente */}
-                  <div className="line" style={{ marginBottom: '8px', fontSize: '14px' }}>
-                    <span className="bold" style={{ fontWeight: 'bold' }}>Paciente:</span> {patient.full_name || '-'}
-                  </div>
-                  <div className="line" style={{ marginBottom: '8px', fontSize: '14px' }}>
-                    <span className="bold" style={{ fontWeight: 'bold' }}>Cod. Paciente:</span> {patient.exchange_code || patient.dni || patient.id || '-'}
-                  </div>
-                  <div className="line" style={{ marginBottom: '15px', fontSize: '14px' }}>
-                    <span className="bold" style={{ fontWeight: 'bold' }}>Dirección:</span> {patient.address || '-'}
-                  </div>
-
-                  {/* Tabla de Cilindros */}
-                  <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '14px' }}>
-                    <thead>
-                      <tr>
-                        <th style={{ borderBottom: '1px dashed black', paddingBottom: '5px', textDecoration: 'underline' }}>Cod.</th>
-                        <th style={{ borderBottom: '1px dashed black', paddingBottom: '5px', textDecoration: 'underline' }}>Prop.</th>
-                        <th style={{ borderBottom: '1px dashed black', paddingBottom: '5px', textDecoration: 'underline' }}>Cap.</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td style={{ paddingTop: '10px', paddingBottom: '5px' }}>
-                          B. LLENO: <span style={{ fontWeight: 'bold', fontSize: '16px' }}>{cylinderOut.serial_number || 'N/A'}</span>
-                        </td>
-                        <td style={{ paddingTop: '10px', paddingBottom: '5px' }}>{cylinderOut.ownership_type_name || 'N/A'}</td>
-                        <td style={{ paddingTop: '10px', paddingBottom: '5px' }}>{cylinderOut.capacity ? `${cylinderOut.capacity} m3` : '-'}</td>
-                      </tr>
-                      <tr>
-                        <td style={{ paddingTop: '5px', paddingBottom: '5px' }}>
-                          B. VACÍO: <span style={{ fontWeight: 'bold', fontSize: '16px' }}>{cylinderIn.serial_number || 'N/A'}</span>
-                        </td>
-                        <td style={{ paddingTop: '5px', paddingBottom: '5px' }}>{cylinderIn.ownership_type_name || 'N/A'}</td>
-                        <td style={{ paddingTop: '5px', paddingBottom: '5px' }}>{cylinderIn.capacity ? `${cylinderIn.capacity} m3` : '-'}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-
-                  {/* Operador y Fecha */}
-                  <div className="line" style={{ marginBottom: '8px', fontSize: '14px' }}>
-                    <span className="bold" style={{ fontWeight: 'bold' }}>Operador:</span> {user.name || '-'}
-                  </div>
-                  <div className="line" style={{ marginBottom: '30px', fontSize: '14px' }}>
-                    <span className="bold" style={{ fontWeight: 'bold' }}>Fecha:</span> {formattedDate}
-                  </div>
-
-                  {/* Firmas (Espacio en blanco) */}
-                  <div className="signatures" style={{ marginTop: '40px', width: '250px', marginLeft: 'auto', marginRight: 'auto' }}>
-                    <div className="sign-line" style={{ borderTop: '1px solid black', paddingTop: '5px', fontSize: '14px' }}>
-                      <span className="bold" style={{ fontWeight: 'bold' }}>Nombre:</span> 
+                  {/* Cuerpo */}
+                  <div className="ticket-body">
+                    {/* Datos del Paciente */}
+                    <div className="line text-xs mb-1">
+                      <span className="bold font-bold">Paciente:</span> {patient.full_name || '-'}
                     </div>
-                    <div style={{ marginTop: '10px', fontSize: '14px' }}>
-                      <span className="bold" style={{ fontWeight: 'bold' }}>Cel:</span> 
+                    <div className="line text-xs mb-1">
+                      <span className="bold font-bold">Cod. Paciente:</span> {patient.exchange_code || patient.dni || patient.id || '-'}
+                    </div>
+                    <div className="line text-xs mb-2">
+                      <span className="bold font-bold">Dirección:</span> {patient.address || '-'}
+                    </div>
+
+                    {/* Tabla de Cilindros */}
+                    <table className="w-full text-left border-collapse my-2 text-xs">
+                      <thead>
+                        <tr>
+                          <th className="border-b border-dashed border-black pb-1 underline font-bold">Cod.</th>
+                          <th className="border-b border-dashed border-black pb-1 underline font-bold">Prop.</th>
+                          <th className="border-b border-dashed border-black pb-1 underline font-bold">Cap.</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td className="py-1">
+                            B. LLENO: <span className="cylinder-number font-bold text-sm">{cylinderOut.serial_number || 'N/A'}</span>
+                          </td>
+                          <td className="py-1">{cylinderOut.ownership_type_name || 'N/A'}</td>
+                          <td className="py-1">{cylinderOut.capacity ? `${cylinderOut.capacity} m3` : '-'}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-1">
+                            B. VACÍO: <span className="cylinder-number font-bold text-sm">{cylinderIn.serial_number || 'N/A'}</span>
+                          </td>
+                          <td className="py-1">{cylinderIn.ownership_type_name || 'N/A'}</td>
+                          <td className="py-1">{cylinderIn.capacity ? `${cylinderIn.capacity} m3` : '-'}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pie de página */}
+                  <div className="ticket-footer flex justify-between items-end mt-2 pt-2 border-t border-dashed border-slate-200">
+                    <div className="footer-info text-[10px]">
+                      <div className="line mb-0.5">
+                        <span className="bold font-bold">Operador:</span> {user.name || '-'}
+                      </div>
+                      <div className="line mb-0">
+                        <span className="bold font-bold">Fecha:</span> {formattedDate}
+                      </div>
+                    </div>
+
+                    <div className="signatures w-32 text-[10px]">
+                      <div className="sign-line border-t border-black pt-1">
+                        <div className="mb-0.5"><span className="bold font-bold">Nombre:</span></div>
+                        <div><span className="bold font-bold">Cel:</span></div>
+                      </div>
                     </div>
                   </div>
 

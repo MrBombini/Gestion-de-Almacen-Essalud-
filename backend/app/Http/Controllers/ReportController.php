@@ -45,10 +45,12 @@ class ReportController extends Controller
         // 3. Movimientos del día agrupados por turno
         $allMovements = InventoryMovement::with([
                 'cylinderMovements.cylinder.ownershipType', 
+                'cylinderMovements.cylinder.supplier',
                 'patient', 
                 'service', 
                 'user',
-                'bed'
+                'bed',
+                'supplier'
             ])
             ->whereDate('movement_at', $date)
             ->orderBy('movement_at', 'asc')
@@ -155,7 +157,15 @@ class ReportController extends Controller
     public function kardexGeneral(Request $request)
     {
         $perPage = $request->query('per_page', 100);
-        $kardex = InventoryMovement::with(['user', 'patient', 'service', 'cylinderMovements.cylinder'])
+        $kardex = InventoryMovement::with([
+                'user',
+                'patient',
+                'service',
+                'bed',
+                'supplier',
+                'cylinderMovements.cylinder.ownershipType',
+                'cylinderMovements.cylinder.supplier'
+            ])
             ->orderBy('movement_at', 'desc')
             ->paginate($perPage);
                            
