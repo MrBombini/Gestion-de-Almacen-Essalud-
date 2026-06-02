@@ -139,7 +139,7 @@ const DailyReading = () => {
 
               <div className="pt-2">
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
-                  <MdWaterDrop className="text-blue-500" /> Nivel de Tanque (%)
+                  <MdWaterDrop className="text-blue-500" /> Nivel de Tanque (inH2O)
                 </label>
                 <div className="relative">
                   <input type="number" step="0.01" required placeholder="Ej: 85.5"
@@ -147,7 +147,7 @@ const DailyReading = () => {
                     onChange={(e) => setFormData({...formData, tank_level: e.target.value})}
                     className="w-full px-4 py-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold"
                   />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">%</span>
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">inH2O</span>
                 </div>
               </div>
 
@@ -255,7 +255,7 @@ const DailyReading = () => {
                       </td>
                       <td className="px-4 py-4 text-center">
                         <span className={`px-2 py-1 rounded-md font-bold text-xs ${r.tank_level < 20 ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
-                          {r.tank_level}%
+                          {r.tank_level} inH2O
                         </span>
                       </td>
                       <td className="px-4 py-4 text-center font-mono text-xs text-slate-600">

@@ -43,6 +43,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // 3. Operator Routes (Operators, Administrators, Engineers)
     Route::middleware(['role:Operator,Administrator,Engineer'])->group(function () {
         
+        Route::get('/dashboard/stats', [ReportController::class, 'dashboardStats']);
+
         // Catalogs (CRUD)
         Route::apiResource('patients', PatientController::class);
         Route::apiResource('services', ServiceController::class);
