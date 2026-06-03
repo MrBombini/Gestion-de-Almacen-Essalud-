@@ -1,20 +1,20 @@
 import axios from 'axios';
 
-// Creamos la instancia con la URL base de tu backend Laravel
+// Creamos la instancia con la URL base
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
+  baseURL: import.meta.env.VITE_API_URL || 'https://api.central-oxigeno.site/api',
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
+  // CRÍTICO para Laravel Sanctum y HTTPS:
+  withCredentials: true, 
 });
 
-// Interceptor para inyectar el token de Sanctum
+// Interceptor Request
 api.interceptors.request.use(
   (config) => {
-    // Buscamos el token en el almacenamiento local
     const token = localStorage.getItem('auth_token');
-    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -25,15 +25,23 @@ api.interceptors.request.use(
   }
 );
 
-// Interceptor para manejar errores globales (ej. Token expirado)
+// Interceptor Response
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // Si el backend responde 401 Unauthorized, limpiamos la sesión
+      // 1. Limpiamos la basura que causa el bucle
       localStorage.removeItem('auth_token');
       localStorage.removeItem('user_data');
-      window.location.href = '/login';
+      localStorage.removeItem('current_shift'); // Tu context también usa esto
+      
+      // 2. LA SOLUCIÓN: Verificamos que NO estemos ya en el login
+      const currentPath = window.location.pathname;
+      if (currentPath !== '/login' && currentPath !== '/') {
+        // En vez de recargar toda la página a la fuerza, 
+        // simplemente enviamos a la URL
+        window.location.replace('/login');
+      }
     }
     return Promise.reject(error);
   }
