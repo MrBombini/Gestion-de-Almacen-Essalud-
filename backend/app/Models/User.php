@@ -42,6 +42,9 @@ class User extends Authenticatable
     // Helper: verificar rol
     public function hasRole(...$roles): bool 
     { 
+        if ($this->role === 'SuperAdmin') {
+            return true;
+        }
         return in_array($this->role, $roles); 
     }
 

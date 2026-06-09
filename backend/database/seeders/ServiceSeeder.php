@@ -12,11 +12,11 @@ class ServiceSeeder extends Seeder
     {
         $now = Carbon::now();
         DB::table('services')->insert([
-            ['name' => 'UCI', 'type' => 'Hospital', 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'EMERGENCIA', 'type' => 'Hospital', 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'ONCOLOGIA', 'type' => 'Hospital', 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'PADOMI', 'type' => 'PADOMI', 'created_at' => $now, 'updated_at' => $now],
-            ['name' => 'MANIFOLD 1', 'type' => 'Interno', 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'UCI', 'type' => 'Hospital', 'abbreviation' => 'UCI', 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'EMERGENCIA', 'type' => 'Hospital', 'abbreviation' => 'EMERGENCIA', 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'ONCOLOGIA', 'type' => 'Hospital', 'abbreviation' => 'ONCOLOGIA', 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'PADOMI', 'type' => 'PADOMI', 'abbreviation' => 'PADOMI', 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'MANIFOLD 1', 'type' => 'Interno', 'abbreviation' => 'MANIFOLD 1', 'created_at' => $now, 'updated_at' => $now],
         ]);
     }
 }

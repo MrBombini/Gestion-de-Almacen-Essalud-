@@ -21,7 +21,7 @@ return new class extends Migration
             $table->decimal('refilled_amount', 10, 2);
             $table->string('shift', 20); // Morning, Afternoon, Night
             $table->foreignId('user_id')->constrained('users');
-            $table->timestamp('decanted_at');
+            $table->timestamp('decanted_at')->index();
             $table->timestamps();
             $table->softDeletes();
         });

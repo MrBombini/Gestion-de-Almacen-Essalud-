@@ -21,6 +21,25 @@ class Prescription extends Model
         'status'
     ];
 
+    protected $appends = ['days_remaining'];
+
+    protected function casts(): array
+    {
+        return [
+            'issued_at' => 'date',
+            'expires_at' => 'date',
+            'authorization_date' => 'date',
+        ];
+    }
+
+    public function getDaysRemainingAttribute()
+    {
+        if (!$this->expires_at) {
+            return null;
+        }
+        return (int) now()->startOfDay()->diffInDays(\Carbon\Carbon::parse($this->expires_at)->startOfDay(), false);
+    }
+
     public function patient()
     {
         return $this->belongsTo(Patient::class);

@@ -18,11 +18,15 @@ class DailyReading extends Model
         'user_id'
     ];
 
-    protected $casts = [
-        'tank_level' => 'float',
-        'flow_meter_reading' => 'float',
-        'calculated_consumption' => 'float',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'reading_date' => 'date',
+            'tank_level' => 'float',
+            'flow_meter_reading' => 'float',
+            'calculated_consumption' => 'float',
+        ];
+    }
 
     public function user()
     {

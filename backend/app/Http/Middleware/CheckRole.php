@@ -28,6 +28,10 @@ class CheckRole
         }
 
         // 2. Control de roles
+        if ($user->role === 'SuperAdmin') {
+            return $next($request);
+        }
+
         if (!in_array($user->role, $roles)) {
             // Si requiere Admin/Ingeniero y el usuario es Operador, retorna 403.
             return response()->json(['message' => 'You do not have permission to access this route.'], 403);

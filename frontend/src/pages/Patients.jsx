@@ -181,10 +181,23 @@ const Patients = () => {
                                             <td className="px-6 py-4">
                                                 {activeRx ? (
                                                     <div className="space-y-1">
-                                                        <div className="text-xs font-bold text-blue-600">{activeRx.dosage} L/min | {activeRx.usage_time} hrs</div>
-                                                        <div className={`text-[10px] flex items-center gap-1 ${isExpired ? 'text-red-500 font-bold' : 'text-slate-500'}`}>
-                                                            {isExpired && <MdWarning />}
-                                                            Vence: {activeRx.expires_at || 'No vence'}
+                                                        <div className="text-xs font-bold text-blue-600">
+                                                            {activeRx.dosage ? `${activeRx.dosage} L/min` : ''} 
+                                                            {activeRx.dosage && activeRx.usage_time ? ' | ' : ''}
+                                                            {activeRx.usage_time ? `${activeRx.usage_time} hrs` : ''}
+                                                            {!activeRx.dosage && !activeRx.usage_time ? 'Receta de Oxígeno' : ''}
+                                                        </div>
+                                                        <div className={`text-[10px] flex items-center gap-1 ${activeRx.days_remaining < 0 ? 'text-red-500 font-bold' : 'text-slate-500'}`}>
+                                                            {activeRx.days_remaining < 0 && <MdWarning />}
+                                                            {activeRx.days_remaining === null ? (
+                                                                `Vence: ${activeRx.expires_at || 'No vence'}`
+                                                            ) : activeRx.days_remaining < 0 ? (
+                                                                `Vencida hace ${Math.abs(activeRx.days_remaining)} días`
+                                                            ) : activeRx.days_remaining === 0 ? (
+                                                                'Vence hoy'
+                                                            ) : (
+                                                                `${activeRx.days_remaining} días restantes`
+                                                            )}
                                                         </div>
                                                     </div>
                                                 ) : <span className="text-xs text-slate-400 italic">Sin receta activa</span>}
@@ -320,7 +333,12 @@ const Patients = () => {
                                     <span className="font-bold text-slate-700">{rx.dosage} L/min · {rx.usage_time} hrs</span>
                                 </div>
                                 <div className="text-slate-500">
-                                    Autorización: {rx.authorization_date || '—'} · Vence: <span className={rx.expires_at && new Date(rx.expires_at) < new Date() ? 'text-red-600 font-bold' : ''}>{rx.expires_at || '—'}</span>
+                                    Autorización: {rx.authorization_date || '—'} · Vence: <span className={rx.days_remaining < 0 ? 'text-red-600 font-bold' : ''}>{rx.expires_at || '—'}</span>
+                                    {rx.days_remaining !== null && (
+                                        <span className={`ml-2 font-semibold ${rx.days_remaining < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                            ({rx.days_remaining < 0 ? `Vencida hace ${Math.abs(rx.days_remaining)}d` : rx.days_remaining === 0 ? 'Vence hoy' : `${rx.days_remaining}d restantes`})
+                                        </span>
+                                    )}
                                 </div>
                                 {rx.promissory_note && <div className="text-slate-400">Pagaré: {rx.promissory_note}</div>}
                             </div>
@@ -341,8 +359,8 @@ const Patients = () => {
                     <form onSubmit={handleRxSubmit} className="space-y-3">
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <label className="block text-xs font-semibold text-slate-600 mb-1">Dosificación *</label>
-                                <input type="text" required value={rxForm.dosage} onChange={e => setRxForm({...rxForm, dosage: e.target.value})}
+                                <label className="block text-xs font-semibold text-slate-600 mb-1">Dosificación</label>
+                                <input type="text" value={rxForm.dosage} onChange={e => setRxForm({...rxForm, dosage: e.target.value})}
                                     placeholder="Ej: 3 L/min" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-purple-400" />
                             </div>
                             <div>
@@ -351,13 +369,13 @@ const Patients = () => {
                                     placeholder="Ej: 24 hrs" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-purple-400" />
                             </div>
                             <div>
-                                <label className="block text-xs font-semibold text-slate-600 mb-1">Fecha Autorización</label>
-                                <input type="date" value={rxForm.authorization_date} onChange={e => setRxForm({...rxForm, authorization_date: e.target.value})}
+                                <label className="block text-xs font-semibold text-slate-600 mb-1">Fecha Autorización *</label>
+                                <input type="date" required value={rxForm.authorization_date} onChange={e => setRxForm({...rxForm, authorization_date: e.target.value})}
                                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-purple-400" />
                             </div>
                             <div>
-                                <label className="block text-xs font-semibold text-slate-600 mb-1">Fecha Vencimiento</label>
-                                <input type="date" value={rxForm.expires_at} onChange={e => setRxForm({...rxForm, expires_at: e.target.value})}
+                                <label className="block text-xs font-semibold text-slate-600 mb-1">Fecha Vencimiento *</label>
+                                <input type="date" required value={rxForm.expires_at} onChange={e => setRxForm({...rxForm, expires_at: e.target.value})}
                                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-purple-400" />
                             </div>
                             <div>

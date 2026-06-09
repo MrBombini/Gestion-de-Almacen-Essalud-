@@ -9,6 +9,14 @@ use Illuminate\Support\Facades\Auth;
 
 class LiquidController extends Controller
 {
+    public function index()
+    {
+        $refills = LiquidRefill::with(['supplier', 'user'])
+            ->orderBy('refilled_at', 'desc')
+            ->get();
+        return response()->json($refills);
+    }
+
     public function storeRefill(Request $request)
     {
         $validated = $request->validate([
@@ -34,6 +42,13 @@ class LiquidController extends Controller
             'user_id'            => Auth::id(),
         ]);
 
-        return response()->json($refill, 201);
+        return response()->json($refill->load(['supplier', 'user']), 201);
+    }
+
+    public function destroy($id)
+    {
+        $refill = LiquidRefill::findOrFail($id);
+        $refill->delete();
+        return response()->json(['message' => 'Recarga de oxígeno líquido eliminada correctamente.']);
     }
 }

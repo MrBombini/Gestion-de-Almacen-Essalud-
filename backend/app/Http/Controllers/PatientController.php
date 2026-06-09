@@ -36,20 +36,24 @@ class PatientController extends Controller
         ]);
 
         return DB::transaction(function() use ($validated) {
-            $patient = Patient::create($validated);
+            $patientData = collect($validated)->only([
+                'full_name', 'dni', 'trasiego_code', 'exchange_code', 'address', 'phone1', 'phone2'
+            ])->toArray();
+            
+            $patient = Patient::create($patientData);
 
-            // Crear receta inicial si hay datos
-            if (!empty($validated['dosage']) || !empty($validated['expires_at'])) {
+            // Crear receta inicial si hay datos (authorization_date o expires_at son los más importantes)
+            if (!empty($validated['authorization_date']) || !empty($validated['expires_at'])) {
                 Prescription::create([
-                    'patient_id' => $patient->id,
-                    'service_id' => null, // Por defecto nullable
-                    'dosage'     => $validated['dosage'],
-                    'usage_time' => $validated['usage_time'],
-                    'expires_at' => $validated['expires_at'],
-                    'promissory_note' => $validated['promissory_note'],
-                    'authorization_date' => $validated['authorization_date'],
-                    'status'     => 'active',
-                    'issued_at'  => now(),
+                    'patient_id'         => $patient->id,
+                    'service_id'         => null,
+                    'dosage'             => $validated['dosage'] ?? null,
+                    'usage_time'         => $validated['usage_time'] ?? null,
+                    'expires_at'         => $validated['expires_at'] ?? null,
+                    'promissory_note'    => $validated['promissory_note'] ?? null,
+                    'authorization_date' => $validated['authorization_date'] ?? null,
+                    'status'             => 'active',
+                    'issued_at'          => $validated['authorization_date'] ?? now(),
                 ]);
             }
 
@@ -83,20 +87,25 @@ class PatientController extends Controller
         ]);
 
         return DB::transaction(function() use ($patient, $validated) {
-            $patient->update($validated);
+            $patientData = collect($validated)->only([
+                'full_name', 'dni', 'trasiego_code', 'exchange_code', 'address', 'phone1', 'phone2'
+            ])->toArray();
 
-            // [M-6] Solo actualizar o crear la receta activa si se envían datos esenciales de receta
-            if (!empty($validated['dosage']) || !empty($validated['expires_at'])) {
+            $patient->update($patientData);
+
+            // Solo actualizar o crear la receta activa si se envían datos esenciales de receta
+            if (!empty($validated['authorization_date']) || !empty($validated['expires_at'])) {
                 $prescription = Prescription::where('patient_id', $patient->id)
                     ->where('status', 'active')
                     ->first();
 
                 $prescriptionData = [
-                    'dosage'     => $validated['dosage'],
-                    'usage_time' => $validated['usage_time'] ?? null,
-                    'expires_at' => $validated['expires_at'],
-                    'promissory_note' => $validated['promissory_note'] ?? null,
+                    'dosage'             => $validated['dosage'] ?? null,
+                    'usage_time'         => $validated['usage_time'] ?? null,
+                    'expires_at'         => $validated['expires_at'] ?? null,
+                    'promissory_note'    => $validated['promissory_note'] ?? null,
                     'authorization_date' => $validated['authorization_date'] ?? null,
+                    'issued_at'          => $validated['authorization_date'] ?? now(),
                 ];
 
                 if ($prescription) {
@@ -104,9 +113,8 @@ class PatientController extends Controller
                 } else {
                     Prescription::create(array_merge($prescriptionData, [
                         'patient_id' => $patient->id,
-                        'service_id' => null, // [C-4] nullable service_id
+                        'service_id' => null,
                         'status'     => 'active',
-                        'issued_at'  => now(),
                     ]));
                 }
             }

@@ -149,7 +149,6 @@ class InventoryMovementController extends Controller
             'refilled_amount'    => ['required', 'numeric', 'min:0.01'],
             'shift'              => ['required', 'string', 'in:Morning,Afternoon,Night'],
             'service_id'         => ['nullable', 'exists:services,id'],
-            'bed_id'             => ['nullable', 'exists:beds,id'],
             'patient_id'         => ['nullable', 'exists:patients,id'],
             'prescription_id'    => ['nullable', 'exists:prescriptions,id'],
             'manual_destination' => ['nullable', 'string', 'max:150']
@@ -181,7 +180,6 @@ class InventoryMovementController extends Controller
                 'refilled_amount'    => $validated['refilled_amount'],
                 'shift'              => $validated['shift'],
                 'service_id'         => $validated['service_id'] ?? null,
-                'bed_id'             => $validated['bed_id'] ?? null,
                 'patient_id'         => $validated['patient_id'] ?? null,
                 'prescription_id'    => $validated['prescription_id'] ?? null,
                 'manual_destination' => $validated['manual_destination'] ?? null,
@@ -201,7 +199,7 @@ class InventoryMovementController extends Controller
                 'location'           => $newLocation,
                 'current_patient_id' => $validated['patient_id'] ?? null,
                 'current_service_id' => $validated['service_id'] ?? null,
-                'current_bed_id'     => $validated['bed_id'] ?? null
+                'current_bed_id'     => null
             ]);
 
             return response()->json($decanting->load(['service', 'patient', 'cylinder.ownershipType']), 201);
@@ -364,5 +362,47 @@ class InventoryMovementController extends Controller
     public function createSupplierEntry(Request $request)
     {
         return $this->createSupplierMovement($request, 'SupplierEntry');
+    }
+
+    public function index(Request $request)
+    {
+        $perPage = $request->query('per_page', 15);
+        if ($perPage > 500) {
+            $perPage = 500;
+        }
+
+        $movements = InventoryMovement::with([
+                'user',
+                'patient',
+                'service',
+                'bed',
+                'supplier',
+                'cylinderMovements.cylinder.ownershipType',
+                'cylinderMovements.cylinder.supplier'
+            ])
+            ->orderBy('movement_at', 'desc')
+            ->paginate($perPage);
+
+        return response()->json($movements);
+    }
+
+    public function indexDecantings(Request $request)
+    {
+        $perPage = $request->query('per_page', 15);
+        if ($perPage > 500) {
+            $perPage = 500;
+        }
+
+        $decantings = Decanting::with([
+                'user',
+                'patient',
+                'service',
+                'cylinder.ownershipType',
+                'prescription'
+            ])
+            ->orderBy('decanted_at', 'desc')
+            ->paginate($perPage);
+
+        return response()->json($decantings);
     }
 }
