@@ -82,7 +82,7 @@ const Users = () => {
         refetch();
       } catch (err) {
         console.error("Error al cambiar estado", err);
-        alert("Error al cambiar el estado del usuario.");
+        alert(err.response?.data?.message || "Error al cambiar el estado del usuario.");
       }
     }
   };
@@ -159,11 +159,12 @@ const Users = () => {
                         <td className="px-6 py-4 text-sm font-medium text-slate-800">{user.name}</td>
                         <td className="px-6 py-4 text-sm">
                           <span className={`px-2.5 py-1 rounded-md text-xs font-bold border ${
+                            user.role === 'SuperAdmin' ? 'bg-amber-950 text-amber-200 border-amber-800' :
                             user.role === 'Administrator' ? 'bg-purple-50 text-purple-700 border-purple-200' :
                             user.role === 'Engineer' ? 'bg-blue-50 text-blue-700 border-blue-200' :
                             'bg-slate-100 text-slate-600 border-slate-200'
                           }`}>
-                            {user.role}
+                            {user.role === 'SuperAdmin' ? 'SuperAdmin' : user.role}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-sm">
@@ -229,6 +230,7 @@ const Users = () => {
                 <option value="Operator">Operador (Almacén)</option>
                 <option value="Engineer">Ingeniero (Reportes)</option>
                 <option value="Administrator">Administrador (Total)</option>
+                <option value="SuperAdmin">Super Administrador (Sistema)</option>
               </select>
             </div>
           </div>

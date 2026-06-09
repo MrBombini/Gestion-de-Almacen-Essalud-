@@ -11,9 +11,10 @@ return new class extends Migration
         Schema::create('cylinder_movements', function (Blueprint $table) {
             $table->id();
             $table->foreignId('inventory_movement_id')->constrained('inventory_movements')->onDelete('cascade');
-            $table->foreignId('cylinder_id')->constrained('cylinders');
+            $table->foreignId('cylinder_id')->constrained('cylinders')->index();
             $table->string('action', 20); // Entry, Exit
             $table->string('cylinder_status', 20); // Full, Empty
+            $table->softDeletes();
             $table->timestamps();
         });
     }

@@ -12,9 +12,9 @@ return new class extends Migration
             $table->id();
             $table->foreignId('patient_id')->constrained('patients')->onDelete('cascade');
             $table->foreignId('service_id')->nullable()->constrained('services');
-            $table->string('dosage', 50);          // Ej: 2 litros / min
-            $table->string('usage_time', 50);     // Ej: 15 horas al día
-            $table->date('issued_at');
+            $table->string('dosage', 50)->nullable();          // Ej: 2 litros / min
+            $table->string('usage_time', 50)->nullable();     // Ej: 15 horas al día
+            $table->date('issued_at')->nullable();
             $table->date('expires_at');
             $table->date('authorization_date')->nullable();
             $table->string('promissory_note', 100)->nullable();

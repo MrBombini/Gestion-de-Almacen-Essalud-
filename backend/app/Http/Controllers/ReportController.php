@@ -157,6 +157,9 @@ class ReportController extends Controller
     public function kardexGeneral(Request $request)
     {
         $perPage = $request->query('per_page', 100);
+        if ($perPage > 500) {
+            $perPage = 500;
+        }
         $kardex = InventoryMovement::with([
                 'user',
                 'patient',
@@ -221,8 +224,11 @@ class ReportController extends Controller
      */
     public function stagnantCylinders(Request $request)
     {
-        $days = (int) $request->query('days', 15);
-        $dateLimit = Carbon::now()->subDays($days);
+        $months = (int) $request->query('months', 3);
+        if (!in_array($months, [3, 6, 9, 12])) {
+            $months = 3;
+        }
+        $dateLimit = Carbon::now()->subMonths($months);
 
         $cylinders = Cylinder::with(['ownershipType', 'currentPatient', 'currentService'])
             ->leftJoin('cylinder_movements', 'cylinders.id', '=', 'cylinder_movements.cylinder_id')

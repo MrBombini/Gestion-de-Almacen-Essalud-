@@ -55,17 +55,23 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::apiResource('ownership-types', OwnershipTypeController::class);
 
         // Prescriptions (Sub-CRUD de Pacientes)
+        Route::get('prescriptions', [PrescriptionController::class, 'index']);
+        Route::get('prescriptions/{id}', [PrescriptionController::class, 'show']);
         Route::post('prescriptions', [PrescriptionController::class, 'store']);
         Route::put('prescriptions/{id}', [PrescriptionController::class, 'update']);
         Route::delete('prescriptions/{id}', [PrescriptionController::class, 'destroy']);
 
         // Liquid Module
         Route::prefix('liquid')->group(function () {
+            Route::get('/refills', [LiquidController::class, 'index']);
             Route::post('/refill', [LiquidController::class, 'storeRefill']);
+            Route::delete('/refills/{id}', [LiquidController::class, 'destroy']);
         });
 
         // Inventory Movements Module
         Route::prefix('inventory')->group(function () {
+            Route::get('/movements', [InventoryMovementController::class, 'index']);
+            Route::get('/decantings', [InventoryMovementController::class, 'indexDecantings']);
             Route::post('/exchange', [InventoryMovementController::class, 'createExchange']);
             Route::post('/decanting', [InventoryMovementController::class, 'createDecanting']);
             Route::post('/supplier', [InventoryMovementController::class, 'createSupplierMovement']);
@@ -81,6 +87,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // Users Management
         Route::apiResource('users', UserController::class);
         Route::patch('/users/{id}/deactivate', [UserController::class, 'deactivate']);
+        Route::patch('/users/{id}/activate', [UserController::class, 'activate']);
+        Route::patch('/users/{id}/toggle-status', [UserController::class, 'toggleStatus']);
 
         // Reports
         Route::prefix('reports')->group(function () {

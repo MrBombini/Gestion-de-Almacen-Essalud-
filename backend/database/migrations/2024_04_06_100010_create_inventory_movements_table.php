@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('inventory_movements', function (Blueprint $table) {
             $table->id();
             $table->string('type', 50); // Exchange, Decanting, SupplierEntry
-            $table->string('shift', 20); // Morning, Afternoon, Night
+            $table->string('shift', 20)->index(); // Morning, Afternoon, Night
             $table->string('reference_document', 100)->nullable();
             $table->foreignId('supplier_id')->nullable()->constrained('suppliers');
             $table->foreignId('patient_id')->nullable()->constrained('patients');
@@ -19,7 +19,7 @@ return new class extends Migration
             $table->foreignId('bed_id')->nullable()->constrained('beds');
             $table->foreignId('prescription_id')->nullable()->constrained('prescriptions');
             $table->foreignId('user_id')->constrained('users');
-            $table->timestamp('movement_at');
+            $table->timestamp('movement_at')->index();
             $table->text('notes')->nullable();
             $table->timestamps();
             $table->softDeletes();

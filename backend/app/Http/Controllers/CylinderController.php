@@ -48,6 +48,7 @@ class CylinderController extends Controller
             'supplier_id'          => 'required|exists:suppliers,id',
             'ownership_type_id'     => 'required|exists:ownership_types,id',
             'patient_id'            => 'nullable|exists:patients,id',
+            'service_id'            => 'nullable|exists:services,id',
             'gas_type'              => 'required|string',
             'capacity'              => 'required|numeric',
             'status'                => 'required|string|in:full,empty,in_use,lost,in_transit',
