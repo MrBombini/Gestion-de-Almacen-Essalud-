@@ -123,6 +123,7 @@ const Cylinders = () => {
       fontSize: '0.875rem',
     }),
     menu: (base) => ({ ...base, zIndex: 9999 }),
+    menuPortal: (base) => ({ ...base, zIndex: 9999 }),
   };
 
   // ── Quick-add: guardar proveedor ──
@@ -155,6 +156,19 @@ const Cylinders = () => {
     }
   };
 
+  // ── Helper para determinar si el balón es propio (de paciente) ──
+  const isCylinderPropio = () => {
+    const ownershipName = ownershipTypesList.find(t => t.id === formData.ownership_type_id)?.name?.toLowerCase() || '';
+    const supplierName = suppliersList.find(s => s.id === formData.supplier_id)?.name?.toLowerCase() || '';
+    
+    return (
+      ownershipName.includes('propio') || 
+      ownershipName.includes('paciente') || 
+      supplierName.includes('propio') ||
+      supplierName.includes('paciente')
+    );
+  };
+
   // ── CRUD principal ──
   const handleOpenCreate = () => { setFormData(emptyForm); setEditingId(null); setIsModalOpen(true); };
   const handleOpenEdit = (c) => {
@@ -174,8 +188,13 @@ const Cylinders = () => {
     setActionLoading(true);
     const finalData = { ...formData };
     
-    const ownershipName = ownershipTypesList.find(t => t.id === formData.ownership_type_id)?.name;
-    if (ownershipName !== 'Propio Paciente') {
+    if (isCylinderPropio()) {
+      if (!formData.patient_id) {
+        alert('Debe seleccionar un paciente para un balón propio.');
+        setActionLoading(false);
+        return;
+      }
+    } else {
       finalData.patient_id = null;
     }
     
@@ -604,11 +623,34 @@ const Cylinders = () => {
               </select>
             </div>
             <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Ubicación</label>
+              <select required value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                <option value="CENTRAL">CENTRAL</option>
+                <option value="HOSPITALIZACION">HOSPITALIZACIÓN</option>
+                <option value="PADOMI">PADOMI</option>
+                <option value="ALMACEN">ALMACÉN</option>
+                <option value="PROVEEDOR">PROVEEDOR</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Fecha Prueba Hidrostática y Condición Física */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Fecha Prueba Hidrostática</label>
               <input type="date" value={formData.hydrostatic_test_date}
                 onChange={(e) => setFormData({ ...formData, hydrostatic_test_date: e.target.value })}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Condición Física</label>
+              <select required value={formData.physical_condition} onChange={(e) => setFormData({ ...formData, physical_condition: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                <option value="Good">BUENA</option>
+                <option value="Bad">DEFECTUOSA / MALA</option>
+              </select>
             </div>
           </div>
 
@@ -651,8 +693,8 @@ const Cylinders = () => {
             />
           </div>
 
-          {/* Paciente (solo si propiedad = Propio Paciente) */}
-          {ownershipTypesList.find(t => t.id === formData.ownership_type_id)?.name === 'Propio Paciente' && (
+          {/* Paciente (solo si propiedad o proveedor es propio) */}
+          {isCylinderPropio() && (
             <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
               <label className="block text-sm font-bold text-blue-700 mb-2 flex items-center gap-2"><MdPerson /> Dueño (Paciente)</label>
               <select required value={formData.patient_id} onChange={(e) => setFormData({ ...formData, patient_id: e.target.value })}

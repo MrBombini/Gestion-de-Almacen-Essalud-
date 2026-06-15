@@ -12,8 +12,37 @@ class CylinderController extends Controller
         return response()->json(Cylinder::with(['supplier', 'ownershipType', 'patient', 'currentPatient', 'currentService', 'currentBed'])->get());
     }
 
+    private function normalizeCylinderData(Request $request): void
+    {
+        if ($request->has('status')) {
+            $status = strtolower(trim($request->status));
+            $statusMap = [
+                'lleno' => 'full',
+                'vacío' => 'empty',
+                'vacio' => 'empty',
+                'en uso' => 'in_use',
+                'en transito' => 'in_transit',
+                'en tránsito' => 'in_transit',
+                'perdido' => 'lost',
+                'extraviado' => 'lost',
+            ];
+            $request->merge(['status' => $statusMap[$status] ?? $status]);
+        }
+
+        if ($request->has('location')) {
+            $location = strtoupper(trim($request->location));
+            $locationMap = [
+                'HOSPITALIZACIÓN' => 'HOSPITALIZACION',
+                'ALMACÉN' => 'ALMACEN',
+            ];
+            $request->merge(['location' => $locationMap[$location] ?? $location]);
+        }
+    }
+
     public function store(Request $request)
     {
+        $this->normalizeCylinderData($request);
+
         $validated = $request->validate([
             'serial_number'         => 'required|string|unique:cylinders,serial_number',
             'barcode'               => 'nullable|string|unique:cylinders,barcode',
@@ -41,6 +70,8 @@ class CylinderController extends Controller
     public function update(Request $request, $id)
     {
         $cylinder = Cylinder::findOrFail($id);
+
+        $this->normalizeCylinderData($request);
 
         $validated = $request->validate([
             'serial_number'         => 'required|string|unique:cylinders,serial_number,' . $id,
