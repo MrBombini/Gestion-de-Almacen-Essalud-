@@ -35,7 +35,7 @@ const SupplierMovement = () => {
 
   // Balones disponibles para SALIR (Deben estar vacíos, de 10m3 y NO de pacientes)
   const cylindersOutOptions = cylindersList
-    .filter(c => c.status === 'empty' && Number(c.capacity) === 10 && c.ownership_type?.name?.toLowerCase() !== 'propio paciente')
+    .filter(c => c.status === 'empty' && Number(c.capacity) === 10 && !(c.ownership_type?.name?.toLowerCase().includes('propio') || c.ownership_type?.name?.toLowerCase().includes('paciente')))
     .map(c => ({
       value: c.id,
       label: `${c.serial_number} | ${c.ownership_type?.name || 'S/D'} | ${Number(c.capacity)}m³`
@@ -43,7 +43,7 @@ const SupplierMovement = () => {
 
   // Balones que podrían estar ENTRANDO (Los que están en el proveedor o vacíos para retorno rápido)
   const cylindersInOptions = cylindersList
-    .filter(c => (c.status === 'in_transit' || c.status === 'empty') && Number(c.capacity) === 10 && c.ownership_type?.name?.toLowerCase() !== 'propio paciente')
+    .filter(c => (c.status === 'in_transit' || c.status === 'empty') && Number(c.capacity) === 10 && !(c.ownership_type?.name?.toLowerCase().includes('propio') || c.ownership_type?.name?.toLowerCase().includes('paciente')))
     .map(c => ({
       value: c.id,
       label: `${c.serial_number} | ${c.ownership_type?.name || 'S/D'} | ${Number(c.capacity)}m³${c.status === 'in_transit' ? ' [EN PROVEEDOR]' : ''}`

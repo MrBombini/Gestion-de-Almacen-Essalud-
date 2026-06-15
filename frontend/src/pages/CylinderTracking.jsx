@@ -26,10 +26,13 @@ const CylinderTracking = () => {
   const [errorHistory, setErrorHistory] = useState(null);
 
   // Formatear las opciones del buscador (Select)
-  const cylinderOptions = cylindersList.map(c => ({
-    value: c.id,
-    label: `${c.serial_number} ${c.barcode ? `(${c.barcode})` : ''} - ${c.ownership_type?.name || 'Propiedad S/D'} (${c.capacity} m³)`
-  }));
+  const cylinderOptions = cylindersList.map(c => {
+    const patientSuffix = c.patient ? ` (Paciente: ${c.patient.full_name})` : '';
+    return {
+      value: c.id,
+      label: `${c.serial_number} ${c.barcode ? `(${c.barcode})` : ''} - ${c.ownership_type?.name || 'Propiedad S/D'}${patientSuffix} (${c.capacity} m³)`
+    };
+  });
 
   // Buscar historial cuando cambia el cilindro seleccionado
   useEffect(() => {
