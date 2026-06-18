@@ -14,6 +14,7 @@ import {
 } from 'react-icons/md';
 import { FaGasPump } from 'react-icons/fa6';
 import useFetch from '../hooks/useFetch';
+import api from '../services/api';
 
 const CylinderTracking = () => {
   // 1. Cargar la lista completa de balones para el buscador
@@ -46,19 +47,10 @@ const CylinderTracking = () => {
       setErrorHistory(null);
       try {
         // Usamos la instancia api configurada directamente
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/reports/history/${selectedOption.value}`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-            'Accept': 'application/json'
-          }
-        });
-        if (!response.ok) {
-          throw new Error('Error al obtener el historial del balón.');
-        }
-        const data = await response.json();
-        setHistoryData(data);
+        const response = await api.get(`/reports/history/${selectedOption.value}`);
+        setHistoryData(response.data);
       } catch (err) {
-        setErrorHistory(err.message || 'Error al cargar el historial.');
+        setErrorHistory(err.response?.data?.message || err.message || 'Error al cargar el historial.');
       } finally {
         setLoadingHistory(false);
       }
