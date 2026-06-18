@@ -3,10 +3,11 @@ import { MdAdd, MdEdit, MdDelete, MdSearch } from 'react-icons/md';
 import { FaHospitalUser } from 'react-icons/fa6';
 import useFetch from '../hooks/useFetch';
 import Modal from '../components/Modal'; // Importamos nuestro modal genérico
+import api from '../services/api';
 
 const Services = () => {
     // 1. Fetch de datos usando la ruta ajustada (sin /api)
-    const { data: services, loading, error, execute, refetch } = useFetch('/services');
+    const { data: services, loading, error, refetch } = useFetch('/services');
 
     // Estados
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -45,23 +46,15 @@ const Services = () => {
 
         try {
             if (editingId) {
-                await execute({
-                    url: `/services/${editingId}`,
-                    method: 'PUT',
-                    body: formData
-                });
+                await api.put(`/services/${editingId}`, formData);
             } else {
-                await execute({
-                    url: '/services',
-                    method: 'POST',
-                    body: formData
-                });
+                await api.post('/services', formData);
             }
             handleCloseModal();
             refetch(); // Recargar la tabla
         } catch (err) {
             console.error("Error al guardar el servicio", err);
-            alert("Hubo un error al guardar. Revisa la consola.");
+            alert(err?.response?.data?.message || "Hubo un error al guardar. Revisa la consola.");
         } finally {
             setActionLoading(false);
         }
@@ -70,14 +63,15 @@ const Services = () => {
     // Eliminar (DELETE)
     const handleDelete = async (id) => {
         if (window.confirm('¿Estás seguro de eliminar este servicio? También se eliminarán las camas asociadas.')) {
+            setActionLoading(true);
             try {
-                await execute({
-                    url: `/services/${id}`,
-                    method: 'DELETE'
-                });
+                await api.delete(`/services/${id}`);
                 refetch();
             } catch (err) {
                 console.error("Error al eliminar", err);
+                alert(err?.response?.data?.message || "Hubo un error al eliminar.");
+            } finally {
+                setActionLoading(false);
             }
         }
     };
@@ -157,12 +151,11 @@ const Services = () => {
                                             <td className="px-6 py-4 text-sm text-slate-500">#{service.id}</td>
                                             <td className="px-6 py-4 text-sm font-medium text-slate-800">{service.name}</td>
                                             <td className="px-6 py-4 text-sm">
-                                                <span className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${
-                                                    service.type === 'Hospital'
+                                                <span className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${service.type === 'Hospital'
                                                         ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                                                         : service.type === 'PERIFERIE'
-                                                        ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
-                                                        : 'bg-purple-50 text-purple-700 border-purple-100'
+                                                            ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                                                            : 'bg-purple-50 text-purple-700 border-purple-100'
                                                     }`}>
                                                     {service.type}
                                                 </span>

@@ -81,7 +81,7 @@ const QuickAddModal = ({ isOpen, onClose, title, fields, onSave, saving }) => {
 
 // ─── Página principal ────────────────────────────────────────────────────────
 const Cylinders = () => {
-  const { data: cylinders, loading, error, execute, refetch } = useFetch('/cylinders');
+  const { data: cylinders, loading, error, refetch } = useFetch('/cylinders');
   const { data: suppliers, refetch: refetchSuppliers } = useFetch('/suppliers');
   const { data: ownershipTypes, refetch: refetchOwnership } = useFetch('/ownership-types');
   const { data: patients } = useFetch('/patients');
@@ -200,9 +200,9 @@ const Cylinders = () => {
     
     try {
       if (editingId) {
-        await execute({ url: `/cylinders/${editingId}`, method: 'PUT', body: finalData });
+        await api.put(`/cylinders/${editingId}`, finalData);
       } else {
-        await execute({ url: '/cylinders', method: 'POST', body: finalData });
+        await api.post('/cylinders', finalData);
       }
       setIsModalOpen(false);
       refetch();
@@ -215,8 +215,16 @@ const Cylinders = () => {
 
   const handleDelete = async (id) => {
     if (!window.confirm('¿Eliminar este cilindro?')) return;
-    try { await execute({ url: `/cylinders/${id}`, method: 'DELETE' }); refetch(); }
-    catch (err) { console.error(err); }
+    setActionLoading(true);
+    try {
+      await api.delete(`/cylinders/${id}`);
+      refetch();
+    } catch (err) {
+      console.error(err);
+      alert(err?.response?.data?.message || 'Error al eliminar.');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const filtered = cylindersList.filter(c => {
