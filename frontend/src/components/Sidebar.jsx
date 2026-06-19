@@ -136,6 +136,10 @@ const Sidebar = () => {
             <MdAssignment className="text-lg" />
             <span>Cilindros Seguimiento</span>
           </NavLink>
+          <NavLink to="/admin/movements-report" className={navLinkClass}>
+            <MdAssignment className="text-lg" />
+            <span>Búsqueda de Movimientos</span>
+          </NavLink>
         </div>
 
         {/* SECCIÓN: ADMINISTRACIÓN (Condicional) */}

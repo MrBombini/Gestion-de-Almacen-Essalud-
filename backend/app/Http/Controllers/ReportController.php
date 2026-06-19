@@ -408,4 +408,290 @@ class ReportController extends Controller
             'cylinder_consumption' => $cylinderConsumption,
         ]);
     }
+
+    /**
+     * REPORTE: Búsqueda avanzada de movimientos y trasiegos de cilindros
+     */
+    public function movementsSearch(Request $request)
+    {
+        $patientQuery = $request->query('patient');      // ID, DNI or Name
+        $serviceQuery = $request->query('service');      // ID or Name
+        $supplierQuery = $request->query('supplier');    // ID or Name
+        $cylinderQuery = $request->query('cylinder');    // serial number or barcode
+        $referenceQuery = $request->query('reference');  // reference_document
+        $shift = $request->query('shift');                // Morning, Afternoon, Night
+        $startDate = $request->query('start_date');      // YYYY-MM-DD
+        $endDate = $request->query('end_date');          // YYYY-MM-DD
+
+        // 1. Query CylinderMovements
+        $cmQuery = CylinderMovement::with([
+            'cylinder.ownershipType',
+            'cylinder.supplier',
+            'inventoryMovement.user',
+            'inventoryMovement.patient',
+            'inventoryMovement.service',
+            'inventoryMovement.supplier'
+        ]);
+
+        // Apply filters to CylinderMovement query
+        if ($patientQuery) {
+            $cmQuery->whereHas('inventoryMovement.patient', function ($q) use ($patientQuery) {
+                if (is_numeric($patientQuery)) {
+                    $q->where('id', $patientQuery);
+                } else {
+                    $q->where(function($sub) use ($patientQuery) {
+                        $sub->where('dni', 'like', "%{$patientQuery}%")
+                            ->orWhere('full_name', 'like', "%{$patientQuery}%")
+                            ->orWhere('exchange_code', 'like', "%{$patientQuery}%")
+                            ->orWhere('trasiego_code', 'like', "%{$patientQuery}%");
+                    });
+                }
+            });
+        }
+
+        if ($serviceQuery) {
+            $cmQuery->whereHas('inventoryMovement.service', function ($q) use ($serviceQuery) {
+                if (is_numeric($serviceQuery)) {
+                    $q->where('id', $serviceQuery);
+                } else {
+                    $q->where('name', 'like', "%{$serviceQuery}%");
+                }
+            });
+        }
+
+        if ($supplierQuery) {
+            $cmQuery->whereHas('inventoryMovement.supplier', function ($q) use ($supplierQuery) {
+                if (is_numeric($supplierQuery)) {
+                    $q->where('id', $supplierQuery);
+                } else {
+                    $q->where(function($sub) use ($supplierQuery) {
+                        $sub->where('name', 'like', "%{$supplierQuery}%")
+                            ->orWhere('ruc', 'like', "%{$supplierQuery}%");
+                    });
+                }
+            });
+        }
+
+        if ($cylinderQuery) {
+            $cmQuery->whereHas('cylinder', function ($q) use ($cylinderQuery) {
+                if (is_numeric($cylinderQuery)) {
+                    $q->where('id', $cylinderQuery);
+                } else {
+                    $q->where(function($sub) use ($cylinderQuery) {
+                        $sub->where('serial_number', 'like', "%{$cylinderQuery}%")
+                            ->orWhere('barcode', 'like', "%{$cylinderQuery}%");
+                    });
+                }
+            });
+        }
+
+        if ($referenceQuery) {
+            $cmQuery->whereHas('inventoryMovement', function ($q) use ($referenceQuery) {
+                $q->where('reference_document', 'like', "%{$referenceQuery}%")
+                  ->orWhereHas('patient', function ($sub) use ($referenceQuery) {
+                      $sub->where('exchange_code', 'like', "%{$referenceQuery}%")
+                          ->orWhere('trasiego_code', 'like', "%{$referenceQuery}%");
+                  });
+            });
+        }
+
+        if ($shift) {
+            $cmQuery->whereHas('inventoryMovement', function ($q) use ($shift) {
+                $q->where('shift', $shift);
+            });
+        }
+
+        if ($startDate) {
+            $cmQuery->whereHas('inventoryMovement', function ($q) use ($startDate) {
+                $q->whereDate('movement_at', '>=', $startDate);
+            });
+        }
+
+        if ($endDate) {
+            $cmQuery->whereHas('inventoryMovement', function ($q) use ($endDate) {
+                $q->whereDate('movement_at', '<=', $endDate);
+            });
+        }
+
+        // Limit results to avoid memory crash
+        $cylinderMovements = $cmQuery->orderBy('id', 'desc')->take(1000)->get();
+
+        // 2. Query Decantings (if not searching for supplier)
+        $decantings = collect();
+        if (!$supplierQuery) {
+            $decQuery = Decanting::with([
+                'cylinder.ownershipType',
+                'cylinder.supplier',
+                'user',
+                'patient',
+                'service'
+            ]);
+
+            if ($patientQuery) {
+                $decQuery->whereHas('patient', function ($q) use ($patientQuery) {
+                    if (is_numeric($patientQuery)) {
+                        $q->where('id', $patientQuery);
+                    } else {
+                        $q->where(function($sub) use ($patientQuery) {
+                            $sub->where('dni', 'like', "%{$patientQuery}%")
+                                ->orWhere('full_name', 'like', "%{$patientQuery}%")
+                                ->orWhere('exchange_code', 'like', "%{$patientQuery}%")
+                                ->orWhere('trasiego_code', 'like', "%{$patientQuery}%");
+                        });
+                    }
+                });
+            }
+
+            if ($serviceQuery) {
+                $decQuery->whereHas('service', function ($q) use ($serviceQuery) {
+                    if (is_numeric($serviceQuery)) {
+                        $q->where('id', $serviceQuery);
+                    } else {
+                        $q->where('name', 'like', "%{$serviceQuery}%");
+                    }
+                });
+            }
+
+            if ($cylinderQuery) {
+                $decQuery->whereHas('cylinder', function ($q) use ($cylinderQuery) {
+                    if (is_numeric($cylinderQuery)) {
+                        $q->where('id', $cylinderQuery);
+                    } else {
+                        $q->where(function($sub) use ($cylinderQuery) {
+                            $sub->where('serial_number', 'like', "%{$cylinderQuery}%")
+                                ->orWhere('barcode', 'like', "%{$cylinderQuery}%");
+                        });
+                    }
+                });
+            }
+
+            if ($referenceQuery) {
+                $decQuery->whereHas('patient', function ($q) use ($referenceQuery) {
+                    $q->where('exchange_code', 'like', "%{$referenceQuery}%")
+                      ->orWhere('trasiego_code', 'like', "%{$referenceQuery}%");
+                });
+            }
+
+            if ($shift) {
+                $decQuery->where('shift', $shift);
+            }
+
+            if ($startDate) {
+                $decQuery->whereDate('decanted_at', '>=', $startDate);
+            }
+
+            if ($endDate) {
+                $decQuery->whereDate('decanted_at', '<=', $endDate);
+            }
+
+            $decantings = $decQuery->orderBy('id', 'desc')->take(1000)->get();
+        }
+
+        // 3. Map both results to a unified structure
+        $mappedMovements = $cylinderMovements->map(function ($cm) {
+            $im = $cm->inventoryMovement;
+            if (!$im) return null;
+            
+            // Determine type label in Spanish
+            $typeLabel = 'Movimiento';
+            if ($im->type === 'Exchange') $typeLabel = 'Intercambio';
+            elseif ($im->type === 'SupplierMovement') $typeLabel = 'Salida Proveedor';
+            elseif ($im->type === 'SupplierEntry') $typeLabel = 'Ingreso Proveedor';
+            elseif ($im->type === 'ServiceBulkExchange') $typeLabel = 'Canje de Red (Periferia)';
+
+            // Determine action label
+            $actionLabel = $cm->action === 'Entry' ? 'Ingreso' : 'Salida';
+
+            // Determine destination/location
+            $locationType = 'Almacén Central';
+            $locationName = 'Almacén Central';
+            $locationDetail = '';
+
+            if ($im->patient) {
+                $locationType = 'Paciente';
+                $locationName = $im->patient->full_name;
+                $locationDetail = $im->patient->dni ? 'DNI: ' . $im->patient->dni : ($im->patient->exchange_code ?: '');
+            } elseif ($im->service) {
+                $locationType = 'Servicio (Hospital)';
+                $locationName = $im->service->name;
+                $locationDetail = $im->service->type;
+                if ($im->bed) {
+                    $locationDetail .= ' - Cama: ' . $im->bed->bed_number;
+                }
+            } elseif ($im->supplier) {
+                $locationType = 'Proveedor';
+                $locationName = $im->supplier->name;
+                $locationDetail = $im->supplier->ruc ? 'RUC: ' . $im->supplier->ruc : '';
+            }
+
+            return [
+                'id' => 'M-' . $cm->id,
+                'date' => $im->movement_at,
+                'shift' => $im->shift,
+                'type' => $typeLabel,
+                'action' => $actionLabel,
+                'cylinder_status' => $cm->cylinder_status,
+                'reference_document' => $im->reference_document ?: '-',
+                'notes' => $im->notes ?: '',
+                'user' => $im->user?->name ?: 'N/A',
+                'cylinder' => [
+                    'id' => $cm->cylinder?->id,
+                    'serial_number' => $cm->cylinder?->serial_number ?: 'N/A',
+                    'barcode' => $cm->cylinder?->barcode ?: '',
+                    'capacity' => $cm->cylinder?->capacity ?: 0,
+                    'ownership_type' => $cm->cylinder?->ownershipType?->name ?: 'S/D',
+                ],
+                'location' => [
+                    'type' => $locationType,
+                    'name' => $locationName,
+                    'detail' => $locationDetail,
+                ]
+            ];
+        })->filter();
+
+        $mappedDecantings = $decantings->map(function ($dec) {
+            $locationType = 'Trasiego';
+            $locationName = $dec->manual_destination ?: 'Estación de Trasiego';
+            $locationDetail = 'Cantidad: ' . $dec->refilled_amount . ' m³';
+
+            if ($dec->patient) {
+                $locationType = 'Paciente (Trasiego)';
+                $locationName = $dec->patient->full_name;
+                $locationDetail = 'DNI: ' . $dec->patient->dni;
+            } elseif ($dec->service) {
+                $locationType = 'Servicio (Trasiego)';
+                $locationName = $dec->service->name;
+                $locationDetail = 'Trasiego Recarga';
+            }
+
+            return [
+                'id' => 'T-' . $dec->id,
+                'date' => $dec->decanted_at,
+                'shift' => $dec->shift,
+                'type' => 'Trasiego (Decantación)',
+                'action' => 'Recarga',
+                'cylinder_status' => 'full (refilled)',
+                'reference_document' => '-',
+                'notes' => 'Recarga de ' . $dec->refilled_amount . ' m³',
+                'user' => $dec->user?->name ?: 'N/A',
+                'cylinder' => [
+                    'id' => $dec->cylinder?->id,
+                    'serial_number' => $dec->cylinder?->serial_number ?: 'N/A',
+                    'barcode' => $dec->cylinder?->barcode ?: '',
+                    'capacity' => $dec->cylinder?->capacity ?: 0,
+                    'ownership_type' => $dec->cylinder?->ownershipType?->name ?: 'S/D',
+                ],
+                'location' => [
+                    'type' => $locationType,
+                    'name' => $locationName,
+                    'detail' => $locationDetail,
+                ]
+            ];
+        });
+
+        // 4. Combine and sort
+        $results = $mappedMovements->concat($mappedDecantings)->sortByDesc('date')->values();
+
+        return response()->json($results);
+    }
 }
