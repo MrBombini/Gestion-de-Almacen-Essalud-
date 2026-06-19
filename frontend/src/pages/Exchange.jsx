@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { MdSwapHoriz, MdSave, MdPerson, MdLocalHospital, MdPropaneTank, MdHotel, MdWarning, MdSettingsInputComponent } from 'react-icons/md';
+import { MdSwapHoriz, MdSave, MdPerson, MdLocalHospital, MdPropaneTank, MdHotel, MdWarning, MdSettingsInputComponent, MdPrint } from 'react-icons/md';
 import Select from 'react-select';
 import useFetch from '../hooks/useFetch';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
 
 const Exchange = () => {
-  const { shift } = useAuth();
+  const { user, shift } = useAuth();
 
   const { data: patients, loading: loadingP, refetch: refetchP } = useFetch('/patients');
   const { data: services, loading: loadingS } = useFetch('/services');
@@ -34,6 +34,7 @@ const Exchange = () => {
   const [prescriptionAlert, setPrescriptionAlert] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
+  const [createdMovement, setCreatedMovement] = useState(null);
 
   // Limpiar campos al cambiar de tipo de destino
   useEffect(() => {
@@ -162,11 +163,14 @@ const Exchange = () => {
     }
 
     try {
-      await execute({
+      const response = await execute({
         body: { ...formData, shift }
       });
 
       setSuccessMessage('¡Intercambio registrado con éxito!');
+      if (destinationType === 'patient' && response) {
+        setCreatedMovement(response);
+      }
       setFormData({
         patient_id: '', service_id: '', bed_id: '',
         prescription_id: '', cylinder_in: '', cylinder_out: '', notes: ''
@@ -177,6 +181,164 @@ const Exchange = () => {
     } catch (err) {
       setErrorMessage(err.response?.data?.message || 'Error en el registro.');
     }
+  };
+
+  const handlePrintTicket = (ticket) => {
+    if (!ticket) return;
+    const patient = ticket.patient || {};
+    const operator = ticket.user || user || {};
+
+    const rawDate = ticket.movement_at ? new Date(ticket.movement_at) : new Date();
+    const formattedDate = `${rawDate.getFullYear()}/${String(rawDate.getMonth() + 1).padStart(2, '0')}/${String(rawDate.getDate()).padStart(2, '0')}`;
+
+    const cylinderMovements = ticket.cylinder_movements || [];
+    const cylinderOut = cylinderMovements.find(m => m.action === 'Exit')?.cylinder || {};
+    const cylinderIn = cylinderMovements.find(m => m.action === 'Entry')?.cylinder || {};
+
+    const printWindow = window.open('', '', 'width=400,height=600');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Control de Atención N° ${ticket.id}</title>
+          <style>
+            @page {
+              size: 76mm 76mm;
+              margin: 0 !important;
+            }
+            body { 
+              font-family: Arial, sans-serif; 
+              margin: 0; 
+              padding: 4mm 4mm;
+              color: #000;
+              width: 74mm;
+              height: 74mm;
+              box-sizing: border-box;
+              font-size: 11px;
+              line-height: 1.3;
+              overflow: hidden;
+            }
+            .ticket-container {
+              width: 100%;
+              height: 100%;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              box-sizing: border-box;
+            }
+            .ticket-header { 
+              text-align: center; 
+              border-bottom: 1.5px solid #000; 
+              margin-bottom: 5px;
+              padding-bottom: 3px;
+            }
+            .ticket-header h3 {
+              margin: 0;
+              font-size: 14px;
+              font-weight: bold;
+            }
+            .ticket-body {
+              flex-grow: 1;
+            }
+            .line { 
+              margin-bottom: 3px; 
+              font-size: 11px; 
+            }
+            .bold { 
+              font-weight: bold; 
+            }
+            table { 
+              text-align: left; 
+              border-collapse: collapse; 
+              margin-top: 4px; 
+              margin-bottom: 4px; 
+              width: 100%; 
+              font-size: 10.5px;
+            }
+            th { 
+              border-bottom: 1px dashed #000; 
+              padding-bottom: 2px; 
+              font-weight: bold;
+              text-decoration: underline;
+            }
+            td { 
+              padding: 3px 0; 
+            }
+            .cylinder-number {
+              font-weight: bold;
+              font-size: 12px;
+            }
+            .ticket-footer {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-end;
+              margin-top: 4px;
+            }
+            .footer-info {
+              font-size: 10.5px;
+            }
+            .signatures { 
+              width: 120px; 
+              font-size: 10px;
+            }
+            .sign-line { 
+              border-top: 1px solid #000; 
+              padding-top: 2px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="ticket-container">
+            <div class="ticket-header">
+              <h3>CONTROL DE ATENCIÓN N° ${ticket.id}</h3>
+            </div>
+            <div class="ticket-body">
+              <div class="line"><span class="bold">Paciente:</span> ${patient.full_name || '-'}</div>
+              <div class="line"><span class="bold">Cod. Paciente:</span> ${patient.exchange_code || patient.dni || patient.id || '-'}</div>
+              <div class="line"><span class="bold">Dirección:</span> ${patient.address || '-'}</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Cod.</th>
+                    <th>Prop.</th>
+                    <th>Cap.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>B. LLENO: <span class="cylinder-number">${cylinderOut.serial_number || 'N/A'}</span></td>
+                    <td>${cylinderOut.ownership_type?.name || cylinderOut.ownership_type_name || 'N/A'}</td>
+                    <td>${cylinderOut.capacity ? `${cylinderOut.capacity} m3` : '-'}</td>
+                  </tr>
+                  <tr>
+                    <td>B. VACÍO: <span class="cylinder-number">${cylinderIn.serial_number || 'N/A'}</span></td>
+                    <td>${cylinderIn.ownership_type?.name || cylinderIn.ownership_type_name || 'N/A'}</td>
+                    <td>${cylinderIn.capacity ? `${cylinderIn.capacity} m3` : '-'}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="ticket-footer">
+              <div class="footer-info">
+                <div class="line"><span>Operador:</span> ${operator.name || '-'}</div>
+                <div class="line"><span>Fecha:</span> ${formattedDate}</div>
+              </div>
+              <div class="signatures">
+                <div class="sign-line">
+                  <div><span>Nombre:</span></div>
+                  <div><span>Cel:</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
   };
 
   if (loadingP || loadingS || loadingC) {
@@ -316,6 +478,64 @@ const Exchange = () => {
           </button>
         </div>
       </form>
+
+      {/* MODAL TICKET DE ATENCION (IMPRESION RAPIDA) */}
+      {createdMovement && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl p-6 max-w-md w-full border border-slate-100 space-y-6">
+            
+            {/* Cabecera */}
+            <div className="text-center space-y-2">
+              <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-3xl font-bold border border-emerald-100 shadow-sm animate-bounce">
+                ✓
+              </div>
+              <h3 className="text-xl font-black text-slate-800">¡Canje Registrado con Éxito!</h3>
+              <p className="text-slate-500 text-sm">Operación de Intercambio N° {createdMovement.id}</p>
+            </div>
+
+            {/* Vista Previa del Ticket Simplificado */}
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/60 text-xs text-slate-700 space-y-3 font-mono shadow-inner">
+              <div className="border-b pb-2 text-center font-bold text-slate-600 tracking-wider">VISTA PREVIA DEL TICKET</div>
+              <div className="space-y-1">
+                <div><span className="font-sans font-bold text-slate-400">Paciente:</span> {createdMovement.patient?.full_name}</div>
+                <div><span className="font-sans font-bold text-slate-400">Código:</span> {createdMovement.patient?.exchange_code || createdMovement.patient?.dni}</div>
+                <div><span className="font-sans font-bold text-slate-400">Fecha:</span> {format(new Date(createdMovement.movement_at), 'dd/MM/yyyy HH:mm')}</div>
+              </div>
+
+              {/* Detalle de Cilindros */}
+              <div className="border-t border-dashed pt-2 space-y-1">
+                {createdMovement.cylinder_movements?.map((m) => (
+                  <div key={m.id} className="flex justify-between">
+                    <span>{m.action === 'Exit' ? 'B. LLENO:' : 'B. VACÍO:'} <strong className="font-bold text-slate-800">{m.cylinder?.serial_number}</strong></span>
+                    <span className="text-[10px] bg-slate-200 px-1.5 py-0.5 rounded">{m.cylinder?.capacity} m³</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Botones de Acción */}
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setCreatedMovement(null);
+                }}
+                className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition-all text-sm border border-slate-200/50 flex items-center justify-center gap-1.5"
+              >
+                Cerrar
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePrintTicket(createdMovement)}
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-all text-sm shadow-md shadow-emerald-100 flex items-center justify-center gap-1.5"
+              >
+                <MdPrint className="text-lg" /> Imprimir
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 };

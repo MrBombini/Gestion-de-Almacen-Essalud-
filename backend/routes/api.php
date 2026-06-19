@@ -92,6 +92,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         // Reports
         Route::prefix('reports')->group(function () {
+            Route::get('/movements-search', [ReportController::class, 'movementsSearch']);
             Route::get('/inventory', [ReportController::class, 'inventoryReport']);
             Route::get('/stagnant', [ReportController::class, 'stagnantCylinders']);
             Route::get('/history/{id}', [ReportController::class, 'cylinderHistory']);

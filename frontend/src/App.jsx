@@ -22,6 +22,7 @@ import TicketControl from './pages/Reports/TicketControl';
 import SupplierReport from './pages/Reports/SupplierReport';
 import PeripheryReport from './pages/Reports/PeripheryReport';
 import CylinderTracking from './pages/CylinderTracking';
+import MovementsReport from './pages/MovementsReport';
 
 
 function App() {
@@ -57,6 +58,7 @@ function App() {
             <Route path="/admin/reports" element={<Reports />} />
             <Route path="/admin/kardex" element={<Kardex />} />
             <Route path="/admin/kardex5" element={<CylinderTracking />} />
+            <Route path="/admin/movements-report" element={<MovementsReport />} />
             <Route path="/admin/users" element={<Users />} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
