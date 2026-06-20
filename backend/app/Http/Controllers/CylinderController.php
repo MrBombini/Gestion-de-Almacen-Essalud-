@@ -7,9 +7,30 @@ use Illuminate\Http\Request;
 
 class CylinderController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(Cylinder::with(['supplier', 'ownershipType', 'patient', 'currentPatient', 'currentService', 'currentBed'])->get());
+        $query = Cylinder::with(['supplier', 'ownershipType', 'patient', 'currentPatient', 'currentService', 'currentBed'])
+            ->orderBy('created_at', 'desc');
+
+        if ($request->has('search') && $request->search != '') {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('serial_number', 'like', '%' . $search . '%')
+                  ->orWhere('barcode', 'like', '%' . $search . '%');
+            });
+        }
+
+        if ($request->has('location') && $request->location !== 'ALL') {
+            $query->where('location', $request->location);
+        }
+
+        $perPage = $request->get('per_page', 50);
+        
+        if ($perPage === 'all') {
+            return response()->json($query->get());
+        }
+
+        return response()->json($query->paginate((int)$perPage));
     }
 
     private function normalizeCylinderData(Request $request): void
