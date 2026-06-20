@@ -9,12 +9,27 @@ use Illuminate\Support\Facades\DB;
 
 class PatientController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        // Traemos el paciente con su receta más reciente
-        return response()->json(Patient::with(['prescriptions' => function($q) {
+        $query = Patient::with(['prescriptions' => function($q) {
             $q->orderBy('created_at', 'desc');
-        }])->get());
+        }])->orderBy('created_at', 'desc');
+
+        if ($request->has('search') && $request->search != '') {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('full_name', 'like', '%' . $search . '%')
+                  ->orWhere('dni', 'like', '%' . $search . '%');
+            });
+        }
+
+        $perPage = $request->get('per_page', 50);
+        
+        if ($perPage === 'all') {
+            return response()->json($query->get());
+        }
+
+        return response()->json($query->paginate((int)$perPage));
     }
 
     public function store(Request $request)

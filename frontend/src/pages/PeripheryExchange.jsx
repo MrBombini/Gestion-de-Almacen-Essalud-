@@ -8,7 +8,7 @@ const PeripheryExchange = () => {
   const { shift } = useAuth();
   
   const { data: services, loading: loadingS } = useFetch('/services');
-  const { data: cylinders, loading: loadingC, refetch: refetchC } = useFetch('/cylinders');
+  const { data: cylinders, loading: loadingC, refetch: refetchC } = useFetch('/cylinders?per_page=all');
   
   const { execute, loading: actionLoading } = useFetch('/inventory/periphery-exchange', 'POST', null, false);
 

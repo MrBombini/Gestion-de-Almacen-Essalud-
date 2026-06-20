@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MdAdd, MdEdit, MdDelete, MdSearch, MdLocationOn, MdPhone, MdAssignment, MdClose, MdHistory, MdWarning } from 'react-icons/md';
 import { FaBedPulse } from 'react-icons/fa6';
 import useFetch from '../hooks/useFetch';
@@ -6,12 +6,23 @@ import Modal from '../components/Modal';
 import api from '../services/api';
 
 const Patients = () => {
-    const { data: patients, loading, execute, refetch } = useFetch('/patients');
+    const [currentPage, setCurrentPage]     = useState(1);
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [searchTerm, setSearchTerm]       = useState('');
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearch(searchTerm);
+            setCurrentPage(1);
+        }, 500);
+        return () => clearTimeout(handler);
+    }, [searchTerm]);
+
+    const { data: patients, loading, execute, refetch } = useFetch(`/patients?page=${currentPage}&search=${debouncedSearch}`);
 
     const [isModalOpen, setIsModalOpen]     = useState(false);
     const [editingId, setEditingId]         = useState(null);
     const [actionLoading, setActionLoading] = useState(false);
-    const [searchTerm, setSearchTerm]       = useState('');
 
     // ── Sub-CRUD de Recetas ──
     const [rxPatient, setRxPatient]     = useState(null); // paciente cuyas recetas se ven
@@ -115,10 +126,7 @@ const Patients = () => {
     };
 
     const patientsList = Array.isArray(patients) ? patients : (patients?.data || []);
-    const filtered = patientsList.filter(p =>
-        p.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (p.dni && p.dni.includes(searchTerm))
-    );
+    const filtered = patientsList;
 
     const rxStatusBadge = (status) => {
         const map = { active: 'bg-emerald-50 text-emerald-700 border-emerald-200', expired: 'bg-red-50 text-red-700 border-red-200', inactive: 'bg-slate-50 text-slate-600 border-slate-200' };
@@ -226,6 +234,31 @@ const Patients = () => {
                                 })}
                             </tbody>
                         </table>
+
+                        {patients && patients.last_page > 1 && (
+                            <div className="p-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between bg-slate-50 gap-4">
+                                <span className="text-sm text-slate-500 font-medium">
+                                    Página <strong className="text-slate-800">{patients.current_page}</strong> de <strong className="text-slate-800">{patients.last_page}</strong> 
+                                    <span className="ml-2 hidden sm:inline">(Total: {patients.total})</span>
+                                </span>
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        disabled={currentPage === 1}
+                                        className="px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-sm"
+                                    >
+                                        Anterior
+                                    </button>
+                                    <button 
+                                        onClick={() => setCurrentPage(p => Math.min(patients.last_page, p + 1))}
+                                        disabled={currentPage === patients.last_page}
+                                        className="px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-sm"
+                                    >
+                                        Siguiente
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { components } from 'react-select';
 import Select from 'react-select';
 import { MdAdd, MdEdit, MdDelete, MdSearch, MdPropaneTank, MdPerson, MdLocationOn, MdScience, MdBusiness, MdLabel } from 'react-icons/md';
@@ -81,22 +81,37 @@ const QuickAddModal = ({ isOpen, onClose, title, fields, onSave, saving }) => {
 
 // ─── Página principal ────────────────────────────────────────────────────────
 const Cylinders = () => {
-  const { data: cylinders, loading, error, refetch } = useFetch('/cylinders');
-  const { data: suppliers, refetch: refetchSuppliers } = useFetch('/suppliers');
-  const { data: ownershipTypes, refetch: refetchOwnership } = useFetch('/ownership-types');
-  const { data: patients } = useFetch('/patients');
-
-  const cylindersList = Array.isArray(cylinders) ? cylinders : (cylinders?.data || []);
-  const suppliersList = Array.isArray(suppliers) ? suppliers : (suppliers?.data || []);
-  const ownershipTypesList = Array.isArray(ownershipTypes) ? ownershipTypes : (ownershipTypes?.data || []);
-  const patientsList = Array.isArray(patients) ? patients : (patients?.data || []);
-
   // ── Estado del formulario principal ──
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLocation, setFilterLocation] = useState('ALL');
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setCurrentPage(1);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterLocation]);
+
+  const { data: cylinders, loading, error, refetch } = useFetch(`/cylinders?page=${currentPage}&search=${debouncedSearch}&location=${filterLocation}`);
+  const { data: suppliers, refetch: refetchSuppliers } = useFetch('/suppliers?per_page=all');
+  const { data: ownershipTypes, refetch: refetchOwnership } = useFetch('/ownership-types?per_page=all');
+  const { data: patients } = useFetch('/patients?per_page=all');
+
+  const cylindersList = Array.isArray(cylinders) ? cylinders : (cylinders?.data || []);
+  const suppliersList = Array.isArray(suppliers) ? suppliers : (suppliers?.data || []);
+  const ownershipTypesList = Array.isArray(ownershipTypes) ? ownershipTypes : (ownershipTypes?.data || []);
+  const patientsList = Array.isArray(patients) ? patients : (patients?.data || []);
 
   const emptyForm = {
     serial_number: '', barcode: '', supplier_id: '', ownership_type_id: '',
@@ -227,12 +242,7 @@ const Cylinders = () => {
     }
   };
 
-  const filtered = cylindersList.filter(c => {
-    const s = searchTerm.toLowerCase();
-    const matchSearch = c.serial_number.toLowerCase().includes(s) || (c.barcode && c.barcode.toLowerCase().includes(s));
-    const matchLoc = filterLocation === 'ALL' || c.location === filterLocation;
-    return matchSearch && matchLoc;
-  });
+  const filtered = cylindersList;
 
   const statusBadge = (status) => {
     const map = {
@@ -444,6 +454,31 @@ const Cylinders = () => {
               )}
             </tbody>
           </table>
+
+          {cylinders && cylinders.last_page > 1 && (
+            <div className="p-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between bg-slate-50 gap-4">
+              <span className="text-sm text-slate-500 font-medium">
+                Página <strong className="text-slate-800">{cylinders.current_page}</strong> de <strong className="text-slate-800">{cylinders.last_page}</strong> 
+                <span className="ml-2 hidden sm:inline">(Total: {cylinders.total})</span>
+              </span>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-sm"
+                >
+                  Anterior
+                </button>
+                <button 
+                  onClick={() => setCurrentPage(p => Math.min(cylinders.last_page, p + 1))}
+                  disabled={currentPage === cylinders.last_page}
+                  className="px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-sm"
+                >
+                  Siguiente
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
