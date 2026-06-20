@@ -10,7 +10,7 @@ const Exchange = () => {
 
   const { data: patients, loading: loadingP, refetch: refetchP } = useFetch('/patients');
   const { data: services, loading: loadingS } = useFetch('/services');
-  const { data: cylinders, loading: loadingC, refetch: refetchC } = useFetch('/cylinders');
+  const { data: cylinders, loading: loadingC, refetch: refetchC } = useFetch('/cylinders?per_page=all');
 
   const { execute, loading: actionLoading } = useFetch('/inventory/exchange', 'POST', null, false);
 

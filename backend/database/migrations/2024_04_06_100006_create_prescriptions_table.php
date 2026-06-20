@@ -15,7 +15,7 @@ return new class extends Migration
             $table->string('dosage', 50)->nullable();          // Ej: 2 litros / min
             $table->string('usage_time', 50)->nullable();     // Ej: 15 horas al día
             $table->date('issued_at')->nullable();
-            $table->date('expires_at');
+            $table->date('expires_at')->nullable();
             $table->date('authorization_date')->nullable();
             $table->string('promissory_note', 100)->nullable();
             $table->string('status', 20)->default('active'); // active, expired, canceled

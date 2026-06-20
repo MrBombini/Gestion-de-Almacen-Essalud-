@@ -23,7 +23,7 @@ import api from '../services/api';
 
 const MovementsReport = () => {
   // 1. Cargar catálogos para los dropdowns de búsqueda
-  const { data: cylindersData, loading: loadingCylinders } = useFetch('/cylinders');
+  const { data: cylindersData, loading: loadingCylinders } = useFetch('/cylinders?per_page=all');
   const { data: patientsData, loading: loadingPatients } = useFetch('/patients');
   const { data: servicesData, loading: loadingServices } = useFetch('/services');
   const { data: suppliersData, loading: loadingSuppliers } = useFetch('/suppliers');

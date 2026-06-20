@@ -8,7 +8,7 @@ import { format } from 'date-fns';
 const Decanting = () => {
   const { shift } = useAuth();
 
-  const { data: cylinders, loading: loadingC, refetch: refetchC } = useFetch('/cylinders');
+  const { data: cylinders, loading: loadingC, refetch: refetchC } = useFetch('/cylinders?per_page=all');
   const { data: services, loading: loadingS } = useFetch('/services');
   const { data: patients, loading: loadingP, refetch: refetchP } = useFetch('/patients');
 

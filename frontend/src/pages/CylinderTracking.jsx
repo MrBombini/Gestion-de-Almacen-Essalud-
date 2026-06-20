@@ -18,7 +18,7 @@ import api from '../services/api';
 
 const CylinderTracking = () => {
   // 1. Cargar la lista completa de balones para el buscador
-  const { data: cylinders, loading: loadingCylinders } = useFetch('/cylinders');
+  const { data: cylinders, loading: loadingCylinders } = useFetch('/cylinders?per_page=all');
   const cylindersList = Array.isArray(cylinders) ? cylinders : (cylinders?.data || []);
 
   const [selectedOption, setSelectedOption] = useState(null);
