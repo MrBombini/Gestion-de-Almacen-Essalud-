@@ -23,6 +23,7 @@ import SupplierReport from './pages/Reports/SupplierReport';
 import PeripheryReport from './pages/Reports/PeripheryReport';
 import CylinderTracking from './pages/CylinderTracking';
 import MovementsReport from './pages/MovementsReport';
+import DailyKardexReport from './pages/DailyKardexReport';
 
 
 function App() {
@@ -56,7 +57,7 @@ function App() {
             <Route path="/reports/periphery" element={<PeripheryReport />} />
 
             <Route path="/admin/reports" element={<Reports />} />
-            <Route path="/admin/kardex" element={<Kardex />} />
+            <Route path="/admin/kardex" element={<DailyKardexReport />} />
             <Route path="/admin/kardex5" element={<CylinderTracking />} />
             <Route path="/admin/movements-report" element={<MovementsReport />} />
             <Route path="/admin/users" element={<Users />} />
