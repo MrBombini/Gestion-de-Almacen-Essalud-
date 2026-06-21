@@ -16,6 +16,7 @@ class ServiceController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:100|unique:services,name',
+            'abbreviation' => 'nullable|string|max:20|unique:services,abbreviation',
             'type' => 'required|string|max:50',
         ]);
 
@@ -34,6 +35,7 @@ class ServiceController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:100|unique:services,name,' . $id,
+            'abbreviation' => 'nullable|string|max:20|unique:services,abbreviation,' . $id,
             'type' => 'required|string|max:50',
         ]);
 

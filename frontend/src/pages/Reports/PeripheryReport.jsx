@@ -7,9 +7,9 @@ const PeripheryReport = () => {
   const { data: kardexData, loading, error } = useFetch('/reports/kardex');
   const kardexList = Array.isArray(kardexData) ? kardexData : (kardexData?.data || []);
 
-  // 2. Filter ONLY periphery/hospital movements (ServiceBulkExchange or movements with a service but no patient)
+  // 2. Filter ONLY periphery movements
   const peripheryMovements = kardexList.filter(mov => 
-    mov.type === 'ServiceBulkExchange' || (mov.service && !mov.patient)
+    mov.service && mov.service.type === 'PERIFERIE'
   );
 
   const [searchTerm, setSearchTerm] = useState('');

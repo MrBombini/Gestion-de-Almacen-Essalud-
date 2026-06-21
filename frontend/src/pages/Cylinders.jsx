@@ -87,6 +87,9 @@ const Cylinders = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLocation, setFilterLocation] = useState('ALL');
+  const [filterSupplier, setFilterSupplier] = useState('');
+  const [filterOwnership, setFilterOwnership] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
 
   const [currentPage, setCurrentPage] = useState(1);
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -101,9 +104,9 @@ const Cylinders = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterLocation]);
+  }, [filterLocation, filterSupplier, filterOwnership, filterStatus]);
 
-  const { data: cylinders, loading, error, refetch } = useFetch(`/cylinders?page=${currentPage}&search=${debouncedSearch}&location=${filterLocation}`);
+  const { data: cylinders, loading, error, refetch } = useFetch(`/cylinders?page=${currentPage}&search=${debouncedSearch}&location=${filterLocation}&supplier_id=${filterSupplier}&ownership_type_id=${filterOwnership}&status=${filterStatus}`);
   const { data: suppliers, refetch: refetchSuppliers } = useFetch('/suppliers?per_page=all');
   const { data: ownershipTypes, refetch: refetchOwnership } = useFetch('/ownership-types?per_page=all');
   const { data: patients } = useFetch('/patients?per_page=all');
@@ -383,7 +386,7 @@ const Cylinders = () => {
       ══════════════════════════════════════════════════ */}
       {activeTab === 'cylinders' && (
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row gap-4">
+        <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col gap-4">
           <div className="flex-1 flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm">
             <MdSearch className="text-slate-400 text-xl" />
             <input type="text" placeholder="Buscar por código o código de barras..." value={searchTerm}
@@ -391,17 +394,51 @@ const Cylinders = () => {
               className="bg-transparent border-none outline-none text-sm w-full text-slate-700 placeholder-slate-400"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Ubicación:</label>
-            <select value={filterLocation} onChange={(e) => setFilterLocation(e.target.value)}
-              className="bg-white border border-slate-200 text-xs font-semibold px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 shadow-sm">
-              <option value="ALL">TODAS</option>
-              <option value="CENTRAL">CENTRAL</option>
-              <option value="HOSPITALIZACION">HOSPITALIZACIÓN</option>
-              <option value="PADOMI">PADOMI</option>
-              <option value="ALMACEN">ALMACÉN</option>
-              <option value="PROVEEDOR">PROVEEDOR</option>
-            </select>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Ubicación</label>
+              <select value={filterLocation} onChange={(e) => setFilterLocation(e.target.value)}
+                className="w-full bg-white border border-slate-200 text-xs font-semibold px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 shadow-sm">
+                <option value="ALL">TODAS</option>
+                <option value="CENTRAL">CENTRAL</option>
+                <option value="HOSPITALIZACION">HOSPITALIZACIÓN</option>
+                <option value="PADOMI">PADOMI</option>
+                <option value="ALMACEN">ALMACÉN</option>
+                <option value="PROVEEDOR">PROVEEDOR</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Estado</label>
+              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
+                className="w-full bg-white border border-slate-200 text-xs font-semibold px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 shadow-sm">
+                <option value="">TODOS</option>
+                <option value="full">LLENOS</option>
+                <option value="empty">VACÍOS</option>
+                <option value="in_use">EN USO</option>
+                <option value="in_transit">EN TRÁNSITO</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Proveedor</label>
+              <Select
+                options={[{value: '', label: 'TODOS'}, ...supplierOptions]}
+                styles={selectStyles}
+                placeholder="Todos..."
+                value={filterSupplier ? {value: filterSupplier, label: supplierOptions.find(o => o.value === filterSupplier)?.label} : {value: '', label: 'TODOS'}}
+                onChange={(s) => setFilterSupplier(s?.value || '')}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Propiedad</label>
+              <Select
+                options={[{value: '', label: 'TODAS'}, ...ownershipOptions]}
+                styles={selectStyles}
+                placeholder="Todas..."
+                value={filterOwnership ? {value: filterOwnership, label: ownershipOptions.find(o => o.value === filterOwnership)?.label} : {value: '', label: 'TODAS'}}
+                onChange={(s) => setFilterOwnership(s?.value || '')}
+              />
+            </div>
           </div>
         </div>
 

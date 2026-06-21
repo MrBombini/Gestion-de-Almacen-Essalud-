@@ -366,7 +366,7 @@ class InventoryMovementController extends Controller
 
     public function index(Request $request)
     {
-        $perPage = $request->query('per_page', 15);
+        $perPage = $request->query('per_page', 20);
         if ($perPage > 500) {
             $perPage = 500;
         }
@@ -388,7 +388,7 @@ class InventoryMovementController extends Controller
 
     public function indexDecantings(Request $request)
     {
-        $perPage = $request->query('per_page', 15);
+        $perPage = $request->query('per_page', 20);
         if ($perPage > 500) {
             $perPage = 500;
         }
