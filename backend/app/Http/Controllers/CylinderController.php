@@ -24,15 +24,15 @@ class CylinderController extends Controller
             $query->where('location', $request->location);
         }
 
-        if ($request->has('supplier_id') && $request->supplier_id !== '') {
+        if ($request->filled('supplier_id') && $request->supplier_id !== 'ALL' && $request->supplier_id !== 'null') {
             $query->where('supplier_id', $request->supplier_id);
         }
 
-        if ($request->has('ownership_type_id') && $request->ownership_type_id !== '') {
+        if ($request->filled('ownership_type_id') && $request->ownership_type_id !== 'ALL' && $request->ownership_type_id !== 'null') {
             $query->where('ownership_type_id', $request->ownership_type_id);
         }
 
-        if ($request->has('status') && $request->status !== '') {
+        if ($request->filled('status') && $request->status !== 'ALL' && $request->status !== 'null') {
             $query->where('status', $request->status);
         }
 

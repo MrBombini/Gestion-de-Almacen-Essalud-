@@ -198,11 +198,20 @@ class ReportController extends Controller
         $tankLevel = $latestReading ? (float) $latestReading->tank_level : 0;
         $lastReadingTime = $latestReading ? $latestReading->created_at->diffForHumans() : 'Sin registros';
 
+        // 4. Desglose detallado de balones en CENTRAL
+        $centralBreakdown = Cylinder::where('location', 'CENTRAL')
+            ->whereIn('status', ['full', 'empty'])
+            ->select('status', 'capacity', 'ownership_type_id', DB::raw('count(*) as total'))
+            ->groupBy('status', 'capacity', 'ownership_type_id')
+            ->with('ownershipType')
+            ->get();
+
         return response()->json([
             'full_central_count' => $fullCentralCount,
             'empty_central_count' => $emptyCentralCount,
             'tank_level' => $tankLevel,
             'last_reading_time' => $lastReadingTime,
+            'breakdown' => $centralBreakdown,
         ]);
     }
 
