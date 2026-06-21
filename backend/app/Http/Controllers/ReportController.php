@@ -156,7 +156,7 @@ class ReportController extends Controller
      */
     public function kardexGeneral(Request $request)
     {
-        $perPage = $request->query('per_page', 100);
+        $perPage = $request->query('per_page', 20);
         if ($perPage > 500) {
             $perPage = 500;
         }
@@ -693,5 +693,33 @@ class ReportController extends Controller
         $results = $mappedMovements->concat($mappedDecantings)->sortByDesc('date')->values();
 
         return response()->json($results);
+    }
+
+    public function patientAlerts(Request $request)
+    {
+        $threeMonthsAgo = \Carbon\Carbon::now()->subMonths(3);
+
+        $cylinders = \App\Models\Cylinder::with(['currentPatient.prescriptions', 'ownershipType', 'movements.inventoryMovement'])
+            ->whereNotNull('current_patient_id')
+            ->where('status', 'in_use')
+            ->get()
+            ->filter(function ($cylinder) use ($threeMonthsAgo) {
+                $lastExit = collect($cylinder->movements)
+                    ->where('action', 'Exit')
+                    ->sortByDesc(function($m) {
+                        return $m->inventoryMovement ? $m->inventoryMovement->movement_at : $m->created_at;
+                    })
+                    ->first();
+
+                if ($lastExit) {
+                    $date = $lastExit->inventoryMovement ? $lastExit->inventoryMovement->movement_at : $lastExit->created_at;
+                    return \Carbon\Carbon::parse($date)->lt($threeMonthsAgo);
+                }
+                
+                return false;
+            })
+            ->values();
+
+        return response()->json($cylinders);
     }
 }

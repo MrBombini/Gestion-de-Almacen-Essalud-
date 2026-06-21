@@ -24,7 +24,19 @@ class CylinderController extends Controller
             $query->where('location', $request->location);
         }
 
-        $perPage = $request->get('per_page', 50);
+        if ($request->has('supplier_id') && $request->supplier_id !== '') {
+            $query->where('supplier_id', $request->supplier_id);
+        }
+
+        if ($request->has('ownership_type_id') && $request->ownership_type_id !== '') {
+            $query->where('ownership_type_id', $request->ownership_type_id);
+        }
+
+        if ($request->has('status') && $request->status !== '') {
+            $query->where('status', $request->status);
+        }
+
+        $perPage = $request->get('per_page', 20);
         
         if ($perPage === 'all') {
             return response()->json($query->get());

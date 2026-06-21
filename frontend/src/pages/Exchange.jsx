@@ -4,6 +4,8 @@ import Select from 'react-select';
 import useFetch from '../hooks/useFetch';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
+import Modal from '../components/Modal';
+import api from '../services/api';
 
 const Exchange = () => {
   const { user, shift } = useAuth();
@@ -36,6 +38,26 @@ const Exchange = () => {
   const [errorMessage, setErrorMessage] = useState(null);
   const [createdMovement, setCreatedMovement] = useState(null);
 
+  const [rxModal, setRxModal] = useState(false);
+  const [rxForm, setRxForm] = useState({ dosage: '', usage_time: '', expires_at: '', authorization_date: '', promissory_note: '', status: 'active' });
+  const [rxSaving, setRxSaving] = useState(false);
+
+  const handleRxSubmit = async (e) => {
+    e.preventDefault();
+    setRxSaving(true);
+    try {
+      await api.post('/prescriptions', { ...rxForm, patient_id: formData.patient_id });
+      setRxModal(false);
+      refetchP(); 
+      setFormData(prev => ({ ...prev, patient_id: '' }));
+      setPrescriptionAlert({ type: 'success', msg: 'Receta actualizada correctamente. Vuelve a seleccionar al paciente.' });
+    } catch (err) {
+      alert('Error al guardar la receta.');
+    } finally {
+      setRxSaving(false);
+    }
+  };
+
   // Limpiar campos al cambiar de tipo de destino
   useEffect(() => {
     setFormData({
@@ -66,20 +88,20 @@ const Exchange = () => {
           if (today > activePrescription.expires_at) {
             setPrescriptionAlert({
               type: 'error',
-              message: `¡ALERTA! La receta venció el ${format(new Date(activePrescription.expires_at), 'dd/MM/yyyy')}. El intercambio está bloqueado.`
+              msg: `¡ALERTA! La receta venció el ${format(new Date(activePrescription.expires_at), 'dd/MM/yyyy')}. El intercambio está bloqueado.`
             });
           } else {
             setPrescriptionAlert({
               type: 'success',
-              message: `Receta vigente hasta el ${format(new Date(activePrescription.expires_at), 'dd/MM/yyyy')}.`
+              msg: `Receta vigente hasta el ${format(new Date(activePrescription.expires_at), 'dd/MM/yyyy')}.`
             });
             setFormData(prev => ({ ...prev, prescription_id: activePrescription.id }));
           }
         } else {
-          setPrescriptionAlert({ type: 'error', message: 'El paciente no tiene una receta activa.' });
+          setPrescriptionAlert({ type: 'error', msg: 'El paciente no tiene una receta activa.' });
         }
       } else {
-        setPrescriptionAlert({ type: 'error', message: 'El paciente no tiene recetas registradas.' });
+        setPrescriptionAlert({ type: 'error', msg: 'El paciente no tiene recetas registradas.' });
       }
     }
   }, [formData.patient_id, destinationType, patientsList]);
@@ -396,9 +418,16 @@ const Exchange = () => {
                   <Select options={patientOptions} styles={customStyles} isClearable placeholder="-- Ingrese Código de Intercambio --" value={patientOptions.find(o => o.value === formData.patient_id) || null} onChange={(s) => setFormData({ ...formData, patient_id: s?.value || '' })} />
                 </div>
                 {prescriptionAlert && (
-                  <div className={`p-3 rounded-xl flex items-center gap-3 text-sm font-bold border ${prescriptionAlert.type === 'error' ? 'bg-red-50 border-red-200 text-red-600' : 'bg-emerald-50 border-emerald-200 text-emerald-600'}`}>
-                    <MdWarning className="text-xl shrink-0" />
-                    {prescriptionAlert.message}
+                  <div className={`p-3 rounded-xl flex items-center justify-between text-sm font-bold border ${prescriptionAlert.type === 'error' ? 'bg-red-50 border-red-200 text-red-600' : 'bg-emerald-50 border-emerald-200 text-emerald-600'}`}>
+                    <div className="flex items-center gap-3">
+                      <MdWarning className="text-xl shrink-0" />
+                      <div>{prescriptionAlert.msg}</div>
+                    </div>
+                    {prescriptionAlert.type === 'error' && (
+                      <button type="button" onClick={() => setRxModal(true)} className="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ml-2">
+                        + Actualizar Receta
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -536,6 +565,41 @@ const Exchange = () => {
           </div>
         </div>
       )}
+
+      {/* Modal para Renovar Receta en Intercambio */}
+      <Modal isOpen={rxModal} onClose={() => setRxModal(false)} title="Actualizar Receta del Paciente">
+        <form onSubmit={handleRxSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+                <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Dosis (Lts/min)</label>
+                    <input type="number" step="0.1" required value={rxForm.dosage} onChange={e => setRxForm({ ...rxForm, dosage: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Tiempo de uso (Hrs/día)</label>
+                    <input type="number" required value={rxForm.usage_time} onChange={e => setRxForm({ ...rxForm, usage_time: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Fecha Autorización</label>
+                    <input type="date" required value={rxForm.authorization_date} onChange={e => setRxForm({ ...rxForm, authorization_date: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Fecha de Vencimiento</label>
+                    <input type="date" required value={rxForm.expires_at} onChange={e => setRxForm({ ...rxForm, expires_at: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="col-span-2">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">N° Pagaré (Opcional)</label>
+                    <input type="text" value={rxForm.promissory_note} onChange={e => setRxForm({ ...rxForm, promissory_note: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+                <button type="button" onClick={() => setRxModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium">Cancelar</button>
+                <button type="submit" disabled={rxSaving} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium">
+                    {rxSaving ? 'Guardando...' : 'Guardar Receta'}
+                </button>
+            </div>
+        </form>
+      </Modal>
+
     </div>
   );
 };

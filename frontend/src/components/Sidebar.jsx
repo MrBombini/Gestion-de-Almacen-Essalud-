@@ -116,6 +116,10 @@ const Sidebar = () => {
         <div>
           <p className="px-4 text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Reportes</p>
           
+          <NavLink to="/reports/consumption" className={navLinkClass}>
+            <MdInsertChartOutlined className="text-lg" />
+            <span>Dashboard de Consumo</span>
+          </NavLink>
           <NavLink to="/reports/supplier" className={navLinkClass}>
             <MdInsertChartOutlined className="text-lg" />
             <span>Proveedores Ingreso y Salida</span>
@@ -124,13 +128,9 @@ const Sidebar = () => {
             <MdAssignment className="text-lg" />
             <span>Periferia Reportes</span>
           </NavLink>
-          <NavLink to="/admin/kardex3" className={navLinkClass}>
+          <NavLink to="/reports/alerts" className={navLinkClass}>
             <MdAssignment className="text-lg" />
-            <span>Hospitalizacion (Manifold)</span>
-          </NavLink>
-          <NavLink to="/admin/kardex4" className={navLinkClass}>
-            <MdAssignment className="text-lg" />
-            <span>Hospitalizacion (Servicios)</span>
+            <span>Alertas de Pacientes</span>
           </NavLink>
           <NavLink to="/admin/kardex5" className={navLinkClass}>
             <MdAssignment className="text-lg" />

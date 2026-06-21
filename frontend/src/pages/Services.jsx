@@ -16,12 +16,13 @@ const Services = () => {
 
     const [formData, setFormData] = useState({
         name: '',
+        abbreviation: '',
         type: 'Hospital' // Valores comunes: Hospital, Manifold, Externo
     });
 
     // Manejadores del Modal
     const handleOpenCreate = () => {
-        setFormData({ name: '', type: 'Hospital' });
+        setFormData({ name: '', abbreviation: '', type: 'Hospital' });
         setEditingId(null);
         setIsModalOpen(true);
     };
@@ -29,6 +30,7 @@ const Services = () => {
     const handleOpenEdit = (service) => {
         setFormData({
             name: service.name,
+            abbreviation: service.abbreviation || '',
             type: service.type
         });
         setEditingId(service.id);
@@ -133,6 +135,7 @@ const Services = () => {
                             <thead>
                                 <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
                                     <th className="px-6 py-4 font-semibold">ID</th>
+                                    <th className="px-6 py-4 font-semibold">Abreviación</th>
                                     <th className="px-6 py-4 font-semibold">Nombre del Servicio</th>
                                     <th className="px-6 py-4 font-semibold">Tipo</th>
                                     <th className="px-6 py-4 font-semibold text-right">Acciones</th>
@@ -149,6 +152,7 @@ const Services = () => {
                                     servicesList.map((service) => (
                                         <tr key={service.id} className="hover:bg-slate-50 transition-colors">
                                             <td className="px-6 py-4 text-sm text-slate-500">#{service.id}</td>
+                                            <td className="px-6 py-4 text-sm font-medium text-slate-600">{service.abbreviation || '-'}</td>
                                             <td className="px-6 py-4 text-sm font-medium text-slate-800">{service.name}</td>
                                             <td className="px-6 py-4 text-sm">
                                                 <span className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${service.type === 'Hospital'
@@ -202,6 +206,18 @@ const Services = () => {
                             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                             className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                             placeholder="Ej: Unidad de Cuidados Intensivos (UCI)"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Abreviación (Opcional)</label>
+                        <input
+                            type="text"
+                            value={formData.abbreviation}
+                            onChange={(e) => setFormData({ ...formData, abbreviation: e.target.value })}
+                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                            placeholder="Ej: UCI"
+                            maxLength={20}
                         />
                     </div>
 

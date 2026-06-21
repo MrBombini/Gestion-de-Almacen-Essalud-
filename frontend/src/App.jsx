@@ -24,7 +24,8 @@ import PeripheryReport from './pages/Reports/PeripheryReport';
 import CylinderTracking from './pages/CylinderTracking';
 import MovementsReport from './pages/MovementsReport';
 import DailyKardexReport from './pages/DailyKardexReport';
-
+import ConsumptionDashboard from './pages/Reports/ConsumptionDashboard';
+import PatientAlertsReport from './pages/Reports/PatientAlertsReport';
 
 function App() {
   return (
@@ -55,6 +56,8 @@ function App() {
             <Route path="/reports/ticketcontrol" element={<TicketControl />} />
             <Route path="/reports/supplier" element={<SupplierReport />} />
             <Route path="/reports/periphery" element={<PeripheryReport />} />
+            <Route path="/reports/consumption" element={<ConsumptionDashboard />} />
+            <Route path="/reports/alerts" element={<PatientAlertsReport />} />
 
             <Route path="/admin/reports" element={<Reports />} />
             <Route path="/admin/kardex" element={<DailyKardexReport />} />

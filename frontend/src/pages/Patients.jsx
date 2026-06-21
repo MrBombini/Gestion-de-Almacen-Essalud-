@@ -9,6 +9,7 @@ const Patients = () => {
     const [currentPage, setCurrentPage]     = useState(1);
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [searchTerm, setSearchTerm]       = useState('');
+    const [filterRxStatus, setFilterRxStatus] = useState('ALL');
 
     useEffect(() => {
         const handler = setTimeout(() => {
@@ -18,7 +19,11 @@ const Patients = () => {
         return () => clearTimeout(handler);
     }, [searchTerm]);
 
-    const { data: patients, loading, execute, refetch } = useFetch(`/patients?page=${currentPage}&search=${debouncedSearch}`);
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [filterRxStatus]);
+
+    const { data: patients, loading, execute, refetch } = useFetch(`/patients?page=${currentPage}&search=${debouncedSearch}&rx_status=${filterRxStatus}`);
 
     const [isModalOpen, setIsModalOpen]     = useState(false);
     const [editingId, setEditingId]         = useState(null);
@@ -152,12 +157,23 @@ const Patients = () => {
 
             {/* Tabla */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center gap-2">
-                    <MdSearch className="text-slate-400 text-xl" />
-                    <input type="text" placeholder="Buscar por nombre o DNI..."
-                        value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-                        className="bg-transparent border-none outline-none text-sm w-full text-slate-700 placeholder-slate-400"
-                    />
+                <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row gap-4">
+                    <div className="flex-1 flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm">
+                        <MdSearch className="text-slate-400 text-xl" />
+                        <input type="text" placeholder="Buscar por nombre o DNI..."
+                            value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                            className="bg-transparent border-none outline-none text-sm w-full text-slate-700 placeholder-slate-400"
+                        />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Receta:</label>
+                        <select value={filterRxStatus} onChange={(e) => setFilterRxStatus(e.target.value)}
+                            className="bg-white border border-slate-200 text-xs font-semibold px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-purple-500 shadow-sm">
+                            <option value="ALL">TODOS</option>
+                            <option value="ACTIVE">CON RECETA ACTIVA</option>
+                            <option value="NONE">SIN RECETA ACTIVA</option>
+                        </select>
+                    </div>
                 </div>
 
                 {loading && <div className="p-12 flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div></div>}

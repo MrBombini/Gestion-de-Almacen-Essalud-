@@ -23,7 +23,19 @@ class PatientController extends Controller
             });
         }
 
-        $perPage = $request->get('per_page', 50);
+        if ($request->has('rx_status') && $request->rx_status !== 'ALL') {
+            if ($request->rx_status === 'ACTIVE') {
+                $query->whereHas('prescriptions', function($q) {
+                    $q->where('status', 'active');
+                });
+            } elseif ($request->rx_status === 'NONE') {
+                $query->whereDoesntHave('prescriptions', function($q) {
+                    $q->where('status', 'active');
+                });
+            }
+        }
+
+        $perPage = $request->get('per_page', 20);
         
         if ($perPage === 'all') {
             return response()->json($query->get());

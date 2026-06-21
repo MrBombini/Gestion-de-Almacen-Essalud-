@@ -35,10 +35,23 @@ const PeripheryExchange = () => {
       label: s.name
     }));
 
-  // Balones para RECIBIR (Deben estar asociados al servicio o ser de su propiedad)
+  // Función auxiliar para verificar propiedad
+  const isValidOwnership = (name) => {
+    if (!name) return true; // Si no tiene, por defecto lo dejamos pasar (S/D)
+    const upperName = name.toUpperCase();
+    return !upperName.includes('PROPIO') && !upperName.includes('PACIENTE');
+  };
+
+  const isOxygen = (gasType) => {
+    if (!gasType) return false;
+    const lower = gasType.toLowerCase();
+    return lower.includes('oxi') || lower.includes('oxí');
+  };
+
+  // Balones para RECIBIR (Deben retornar del hospital seleccionado)
   const cylindersInOptions = cylindersList
-    .filter(c => c.gas_type === 'OXÍGENO MEDICINAL' && !(c.ownership_type?.name?.toLowerCase().includes('propio') || c.ownership_type?.name?.toLowerCase().includes('paciente')) && Number(c.capacity) === 10)
-    .filter(c => c.status !== 'full' || c.current_service_id === formData.service_id)
+    .filter(c => isOxygen(c.gas_type) && isValidOwnership(c.ownership_type?.name) && Number(c.capacity) >= 8 && Number(c.capacity) <= 10)
+    .filter(c => formData.service_id && c.current_service_id === formData.service_id)
     .map(c => ({
       value: c.id,
       label: `${c.serial_number} (${Number(c.capacity)}m³) [${c.ownership_type?.name || 'S/D'}]`
@@ -46,7 +59,7 @@ const PeripheryExchange = () => {
 
   // Balones para ENTREGAR (Deben estar llenos en el almacén)
   const cylindersOutOptions = cylindersList
-    .filter(c => c.gas_type === 'OXÍGENO MEDICINAL' && !(c.ownership_type?.name?.toLowerCase().includes('propio') || c.ownership_type?.name?.toLowerCase().includes('paciente')) && Number(c.capacity) === 10)
+    .filter(c => isOxygen(c.gas_type) && isValidOwnership(c.ownership_type?.name) && Number(c.capacity) >= 8 && Number(c.capacity) <= 10)
     .filter(c => c.status === 'full' && !c.current_service_id)
     .map(c => ({
       value: c.id,
