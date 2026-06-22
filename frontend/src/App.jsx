@@ -26,6 +26,9 @@ import MovementsReport from './pages/MovementsReport';
 import DailyKardexReport from './pages/DailyKardexReport';
 import ConsumptionDashboard from './pages/Reports/ConsumptionDashboard';
 import PatientAlertsReport from './pages/Reports/PatientAlertsReport';
+import KardexResume from './pages/KardexResume';
+
+
 
 function App() {
   return (
@@ -58,11 +61,12 @@ function App() {
             <Route path="/reports/periphery" element={<PeripheryReport />} />
             <Route path="/reports/consumption" element={<ConsumptionDashboard />} />
             <Route path="/reports/alerts" element={<PatientAlertsReport />} />
+            <Route path="/reports/kardexresume" element={<KardexResume />} />
+            <Route path="/reports/kardex" element={<DailyKardexReport />} />
+            <Route path="/reports/cylinder-tracking" element={<CylinderTracking />} />
+            <Route path="/reports/movements-report" element={<MovementsReport />} />
 
             <Route path="/admin/reports" element={<Reports />} />
-            <Route path="/admin/kardex" element={<DailyKardexReport />} />
-            <Route path="/admin/kardex5" element={<CylinderTracking />} />
-            <Route path="/admin/movements-report" element={<MovementsReport />} />
             <Route path="/admin/users" element={<Users />} />
 
             <Route path="*" element={<Navigate to="/" replace />} />

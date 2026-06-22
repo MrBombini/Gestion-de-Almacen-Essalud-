@@ -7,8 +7,6 @@ import Modal from '../components/Modal';
 import api from '../services/api';
 
 // ─── MenuList estable definido FUERA del componente ─────────────────────────
-// onAdd y addLabel se pasan a través de selectProps para evitar recrear el
-// componente en cada render (lo que causaría que React-Select desmonte el menú).
 const AddableMenuList = (props) => {
   const { addLabel, onAdd } = props.selectProps;
   return (
@@ -16,7 +14,7 @@ const AddableMenuList = (props) => {
       {props.children}
       <div
         onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onAdd?.(); }}
-        className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-blue-600 hover:bg-blue-50 cursor-pointer border-t border-slate-200 sticky bottom-0 bg-white z-10"
+        className="flex items-center justify-center sm:justify-start gap-2 px-4 py-3 text-sm font-bold text-blue-600 hover:bg-blue-50 cursor-pointer border-t border-slate-200 sticky bottom-0 bg-white z-10"
       >
         <MdAdd className="text-base" /> {addLabel}
       </div>
@@ -66,11 +64,11 @@ const QuickAddModal = ({ isOpen, onClose, title, fields, onSave, saving }) => {
             )}
           </div>
         ))}
-        <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-          <button type="button" onClick={onClose} className="px-3 py-1.5 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium">
+        <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4 border-t border-slate-100 mt-4">
+          <button type="button" onClick={onClose} className="w-full sm:w-auto px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium order-2 sm:order-1">
             Cancelar
           </button>
-          <button type="submit" disabled={saving} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
+          <button type="submit" disabled={saving} className="w-full sm:w-auto px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50 order-1 sm:order-2">
             {saving ? 'Guardando...' : 'Crear'}
           </button>
         </div>
@@ -124,7 +122,7 @@ const Cylinders = () => {
   const [formData, setFormData] = useState(emptyForm);
 
   // ── Estado quick-add ──
-  const [quickAdd, setQuickAdd] = useState(null); // 'supplier' | 'ownership' | null
+  const [quickAdd, setQuickAdd] = useState(null);
   const [quickSaving, setQuickSaving] = useState(false);
 
   // ── Opciones para react-select ──
@@ -144,7 +142,7 @@ const Cylinders = () => {
     menuPortal: (base) => ({ ...base, zIndex: 9999 }),
   };
 
-  // ── Quick-add: guardar proveedor ──
+  // ── Quick-add: guardar ──
   const handleQuickSaveSupplier = async (form) => {
     setQuickSaving(true);
     try {
@@ -152,14 +150,10 @@ const Cylinders = () => {
       await refetchSuppliers();
       setFormData(prev => ({ ...prev, supplier_id: res.data.id }));
       setQuickAdd(null);
-    } catch (err) {
-      alert(err?.response?.data?.message || 'Error al crear proveedor.');
-    } finally {
-      setQuickSaving(false);
-    }
+    } catch (err) { alert(err?.response?.data?.message || 'Error al crear proveedor.'); } 
+    finally { setQuickSaving(false); }
   };
 
-  // ── Quick-add: guardar tipo de propiedad ──
   const handleQuickSaveOwnership = async (form) => {
     setQuickSaving(true);
     try {
@@ -167,24 +161,14 @@ const Cylinders = () => {
       await refetchOwnership();
       setFormData(prev => ({ ...prev, ownership_type_id: res.data.id }));
       setQuickAdd(null);
-    } catch (err) {
-      alert(err?.response?.data?.message || 'Error al crear tipo de propiedad.');
-    } finally {
-      setQuickSaving(false);
-    }
+    } catch (err) { alert(err?.response?.data?.message || 'Error al crear tipo de propiedad.'); } 
+    finally { setQuickSaving(false); }
   };
 
-  // ── Helper para determinar si el balón es propio (de paciente) ──
   const isCylinderPropio = () => {
     const ownershipName = ownershipTypesList.find(t => t.id === formData.ownership_type_id)?.name?.toLowerCase() || '';
     const supplierName = suppliersList.find(s => s.id === formData.supplier_id)?.name?.toLowerCase() || '';
-    
-    return (
-      ownershipName.includes('propio') || 
-      ownershipName.includes('paciente') || 
-      supplierName.includes('propio') ||
-      supplierName.includes('paciente')
-    );
+    return ownershipName.includes('propio') || ownershipName.includes('paciente') || supplierName.includes('propio') || supplierName.includes('paciente');
   };
 
   // ── CRUD principal ──
@@ -217,18 +201,12 @@ const Cylinders = () => {
     }
     
     try {
-      if (editingId) {
-        await api.put(`/cylinders/${editingId}`, finalData);
-      } else {
-        await api.post('/cylinders', finalData);
-      }
+      if (editingId) { await api.put(`/cylinders/${editingId}`, finalData); } 
+      else { await api.post('/cylinders', finalData); }
       setIsModalOpen(false);
       refetch();
-    } catch (err) {
-      alert(err?.response?.data?.message || 'Error al guardar.');
-    } finally {
-      setActionLoading(false);
-    }
+    } catch (err) { alert(err?.response?.data?.message || 'Error al guardar.'); } 
+    finally { setActionLoading(false); }
   };
 
   const handleDelete = async (id) => {
@@ -237,12 +215,8 @@ const Cylinders = () => {
     try {
       await api.delete(`/cylinders/${id}`);
       refetch();
-    } catch (err) {
-      console.error(err);
-      alert(err?.response?.data?.message || 'Error al eliminar.');
-    } finally {
-      setActionLoading(false);
-    }
+    } catch (err) { alert(err?.response?.data?.message || 'Error al eliminar.'); } 
+    finally { setActionLoading(false); }
   };
 
   const filtered = cylindersList;
@@ -255,7 +229,7 @@ const Cylinders = () => {
       in_transit: 'bg-orange-50 text-orange-700 border-orange-200',
     };
     const label = { full: 'Lleno', empty: 'Vacío', in_use: 'En Uso', in_transit: 'En Tránsito' };
-    return <span className={`px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-tighter ${map[status] || 'bg-slate-100 text-slate-600 border-slate-200'}`}>{label[status] || status}</span>;
+    return <span className={`px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-tighter whitespace-nowrap ${map[status] || 'bg-slate-100 text-slate-600 border-slate-200'}`}>{label[status] || status}</span>;
   };
 
   const locationBadge = (loc) => {
@@ -267,16 +241,15 @@ const Cylinders = () => {
       PROVEEDOR: 'bg-orange-50 text-orange-700 border-orange-100',
     };
     return (
-      <span className={`px-2 py-1 rounded-md border text-[10px] font-bold flex items-center gap-1 w-fit ${map[loc] || 'bg-slate-50 text-slate-700 border-slate-200'}`}>
-        <MdLocationOn className="text-xs" /> {loc}
+      <span className={`px-2 py-1 rounded-md border text-[10px] font-bold flex items-center gap-1 w-fit whitespace-nowrap ${map[loc] || 'bg-slate-50 text-slate-700 border-slate-200'}`}>
+        <MdLocationOn className="text-xs shrink-0" /> {loc}
       </span>
     );
   };
 
-  // ── Tab activo ──
-  const [activeTab, setActiveTab] = useState('cylinders'); // 'cylinders' | 'suppliers' | 'ownership'
+  const [activeTab, setActiveTab] = useState('cylinders');
 
-  // ── Estado CRUD Proveedores (tab inline) ──
+  // ── Estado CRUD Proveedores ──
   const [supModal, setSupModal] = useState(false);
   const [supEditing, setSupEditing] = useState(null);
   const [supForm, setSupForm] = useState({ name: '', ruc: '', address: '', phone: '', email: '' });
@@ -300,7 +273,7 @@ const Cylinders = () => {
     catch (err) { alert(err?.response?.data?.message || 'No se pudo eliminar.'); }
   };
 
-  // ── Estado CRUD Tipos de Propiedad (tab inline) ──
+  // ── Estado CRUD Tipos de Propiedad ──
   const [owModal, setOwModal] = useState(false);
   const [owEditing, setOwEditing] = useState(null);
   const [owForm, setOwForm] = useState({ name: '', description: '' });
@@ -324,11 +297,9 @@ const Cylinders = () => {
     catch (err) { alert(err?.response?.data?.message || 'No se pudo eliminar.'); }
   };
 
-  // Handlers quick-add desde el modal de cilindro
   const openQuickSupplier  = () => setQuickAdd('supplier');
   const openQuickOwnership = () => setQuickAdd('ownership');
 
-  // ── Colores para tarjetas de tipos de propiedad ──
   const cardColors = ['from-blue-500 to-blue-700','from-emerald-500 to-emerald-700','from-violet-500 to-violet-700','from-orange-500 to-orange-700','from-pink-500 to-pink-700','from-cyan-500 to-cyan-700','from-amber-500 to-amber-700'];
 
   const TAB_CFG = [
@@ -343,36 +314,37 @@ const Cylinders = () => {
       {/* ── HEADER con TABS ── */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         {/* Título */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-6 border-b border-slate-100">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-4 sm:p-6 border-b border-slate-100">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-cyan-50 text-cyan-600 rounded-xl"><MdPropaneTank className="text-2xl" /></div>
+            <div className="p-3 bg-cyan-50 text-cyan-600 rounded-xl shrink-0"><MdPropaneTank className="text-2xl" /></div>
             <div>
-              <h2 className="text-2xl font-bold text-slate-800">Inventario & Catálogos</h2>
-              <p className="text-slate-500 text-sm mt-0.5">Gestiona cilindros, proveedores y tipos de propiedad.</p>
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-800">Inventario & Catálogos</h2>
+              <p className="text-slate-500 text-xs sm:text-sm mt-0.5">Gestiona cilindros, proveedores y tipos de propiedad.</p>
             </div>
           </div>
           {/* Botón contextual según tab */}
           {activeTab === 'cylinders' && (
-            <button onClick={handleOpenCreate} className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-sm transition-all hover:scale-105">
+            <button onClick={handleOpenCreate} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-sm transition-all hover:scale-105 shrink-0">
               <MdAdd className="text-xl" /> Nuevo Cilindro
             </button>
           )}
           {activeTab === 'suppliers' && (
-            <button onClick={handleSupOpenCreate} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-sm transition-all hover:scale-105">
+            <button onClick={handleSupOpenCreate} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-sm transition-all hover:scale-105 shrink-0">
               <MdAdd className="text-xl" /> Nuevo Proveedor
             </button>
           )}
           {activeTab === 'ownership' && (
-            <button onClick={handleOwOpenCreate} className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-sm transition-all hover:scale-105">
+            <button onClick={handleOwOpenCreate} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-sm transition-all hover:scale-105 shrink-0">
               <MdAdd className="text-xl" /> Nuevo Tipo
             </button>
           )}
         </div>
-        {/* Pestañas */}
-        <div className="flex border-b border-slate-200 px-6">
+        
+        {/* Pestañas (con scroll horizontal en móviles) */}
+        <div className="flex border-b border-slate-200 px-4 sm:px-6 overflow-x-auto scrollbar-hide flex-nowrap">
           {TAB_CFG.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 transition-all mr-2 ${
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 transition-all whitespace-nowrap shrink-0 ${
                 activeTab === tab.id ? `${tab.active} bg-transparent` : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}>
               {tab.icon} {tab.label}
@@ -382,13 +354,13 @@ const Cylinders = () => {
       </div>
 
       {/* ══════════════════════════════════════════════════
-           TAB 1: CILINDROS
+            TAB 1: CILINDROS
       ══════════════════════════════════════════════════ */}
       {activeTab === 'cylinders' && (
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col gap-4">
           <div className="flex-1 flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm">
-            <MdSearch className="text-slate-400 text-xl" />
+            <MdSearch className="text-slate-400 text-xl shrink-0" />
             <input type="text" placeholder="Buscar por código o código de barras..." value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="bg-transparent border-none outline-none text-sm w-full text-slate-700 placeholder-slate-400"
@@ -442,15 +414,16 @@ const Cylinders = () => {
           </div>
         </div>
 
+        {/* Tabla Responsiva (Swipe en móvil) */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
-                <th className="px-6 py-4 font-semibold">Identificación / Propiedad</th>
-                <th className="px-6 py-4 font-semibold">Gas / Capacidad</th>
-                <th className="px-6 py-4 font-semibold">Ubicación</th>
-                <th className="px-6 py-4 font-semibold">Estado</th>
-                <th className="px-6 py-4 font-semibold text-right">Acciones</th>
+                <th className="px-4 sm:px-6 py-4 font-semibold">Identificación / Propiedad</th>
+                <th className="px-4 sm:px-6 py-4 font-semibold">Gas / Capacidad</th>
+                <th className="px-4 sm:px-6 py-4 font-semibold">Ubicación</th>
+                <th className="px-4 sm:px-6 py-4 font-semibold">Estado</th>
+                <th className="px-4 sm:px-6 py-4 font-semibold text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -461,11 +434,11 @@ const Cylinders = () => {
               ) : (
                 filtered.map((cylinder) => (
                   <tr key={cylinder.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4">
+                    <td className="px-4 sm:px-6 py-4">
                       <div className="flex flex-col">
                         <div className="text-sm font-bold text-slate-800">{cylinder.serial_number}</div>
                         {cylinder.barcode && (
-                          <div className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded w-fit font-mono mt-0.5">
+                          <div className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded w-fit font-mono mt-0.5 whitespace-nowrap">
                             {cylinder.barcode}
                           </div>
                         )}
@@ -474,15 +447,15 @@ const Cylinders = () => {
                         {cylinder.ownership_type?.name} {cylinder.patient ? `(${cylinder.patient.full_name})` : ''}
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="text-xs font-bold text-blue-600 flex items-center gap-1 uppercase tracking-tighter">
-                        <MdScience className="text-sm" /> {cylinder.gas_type}
+                    <td className="px-4 sm:px-6 py-4">
+                      <div className="text-xs font-bold text-blue-600 flex items-center gap-1 uppercase tracking-tighter whitespace-nowrap">
+                        <MdScience className="text-sm shrink-0" /> {cylinder.gas_type}
                       </div>
-                      <div className="text-[10px] text-slate-500 font-mono">{cylinder.capacity} m³</div>
+                      <div className="text-[10px] text-slate-500 font-mono mt-0.5">{cylinder.capacity} m³</div>
                     </td>
-                    <td className="px-6 py-4">{locationBadge(cylinder.location)}</td>
-                    <td className="px-6 py-4">{statusBadge(cylinder.status)}</td>
-                    <td className="px-6 py-4 text-right space-x-1">
+                    <td className="px-4 sm:px-6 py-4">{locationBadge(cylinder.location)}</td>
+                    <td className="px-4 sm:px-6 py-4">{statusBadge(cylinder.status)}</td>
+                    <td className="px-4 sm:px-6 py-4 text-right space-x-1 whitespace-nowrap">
                       <button onClick={() => handleOpenEdit(cylinder)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><MdEdit className="text-lg" /></button>
                       <button onClick={() => handleDelete(cylinder.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><MdDelete className="text-lg" /></button>
                     </td>
@@ -491,74 +464,76 @@ const Cylinders = () => {
               )}
             </tbody>
           </table>
-
-          {cylinders && cylinders.last_page > 1 && (
-            <div className="p-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between bg-slate-50 gap-4">
-              <span className="text-sm text-slate-500 font-medium">
-                Página <strong className="text-slate-800">{cylinders.current_page}</strong> de <strong className="text-slate-800">{cylinders.last_page}</strong> 
-                <span className="ml-2 hidden sm:inline">(Total: {cylinders.total})</span>
-              </span>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-sm"
-                >
-                  Anterior
-                </button>
-                <button 
-                  onClick={() => setCurrentPage(p => Math.min(cylinders.last_page, p + 1))}
-                  disabled={currentPage === cylinders.last_page}
-                  className="px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-sm"
-                >
-                  Siguiente
-                </button>
-              </div>
-            </div>
-          )}
         </div>
-      </div>
 
+        {/* Paginación */}
+        {cylinders && cylinders.last_page > 1 && (
+          <div className="p-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between bg-slate-50 gap-4">
+            <span className="text-sm text-slate-500 font-medium">
+              Página <strong className="text-slate-800">{cylinders.current_page}</strong> de <strong className="text-slate-800">{cylinders.last_page}</strong> 
+              <span className="ml-2 hidden sm:inline">(Total: {cylinders.total})</span>
+            </span>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <button 
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="flex-1 sm:flex-none px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-sm"
+              >
+                Anterior
+              </button>
+              <button 
+                onClick={() => setCurrentPage(p => Math.min(cylinders.last_page, p + 1))}
+                disabled={currentPage === cylinders.last_page}
+                className="flex-1 sm:flex-none px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-sm"
+              >
+                Siguiente
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
       )}
 
       {/* ══════════════════════════════════════════════════
-           TAB 2: PROVEEDORES
+            TAB 2: PROVEEDORES
       ══════════════════════════════════════════════════ */}
       {activeTab === 'suppliers' && (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           {supError && <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm font-medium m-4 rounded">{supError}</div>}
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
-                <th className="px-6 py-4 font-semibold">Nombre</th>
-                <th className="px-6 py-4 font-semibold">RUC</th>
-                <th className="px-6 py-4 font-semibold">Teléfono</th>
-                <th className="px-6 py-4 font-semibold">Email</th>
-                <th className="px-6 py-4 font-semibold text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {suppliersList.length === 0 ? (
-                <tr><td colSpan="5" className="px-6 py-10 text-center text-slate-400">Sin proveedores. Usa el botón "Nuevo Proveedor".</td></tr>
-              ) : suppliersList.map(s => (
-                <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 font-bold text-slate-800 text-sm">{s.name}</td>
-                  <td className="px-6 py-4 font-mono text-xs text-slate-600">{s.ruc || '—'}</td>
-                  <td className="px-6 py-4 text-xs text-slate-600">{s.phone || '—'}</td>
-                  <td className="px-6 py-4 text-xs text-slate-600">{s.email || '—'}</td>
-                  <td className="px-6 py-4 text-right space-x-1">
-                    <button onClick={() => handleSupOpenEdit(s)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><MdEdit className="text-lg" /></button>
-                    <button onClick={() => handleSupDelete(s)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><MdDelete className="text-lg" /></button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[600px]">
+              <thead>
+                <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
+                  <th className="px-4 sm:px-6 py-4 font-semibold">Nombre</th>
+                  <th className="px-4 sm:px-6 py-4 font-semibold">RUC</th>
+                  <th className="px-4 sm:px-6 py-4 font-semibold">Teléfono</th>
+                  <th className="px-4 sm:px-6 py-4 font-semibold">Email</th>
+                  <th className="px-4 sm:px-6 py-4 font-semibold text-right">Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {suppliersList.length === 0 ? (
+                  <tr><td colSpan="5" className="px-6 py-10 text-center text-slate-400">Sin proveedores. Usa el botón "Nuevo Proveedor".</td></tr>
+                ) : suppliersList.map(s => (
+                  <tr key={s.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 sm:px-6 py-4 font-bold text-slate-800 text-sm">{s.name}</td>
+                    <td className="px-4 sm:px-6 py-4 font-mono text-xs text-slate-600">{s.ruc || '—'}</td>
+                    <td className="px-4 sm:px-6 py-4 text-xs text-slate-600">{s.phone || '—'}</td>
+                    <td className="px-4 sm:px-6 py-4 text-xs text-slate-600">{s.email || '—'}</td>
+                    <td className="px-4 sm:px-6 py-4 text-right space-x-1 whitespace-nowrap">
+                      <button onClick={() => handleSupOpenEdit(s)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><MdEdit className="text-lg" /></button>
+                      <button onClick={() => handleSupDelete(s)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><MdDelete className="text-lg" /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {/* ══════════════════════════════════════════════════
-           TAB 3: TIPOS DE PROPIEDAD
+            TAB 3: TIPOS DE PROPIEDAD
       ══════════════════════════════════════════════════ */}
       {activeTab === 'ownership' && (
         <div>
@@ -578,16 +553,16 @@ const Cylinders = () => {
                       <div className={`p-2.5 rounded-xl bg-gradient-to-br ${cardColors[idx % cardColors.length]} text-white shadow-sm`}>
                         <MdLabel className="text-xl" />
                       </div>
-                      <div>
-                        <h3 className="font-bold text-slate-800">{t.name}</h3>
-                        {t.description && <p className="text-slate-500 text-xs mt-0.5">{t.description}</p>}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-bold text-slate-800 truncate">{t.name}</h3>
+                        {t.description && <p className="text-slate-500 text-xs mt-0.5 line-clamp-2">{t.description}</p>}
                       </div>
                     </div>
                     <div className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2 mb-4">
-                      <span className="text-xs text-slate-500 font-medium flex items-center gap-1"><MdPropaneTank className="text-sm" /> Balones</span>
+                      <span className="text-xs text-slate-500 font-medium flex items-center gap-1"><MdPropaneTank className="text-sm shrink-0" /> Balones</span>
                       <span className="font-black text-slate-700 text-lg">{t.cylinders_count ?? 0}</span>
                     </div>
-                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex gap-2 sm:opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => handleOwOpenEdit(t)} className="flex-1 flex items-center justify-center gap-1 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-xs font-semibold transition-colors">
                         <MdEdit className="text-sm" /> Editar
                       </button>
@@ -607,7 +582,7 @@ const Cylinders = () => {
 
       {/* ── MODAL: Proveedor ── */}
       <Modal isOpen={supModal} onClose={() => setSupModal(false)} title={supEditing ? 'Editar Proveedor' : 'Nuevo Proveedor'} maxWidth="max-w-md">
-        <form onSubmit={handleSupSubmit} className="space-y-3">
+        <form onSubmit={handleSupSubmit} className="space-y-4">
           {supError && <p className="text-red-600 text-sm font-medium">{supError}</p>}
           {[{name:'name',label:'Nombre *',req:true,ph:'Ej: Linde Peru S.A.'},{name:'ruc',label:'RUC',req:false,ph:'20100010452'},{name:'address',label:'Dirección',req:false,ph:'Av. Principal 123'},{name:'phone',label:'Teléfono',req:false,ph:'987654321'},{name:'email',label:'Email',req:false,ph:'contacto@empresa.com'}].map(f => (
             <div key={f.name}>
@@ -616,16 +591,16 @@ const Cylinders = () => {
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
             </div>
           ))}
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <button type="button" onClick={() => setSupModal(false)} className="px-3 py-1.5 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium">Cancelar</button>
-            <button type="submit" disabled={supSaving} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50">{supSaving ? 'Guardando...' : 'Guardar'}</button>
+          <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4 border-t border-slate-100 mt-4">
+            <button type="button" onClick={() => setSupModal(false)} className="w-full sm:w-auto px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium order-2 sm:order-1">Cancelar</button>
+            <button type="submit" disabled={supSaving} className="w-full sm:w-auto px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50 order-1 sm:order-2">{supSaving ? 'Guardando...' : 'Guardar'}</button>
           </div>
         </form>
       </Modal>
 
       {/* ── MODAL: Tipo de Propiedad ── */}
       <Modal isOpen={owModal} onClose={() => setOwModal(false)} title={owEditing ? 'Editar Tipo de Propiedad' : 'Nuevo Tipo de Propiedad'} maxWidth="max-w-sm">
-        <form onSubmit={handleOwSubmit} className="space-y-3">
+        <form onSubmit={handleOwSubmit} className="space-y-4">
           {owError && <p className="text-red-600 text-sm font-medium">{owError}</p>}
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">Nombre <span className="text-red-500">*</span></label>
@@ -634,12 +609,12 @@ const Cylinders = () => {
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">Descripción</label>
-            <textarea value={owForm.description} onChange={e => setOwForm({...owForm,description:e.target.value})} rows={2} placeholder="Descripción corta..."
+            <textarea value={owForm.description} onChange={e => setOwForm({...owForm,description:e.target.value})} rows={3} placeholder="Descripción corta..."
               className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-violet-500 text-sm resize-none" />
           </div>
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <button type="button" onClick={() => setOwModal(false)} className="px-3 py-1.5 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium">Cancelar</button>
-            <button type="submit" disabled={owSaving} className="px-4 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50">{owSaving ? 'Guardando...' : 'Guardar'}</button>
+          <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4 border-t border-slate-100 mt-4">
+            <button type="button" onClick={() => setOwModal(false)} className="w-full sm:w-auto px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium order-2 sm:order-1">Cancelar</button>
+            <button type="submit" disabled={owSaving} className="w-full sm:w-auto px-5 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50 order-1 sm:order-2">{owSaving ? 'Guardando...' : 'Guardar'}</button>
           </div>
         </form>
       </Modal>
@@ -649,7 +624,7 @@ const Cylinders = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
 
           {/* Códigos */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Código del Balón <span className="text-red-500">*</span></label>
               <input type="text" required value={formData.serial_number}
@@ -663,13 +638,13 @@ const Cylinders = () => {
               <input type="text" value={formData.barcode}
                 onChange={(e) => setFormData({ ...formData, barcode: e.target.value.toUpperCase() })}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg uppercase outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                placeholder="Solo proveedores externos"
+                placeholder="Solo externos"
               />
             </div>
           </div>
 
           {/* Gas y Capacidad */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Tipo de Gas</label>
               <select required value={formData.gas_type} onChange={(e) => setFormData({ ...formData, gas_type: e.target.value })}
@@ -691,7 +666,7 @@ const Cylinders = () => {
           </div>
 
           {/* Estado y Ubicación */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Estado</label>
               <select required value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })}
@@ -716,9 +691,9 @@ const Cylinders = () => {
           </div>
 
           {/* Fecha Prueba Hidrostática y Condición Física */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Fecha Prueba Hidrostática</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Fecha P. Hidrostática</label>
               <input type="date" value={formData.hydrostatic_test_date}
                 onChange={(e) => setFormData({ ...formData, hydrostatic_test_date: e.target.value })}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
@@ -734,7 +709,7 @@ const Cylinders = () => {
             </div>
           </div>
 
-          {/* Proveedor con quick-add */}
+          {/* Proveedor */}
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center gap-1">
               <MdBusiness className="text-slate-400" /> Proveedor / Marca
@@ -754,7 +729,7 @@ const Cylinders = () => {
             />
           </div>
 
-          {/* Tipo de Propiedad con quick-add */}
+          {/* Tipo de Propiedad */}
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center gap-1">
               <MdLabel className="text-slate-400" /> Tipo de Propiedad <span className="text-red-500">*</span>
@@ -773,23 +748,23 @@ const Cylinders = () => {
             />
           </div>
 
-          {/* Paciente (solo si propiedad o proveedor es propio) */}
+          {/* Paciente */}
           {isCylinderPropio() && (
-            <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+            <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 mt-2">
               <label className="block text-sm font-bold text-blue-700 mb-2 flex items-center gap-2"><MdPerson /> Dueño (Paciente)</label>
               <select required value={formData.patient_id} onChange={(e) => setFormData({ ...formData, patient_id: e.target.value })}
-                className="w-full px-3 py-2 border border-blue-200 rounded-lg bg-white text-sm">
+                className="w-full px-3 py-2 border border-blue-200 rounded-lg bg-white text-sm outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="" disabled>Seleccionar paciente...</option>
                 {patientsList.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
               </select>
             </div>
           )}
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-            <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors text-sm">
+          <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4 border-t border-slate-100 mt-6">
+            <button type="button" onClick={() => setIsModalOpen(false)} className="w-full sm:w-auto px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors text-sm order-2 sm:order-1">
               Cancelar
             </button>
-            <button type="submit" disabled={actionLoading} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors text-sm disabled:opacity-50">
+            <button type="submit" disabled={actionLoading} className="w-full sm:w-auto px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors text-sm disabled:opacity-50 order-1 sm:order-2">
               {actionLoading ? 'Guardando...' : 'Guardar Cilindro'}
             </button>
           </div>

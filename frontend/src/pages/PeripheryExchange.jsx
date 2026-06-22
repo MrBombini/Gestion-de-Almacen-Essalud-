@@ -1,43 +1,50 @@
 import { useState } from 'react';
 import { MdLocalHospital, MdSave, MdHistory, MdSwapCalls, MdAssignment, MdQrCodeScanner } from 'react-icons/md';
-import Select from 'react-select';
+import AsyncSelect from 'react-select/async';
 import useFetch from '../hooks/useFetch';
 import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
 
 const PeripheryExchange = () => {
   const { shift } = useAuth();
   
-  const { data: services, loading: loadingS } = useFetch('/services');
-  const { data: cylinders, loading: loadingC, refetch: refetchC } = useFetch('/cylinders?per_page=all');
-  
+  // Mantenemos solo el useFetch para guardar la transacción
   const { execute, loading: actionLoading } = useFetch('/inventory/periphery-exchange', 'POST', null, false);
-
-  const servicesList = Array.isArray(services) ? services : (services?.data || []);
-  const cylindersList = Array.isArray(cylinders) ? cylinders : (cylinders?.data || []);
 
   const [formData, setFormData] = useState({
     service_id: '',
     reference_document: '',
     shift: shift || 'Morning',
-    cylinders_in: [],  // Balones que el periférico DEJA en Almacén
-    cylinders_out: [], // Balones que el periférico SE LLEVA a su sede
+    cylinders_in: [],  // Array de objetos seleccionados (isMulti)
+    cylinders_out: [], // Array de objetos seleccionados (isMulti)
     notes: ''
   });
 
+  const [selectedServiceOption, setSelectedServiceOption] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
 
-  // --- FORMATEO DE OPCIONES ---
-  const serviceOptions = servicesList
-    .filter(s => s.type === 'PERIFERIE')
-    .map(s => ({
-      value: s.id,
-      label: s.name
-    }));
+  // ==========================================
+  // CARGA ASÍNCRONA DE SERVICIOS (PERIFERIE)
+  // ==========================================
+  const loadServiceOptions = async (inputValue) => {
+    try {
+      const searchParam = inputValue && inputValue.length >= 2 ? `?search=${inputValue}` : '';
+      const response = await api.get(`/services${searchParam}`);
+      const data = response.data.data || response.data || [];
+      
+      return data
+        .filter(s => s.type === 'PERIFERIE')
+        .map(s => ({ value: s.id, label: s.name }));
+    } catch (error) {
+      console.error('Error buscando servicios periféricos:', error);
+      return [];
+    }
+  };
 
-  // Función auxiliar para verificar propiedad
+  // Funciones auxiliares de reglas de negocio
   const isValidOwnership = (name) => {
-    if (!name) return true; // Si no tiene, por defecto lo dejamos pasar (S/D)
+    if (!name) return true; 
     const upperName = name.toUpperCase();
     return !upperName.includes('PROPIO') && !upperName.includes('PACIENTE');
   };
@@ -48,23 +55,46 @@ const PeripheryExchange = () => {
     return lower.includes('oxi') || lower.includes('oxí');
   };
 
-  // Balones para RECIBIR (Deben retornar del hospital seleccionado)
-  const cylindersInOptions = cylindersList
-    .filter(c => isOxygen(c.gas_type) && isValidOwnership(c.ownership_type?.name) && Number(c.capacity) >= 8 && Number(c.capacity) <= 10)
-    .filter(c => formData.service_id && c.current_service_id === formData.service_id)
-    .map(c => ({
-      value: c.id,
-      label: `${c.serial_number} (${Number(c.capacity)}m³) [${c.ownership_type?.name || 'S/D'}]`
-    }));
+  // ==========================================
+  // CARGA ASÍNCRONA DE CILINDROS (Filtro Estricto)
+  // ==========================================
+  const loadCylinderOptions = async (inputValue, type) => {
+    try {
+      // Optimizamos la consulta al backend según lo que estemos buscando
+      let statusParam = '';
+      if (type === 'OUT') statusParam = '&status=full'; // Para enviar, deben estar llenos en almacén
 
-  // Balones para ENTREGAR (Deben estar llenos en el almacén)
-  const cylindersOutOptions = cylindersList
-    .filter(c => isOxygen(c.gas_type) && isValidOwnership(c.ownership_type?.name) && Number(c.capacity) >= 8 && Number(c.capacity) <= 10)
-    .filter(c => c.status === 'full' && !c.current_service_id)
-    .map(c => ({
-      value: c.id,
-      label: `${c.serial_number} (${Number(c.capacity)}m³) [${c.ownership_type?.name || 'S/D'}]`
-    }));
+      const searchParam = inputValue && inputValue.length >= 2 ? `&search=${inputValue}` : '';
+      const response = await api.get(`/cylinders?per_page=40${statusParam}${searchParam}`);
+      const data = response.data.data || response.data || [];
+
+      const filteredData = data.filter(c => {
+        // Reglas Universales de Periferia
+        if (!isOxygen(c.gas_type)) return false;
+        if (!isValidOwnership(c.ownership_type?.name)) return false;
+        
+        const cap = Number(c.capacity);
+        if (cap < 8 || cap > 10) return false;
+
+        // Reglas Específicas por Dirección (In/Out)
+        if (type === 'IN') {
+          // Deben ser balones que actualmente están asignados a ese hospital
+          return c.current_service_id === formData.service_id;
+        } else {
+          // OUT: Deben estar llenos y no estar asignados a ningún hospital actualmente (en almacén libre)
+          return c.status === 'full' && !c.current_service_id;
+        }
+      });
+
+      return filteredData.map(c => ({
+        value: c.id,
+        label: `${c.serial_number} (${Number(c.capacity)}m³) [${c.ownership_type?.name || 'S/D'}]`
+      }));
+    } catch (error) {
+      console.error('Error buscando cilindros:', error);
+      return [];
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -86,6 +116,8 @@ const PeripheryExchange = () => {
       });
 
       setSuccessMessage('¡Canje de red registrado con éxito!');
+      
+      // Limpieza post-guardado
       setFormData({
         service_id: '',
         reference_document: '',
@@ -94,7 +126,7 @@ const PeripheryExchange = () => {
         cylinders_out: [],
         notes: ''
       });
-      refetchC();
+      setSelectedServiceOption(null);
     } catch (err) {
       setErrorMessage(err.response?.data?.message || 'Error en el registro.');
     }
@@ -117,10 +149,6 @@ const PeripheryExchange = () => {
       fontWeight: 'bold'
     })
   };
-
-  if (loadingS || loadingC) {
-    return <div className="flex h-full items-center justify-center animate-pulse text-indigo-600 font-bold text-xl">Cargando Módulo de Periferia...</div>;
-  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-10">
@@ -157,12 +185,20 @@ const PeripheryExchange = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">Hospital de Origen (Red)</label>
-              <Select 
-                options={serviceOptions} 
+              <AsyncSelect 
+                cacheOptions
+                defaultOptions
+                loadOptions={loadServiceOptions}
                 styles={customStyles} 
-                placeholder="-- Seleccionar Hospital --"
-                value={serviceOptions.find(o => o.value === formData.service_id)}
-                onChange={(s) => setFormData({...formData, service_id: s?.value || ''})}
+                isClearable
+                placeholder="-- Buscar Hospital Periférico --"
+                value={selectedServiceOption}
+                onChange={(s) => {
+                  setSelectedServiceOption(s);
+                  // Si cambiamos de hospital, limpiamos los balones entrantes porque dependen del hospital seleccionado
+                  setFormData({...formData, service_id: s?.value || '', cylinders_in: []});
+                }}
+                noOptionsMessage={({ inputValue }) => !inputValue ? "Sugerencias cargando..." : "No se encontró un hospital de red con ese nombre."}
               />
             </div>
             <div>
@@ -185,7 +221,7 @@ const PeripheryExchange = () => {
                 value={formData.notes}
                 onChange={(e) => setFormData({...formData, notes: e.target.value})}
                 className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="Estado de los balones, quien retira, etc."
+                placeholder="Estado de los balones, chofer, etc."
               />
             </div>
           </div>
@@ -203,15 +239,18 @@ const PeripheryExchange = () => {
               <span className="px-3 py-1 bg-orange-50 text-orange-600 rounded-full text-xs font-bold">VACÍOS / LLENOS</span>
             </div>
             <p className="text-slate-500 text-xs italic">Escanea o busca los balones que el hospital de red está dejando en el almacén central.</p>
-            <Select 
+            <AsyncSelect 
               isMulti
-              options={cylindersInOptions}
+              cacheOptions
+              defaultOptions
+              loadOptions={(val) => loadCylinderOptions(val, 'IN')}
               styles={customStyles}
-              placeholder="-- Buscar balones recibidos --"
+              isDisabled={!formData.service_id} // No puede entregar si no se seleccionó el hospital primero
+              placeholder={!formData.service_id ? "Seleccione hospital primero" : "-- Buscar balones recibidos --"}
               value={formData.cylinders_in}
               onChange={(s) => setFormData({...formData, cylinders_in: s || []})}
               closeMenuOnSelect={false}
-              noOptionsMessage={() => "No hay balones disponibles para recibir."}
+              noOptionsMessage={({ inputValue }) => !inputValue ? "Sugerencias cargando..." : "No se encontró el balón o no pertenece a este hospital."}
             />
             <div className="mt-4 p-4 bg-slate-50 rounded-xl border border-dashed border-slate-300 flex items-center justify-between">
                <span className="text-sm text-slate-600 font-medium">Balones ingresados:</span>
@@ -228,14 +267,17 @@ const PeripheryExchange = () => {
               <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-xs font-bold">SOLO LLENOS</span>
             </div>
             <p className="text-slate-500 text-xs italic">Selecciona los balones cargados con oxígeno que se enviarán al hospital periférico.</p>
-            <Select 
+            <AsyncSelect 
               isMulti
-              options={cylindersOutOptions}
+              cacheOptions
+              defaultOptions
+              loadOptions={(val) => loadCylinderOptions(val, 'OUT')}
               styles={customStyles}
               placeholder="-- Buscar balones para enviar --"
               value={formData.cylinders_out}
               onChange={(s) => setFormData({...formData, cylinders_out: s || []})}
               closeMenuOnSelect={false}
+              noOptionsMessage={({ inputValue }) => !inputValue ? "Sugerencias cargando..." : "No se encontró balón o no cumple los requisitos (8-10m³, Lleno)."}
             />
             <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-dashed border-blue-300 flex items-center justify-between">
                <span className="text-sm text-blue-700 font-medium">Balones salientes:</span>

@@ -108,7 +108,6 @@ const Patients = () => {
             setRxEditId(null);
             setRxForm({ dosage: '', usage_time: '', expires_at: '', authorization_date: '', promissory_note: '', status: 'active' });
             refetch();
-            // Actualizar rxPatient con datos frescos
             const res = await api.get(`/patients/${rxPatient.id}`);
             setRxPatient(res.data);
         } catch (err) {
@@ -136,39 +135,41 @@ const Patients = () => {
     const rxStatusBadge = (status) => {
         const map = { active: 'bg-emerald-50 text-emerald-700 border-emerald-200', expired: 'bg-red-50 text-red-700 border-red-200', inactive: 'bg-slate-50 text-slate-600 border-slate-200' };
         const label = { active: 'Activa', expired: 'Vencida', inactive: 'Inactiva' };
-        return <span className={`px-2 py-0.5 rounded border text-[10px] font-bold uppercase ${map[status] || 'bg-slate-50 text-slate-600 border-slate-200'}`}>{label[status] || status}</span>;
+        return <span className={`px-2 py-0.5 rounded border text-[10px] font-bold uppercase shrink-0 ${map[status] || 'bg-slate-50 text-slate-600 border-slate-200'}`}>{label[status] || status}</span>;
     };
 
     return (
-        <div className="space-y-6">
-            {/* Cabecera */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+        <div className="space-y-4 sm:space-y-6 pb-10">
+            {/* Cabecera Responsiva */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
                 <div className="flex items-center gap-3">
-                    <div className="p-3 bg-purple-50 text-purple-600 rounded-lg"><FaBedPulse className="text-2xl" /></div>
+                    <div className="p-3 sm:p-4 bg-purple-50 text-purple-600 rounded-xl shrink-0"><FaBedPulse className="text-2xl" /></div>
                     <div>
-                        <h2 className="text-2xl font-bold text-slate-800">Catálogo de Pacientes</h2>
-                        <p className="text-slate-500 text-sm mt-1">Gestiona pacientes y sus recetas de oxígeno.</p>
+                        <h2 className="text-xl sm:text-2xl font-bold text-slate-800">Catálogo de Pacientes</h2>
+                        <p className="text-slate-500 text-xs sm:text-sm mt-1">Gestiona pacientes y sus recetas de oxígeno.</p>
                     </div>
                 </div>
-                <button onClick={handleOpenCreate} className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-sm transition-all hover:scale-105">
+                <button onClick={handleOpenCreate} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-sm transition-all hover:scale-105 shrink-0">
                     <MdAdd className="text-xl" /> Nuevo Paciente
                 </button>
             </div>
 
-            {/* Tabla */}
+            {/* Contenedor de Tabla */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                
+                {/* Filtros Superiores */}
                 <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row gap-4">
                     <div className="flex-1 flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm">
-                        <MdSearch className="text-slate-400 text-xl" />
+                        <MdSearch className="text-slate-400 text-xl shrink-0" />
                         <input type="text" placeholder="Buscar por nombre o DNI..."
                             value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
                             className="bg-transparent border-none outline-none text-sm w-full text-slate-700 placeholder-slate-400"
                         />
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Receta:</label>
                         <select value={filterRxStatus} onChange={(e) => setFilterRxStatus(e.target.value)}
-                            className="bg-white border border-slate-200 text-xs font-semibold px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-purple-500 shadow-sm">
+                            className="flex-1 sm:flex-none bg-white border border-slate-200 text-xs font-semibold px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-purple-500 shadow-sm">
                             <option value="ALL">TODOS</option>
                             <option value="ACTIVE">CON RECETA ACTIVA</option>
                             <option value="NONE">SIN RECETA ACTIVA</option>
@@ -180,14 +181,14 @@ const Patients = () => {
 
                 {!loading && (
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
+                        <table className="w-full text-left border-collapse min-w-[800px]">
                             <thead>
                                 <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
-                                    <th className="px-6 py-4 font-semibold">Paciente</th>
-                                    <th className="px-6 py-4 font-semibold">Receta Activa</th>
-                                    <th className="px-6 py-4 font-semibold">Contacto</th>
-                                    <th className="px-6 py-4 font-semibold">Códigos</th>
-                                    <th className="px-6 py-4 font-semibold text-right">Acciones</th>
+                                    <th className="px-4 sm:px-6 py-4 font-semibold">Paciente</th>
+                                    <th className="px-4 sm:px-6 py-4 font-semibold">Receta Activa</th>
+                                    <th className="px-4 sm:px-6 py-4 font-semibold">Contacto</th>
+                                    <th className="px-4 sm:px-6 py-4 font-semibold">Códigos</th>
+                                    <th className="px-4 sm:px-6 py-4 font-semibold text-right">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -195,14 +196,13 @@ const Patients = () => {
                                     <tr><td colSpan="5" className="px-6 py-8 text-center text-slate-500">No se encontraron pacientes.</td></tr>
                                 ) : filtered.map((patient) => {
                                     const activeRx = patient.prescriptions?.find(p => p.status === 'active');
-                                    const isExpired = activeRx && activeRx.expires_at && new Date(activeRx.expires_at) < new Date();
                                     return (
                                         <tr key={patient.id} className="hover:bg-slate-50 transition-colors">
-                                            <td className="px-6 py-4">
+                                            <td className="px-4 sm:px-6 py-4">
                                                 <div className="text-sm font-bold text-slate-800">{patient.full_name}</div>
                                                 <div className="text-xs text-slate-400 mt-0.5">DNI: {patient.dni || '—'}</div>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-4 sm:px-6 py-4">
                                                 {activeRx ? (
                                                     <div className="space-y-1">
                                                         <div className="text-xs font-bold text-blue-600">
@@ -212,29 +212,31 @@ const Patients = () => {
                                                             {!activeRx.dosage && !activeRx.usage_time ? 'Receta de Oxígeno' : ''}
                                                         </div>
                                                         <div className={`text-[10px] flex items-center gap-1 ${activeRx.days_remaining < 0 ? 'text-red-500 font-bold' : 'text-slate-500'}`}>
-                                                            {activeRx.days_remaining < 0 && <MdWarning />}
-                                                            {activeRx.days_remaining === null ? (
-                                                                `Vence: ${activeRx.expires_at || 'No vence'}`
-                                                            ) : activeRx.days_remaining < 0 ? (
-                                                                `Vencida hace ${Math.abs(activeRx.days_remaining)} días`
-                                                            ) : activeRx.days_remaining === 0 ? (
-                                                                'Vence hoy'
-                                                            ) : (
-                                                                `${activeRx.days_remaining} días restantes`
-                                                            )}
+                                                            {activeRx.days_remaining < 0 && <MdWarning className="shrink-0" />}
+                                                            <span className="truncate">
+                                                              {activeRx.days_remaining === null ? (
+                                                                  `Vence: ${activeRx.expires_at || 'No vence'}`
+                                                              ) : activeRx.days_remaining < 0 ? (
+                                                                  `Vencida hace ${Math.abs(activeRx.days_remaining)} días`
+                                                              ) : activeRx.days_remaining === 0 ? (
+                                                                  'Vence hoy'
+                                                              ) : (
+                                                                  `${activeRx.days_remaining} días restantes`
+                                                              )}
+                                                            </span>
                                                         </div>
                                                     </div>
                                                 ) : <span className="text-xs text-slate-400 italic">Sin receta activa</span>}
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-1.5 text-xs text-slate-600"><MdPhone className="text-slate-400" />{patient.phone1 || '—'}</div>
-                                                <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1"><MdLocationOn className="text-slate-400 text-sm" /><span className="truncate max-w-[140px]" title={patient.address}>{patient.address || '—'}</span></div>
+                                            <td className="px-4 sm:px-6 py-4">
+                                                <div className="flex items-center gap-1.5 text-xs text-slate-600"><MdPhone className="text-slate-400 shrink-0" />{patient.phone1 || '—'}</div>
+                                                <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1"><MdLocationOn className="text-slate-400 text-sm shrink-0" /><span className="truncate max-w-[140px]" title={patient.address}>{patient.address || '—'}</span></div>
                                             </td>
-                                            <td className="px-6 py-4 space-y-1">
-                                                {patient.trasiego_code && <div><span className="bg-orange-50 text-orange-700 px-2 py-0.5 rounded border border-orange-100 text-[9px] font-bold">TRASIEGO: {patient.trasiego_code}</span></div>}
-                                                {patient.exchange_code && <div><span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100 text-[9px] font-bold">CANJE: {patient.exchange_code}</span></div>}
+                                            <td className="px-4 sm:px-6 py-4 space-y-1">
+                                                {patient.trasiego_code && <div><span className="bg-orange-50 text-orange-700 px-2 py-0.5 rounded border border-orange-100 text-[9px] font-bold whitespace-nowrap">TRASIEGO: {patient.trasiego_code}</span></div>}
+                                                {patient.exchange_code && <div><span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100 text-[9px] font-bold whitespace-nowrap">CANJE: {patient.exchange_code}</span></div>}
                                             </td>
-                                            <td className="px-6 py-4 text-right space-x-1">
+                                            <td className="px-4 sm:px-6 py-4 text-right space-x-1 whitespace-nowrap">
                                                 <button onClick={() => openRxPanel(patient)} className="p-2 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors" title="Ver/Gestionar Recetas">
                                                     <MdHistory className="text-lg" />
                                                 </button>
@@ -251,24 +253,25 @@ const Patients = () => {
                             </tbody>
                         </table>
 
+                        {/* Paginación Responsiva */}
                         {patients && patients.last_page > 1 && (
                             <div className="p-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between bg-slate-50 gap-4">
                                 <span className="text-sm text-slate-500 font-medium">
                                     Página <strong className="text-slate-800">{patients.current_page}</strong> de <strong className="text-slate-800">{patients.last_page}</strong> 
                                     <span className="ml-2 hidden sm:inline">(Total: {patients.total})</span>
                                 </span>
-                                <div className="flex gap-2">
+                                <div className="flex gap-2 w-full sm:w-auto">
                                     <button 
                                         onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                         disabled={currentPage === 1}
-                                        className="px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-sm"
+                                        className="flex-1 sm:flex-none px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-sm"
                                     >
                                         Anterior
                                     </button>
                                     <button 
                                         onClick={() => setCurrentPage(p => Math.min(patients.last_page, p + 1))}
                                         disabled={currentPage === patients.last_page}
-                                        className="px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-sm"
+                                        className="flex-1 sm:flex-none px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-sm"
                                     >
                                         Siguiente
                                     </button>
@@ -286,8 +289,8 @@ const Patients = () => {
                 <form onSubmit={handleSubmit} className="space-y-5">
                     <div className="space-y-3">
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-1">Datos Personales</p>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="col-span-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                            <div className="sm:col-span-2">
                                 <label className="block text-xs font-semibold text-slate-700 mb-1">Nombre Completo *</label>
                                 <input type="text" required value={formData.full_name} onChange={e => setFormData({...formData, full_name: e.target.value})}
                                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm" />
@@ -302,7 +305,7 @@ const Patients = () => {
                                 <input type="text" value={formData.phone1} onChange={e => setFormData({...formData, phone1: e.target.value})}
                                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm" />
                             </div>
-                            <div className="col-span-2">
+                            <div className="sm:col-span-2">
                                 <label className="block text-xs font-semibold text-slate-700 mb-1">Dirección</label>
                                 <input type="text" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})}
                                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm" />
@@ -310,9 +313,9 @@ const Patients = () => {
                         </div>
                     </div>
 
-                    <div className="space-y-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
+                    <div className="space-y-3 p-3 sm:p-4 bg-blue-50 rounded-xl border border-blue-100">
                         <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest border-b border-blue-100 pb-1 flex items-center gap-1"><MdAssignment />Receta Inicial</p>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                             <div>
                                 <label className="block text-xs font-semibold text-slate-700 mb-1">Dosificación (L/min)</label>
                                 <input type="text" value={formData.dosage} onChange={e => setFormData({...formData, dosage: e.target.value})}
@@ -333,7 +336,7 @@ const Patients = () => {
                                 <input type="date" value={formData.expires_at} onChange={e => setFormData({...formData, expires_at: e.target.value})}
                                     className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm outline-none" />
                             </div>
-                            <div className="col-span-2">
+                            <div className="sm:col-span-2">
                                 <label className="block text-xs font-semibold text-slate-700 mb-1">Nº Pagaré</label>
                                 <input type="text" value={formData.promissory_note} onChange={e => setFormData({...formData, promissory_note: e.target.value})}
                                     placeholder="PAG-2024-001" className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm outline-none" />
@@ -341,7 +344,7 @@ const Patients = () => {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                         <div>
                             <label className="block text-xs font-semibold text-slate-700 mb-1">Código Trasiego</label>
                             <input type="text" value={formData.trasiego_code} onChange={e => setFormData({...formData, trasiego_code: e.target.value.toUpperCase()})}
@@ -354,10 +357,10 @@ const Patients = () => {
                         </div>
                     </div>
 
-                    <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-                        <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium text-sm">Cancelar</button>
-                        <button type="submit" disabled={actionLoading} className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold text-sm disabled:opacity-50">
-                            {actionLoading ? 'Guardando...' : 'Guardar'}
+                    <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t border-slate-100">
+                        <button type="button" onClick={() => setIsModalOpen(false)} className="w-full sm:w-auto px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-lg font-medium text-sm transition-colors order-2 sm:order-1">Cancelar</button>
+                        <button type="submit" disabled={actionLoading} className="w-full sm:w-auto px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold text-sm disabled:opacity-50 transition-colors order-1 sm:order-2">
+                            {actionLoading ? 'Guardando...' : 'Guardar Paciente'}
                         </button>
                     </div>
                 </form>
@@ -375,25 +378,25 @@ const Patients = () => {
                         <p className="text-center text-slate-400 text-sm py-4">Sin recetas registradas.</p>
                     )}
                     {rxPatient?.prescriptions?.map(rx => (
-                        <div key={rx.id} className={`flex items-start justify-between p-3 rounded-xl border text-xs ${rx.status === 'active' ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
-                            <div className="space-y-0.5 flex-1">
+                        <div key={rx.id} className={`flex flex-col sm:flex-row sm:items-start justify-between p-3 rounded-xl border text-xs gap-3 ${rx.status === 'active' ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
+                            <div className="space-y-1 flex-1">
                                 <div className="flex items-center gap-2">
                                     {rxStatusBadge(rx.status)}
                                     <span className="font-bold text-slate-700">{rx.dosage} L/min · {rx.usage_time} hrs</span>
                                 </div>
-                                <div className="text-slate-500">
+                                <div className="text-slate-500 break-words">
                                     Autorización: {rx.authorization_date || '—'} · Vence: <span className={rx.days_remaining < 0 ? 'text-red-600 font-bold' : ''}>{rx.expires_at || '—'}</span>
                                     {rx.days_remaining !== null && (
-                                        <span className={`ml-2 font-semibold ${rx.days_remaining < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                        <span className={`ml-1 sm:ml-2 font-semibold ${rx.days_remaining < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                                             ({rx.days_remaining < 0 ? `Vencida hace ${Math.abs(rx.days_remaining)}d` : rx.days_remaining === 0 ? 'Vence hoy' : `${rx.days_remaining}d restantes`})
                                         </span>
                                     )}
                                 </div>
                                 {rx.promissory_note && <div className="text-slate-400">Pagaré: {rx.promissory_note}</div>}
                             </div>
-                            <div className="flex gap-1 ml-3 shrink-0">
-                                <button onClick={() => openRxEdit(rx)} className="p-1 text-blue-400 hover:text-blue-600 transition-colors"><MdEdit /></button>
-                                <button onClick={() => handleRxDelete(rx.id)} className="p-1 text-slate-300 hover:text-red-500 transition-colors"><MdDelete /></button>
+                            <div className="flex gap-2 sm:ml-3 shrink-0 self-end sm:self-auto border-t sm:border-none pt-2 sm:pt-0 w-full sm:w-auto justify-end border-slate-200">
+                                <button onClick={() => openRxEdit(rx)} className="px-3 py-1.5 sm:p-1 bg-white sm:bg-transparent border sm:border-none border-slate-200 text-blue-500 hover:text-blue-700 rounded transition-colors flex items-center gap-1 font-semibold sm:font-normal"><MdEdit className="text-base" /> <span className="sm:hidden">Editar</span></button>
+                                <button onClick={() => handleRxDelete(rx.id)} className="px-3 py-1.5 sm:p-1 bg-white sm:bg-transparent border sm:border-none border-slate-200 text-red-400 hover:text-red-600 rounded transition-colors flex items-center gap-1 font-semibold sm:font-normal"><MdDelete className="text-base" /> <span className="sm:hidden">Eliminar</span></button>
                             </div>
                         </div>
                     ))}
@@ -403,10 +406,10 @@ const Patients = () => {
                 <div className="border-t border-slate-200 pt-4">
                     <div className="flex items-center justify-between mb-3">
                         <p className="text-sm font-bold text-slate-700">{rxEditId ? '✏️ Editar Receta' : '➕ Nueva Receta'}</p>
-                        {rxEditId && <button onClick={() => { setRxEditId(null); setRxForm({ dosage: '', usage_time: '', expires_at: '', authorization_date: '', promissory_note: '', status: 'active' }); }} className="text-slate-400 hover:text-red-500 transition-colors"><MdClose /></button>}
+                        {rxEditId && <button onClick={() => { setRxEditId(null); setRxForm({ dosage: '', usage_time: '', expires_at: '', authorization_date: '', promissory_note: '', status: 'active' }); }} className="text-slate-400 hover:text-red-500 transition-colors p-1"><MdClose className="text-xl" /></button>}
                     </div>
                     <form onSubmit={handleRxSubmit} className="space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                             <div>
                                 <label className="block text-xs font-semibold text-slate-600 mb-1">Dosificación</label>
                                 <input type="text" value={rxForm.dosage} onChange={e => setRxForm({...rxForm, dosage: e.target.value})}
@@ -442,8 +445,8 @@ const Patients = () => {
                                 </select>
                             </div>
                         </div>
-                        <div className="flex justify-end gap-2">
-                            <button type="submit" disabled={rxSaving} className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50 transition-colors">
+                        <div className="flex justify-end pt-2">
+                            <button type="submit" disabled={rxSaving} className="w-full sm:w-auto px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50 transition-colors shadow-sm">
                                 {rxSaving ? 'Guardando...' : rxEditId ? 'Actualizar Receta' : 'Agregar Receta'}
                             </button>
                         </div>

@@ -41,26 +41,26 @@ const Dashboard = () => {
     <div className="space-y-6 max-w-7xl mx-auto pb-10">
       
       {/* Header Profesional (Estilo ConsumptionDashboard) */}
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-3xl p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden">
           <div className="absolute -top-24 -right-24 w-64 h-64 bg-blue-500 rounded-full blur-[80px] opacity-20 pointer-events-none"></div>
           <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-emerald-500 rounded-full blur-[80px] opacity-20 pointer-events-none"></div>
           
-          <div className="relative z-10 flex items-center gap-4">
-              <div className="p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20">
+          <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full md:w-auto">
+              <div className="p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 shrink-0">
                   <MdInsertChartOutlined className="text-3xl text-blue-300" />
               </div>
               <div>
-                  <h1 className="text-3xl font-black tracking-tight">Hola, {user?.name} 👋</h1>
-                  <p className="text-slate-400 font-medium mt-1">Panel de control principal del almacén</p>
+                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Hola, {user?.name}</h1>
+                  <p className="text-slate-400 font-medium mt-1 text-sm sm:text-base">Panel de control principal del almacén</p>
               </div>
           </div>
 
-          <div className="relative z-10 flex flex-col sm:flex-row gap-3 bg-black/20 p-2 rounded-2xl border border-white/10 backdrop-blur-sm">
-              <div className="flex items-center gap-2 bg-white/5 px-4 py-2 rounded-xl">
-                  <MdDateRange className="text-slate-400" />
-                  <span className="text-sm font-semibold text-white capitalize">{today}</span>
+          <div className="relative z-10 flex flex-col sm:flex-row gap-3 bg-black/20 p-2 rounded-2xl border border-white/10 backdrop-blur-sm w-full md:w-auto">
+              <div className="flex items-center justify-center gap-2 bg-white/5 px-4 py-2 rounded-xl flex-1 sm:flex-none">
+                  <MdDateRange className="text-slate-400 shrink-0" />
+                  <span className="text-sm font-semibold text-white capitalize truncate">{today}</span>
               </div>
-              <div className="flex items-center gap-2 bg-white/5 px-4 py-2 rounded-xl">
+              <div className="flex items-center justify-center gap-2 bg-white/5 px-4 py-2 rounded-xl flex-1 sm:flex-none">
                   <span className="text-slate-500 font-bold">Turno:</span>
                   <span className="text-sm font-black text-blue-400 uppercase tracking-widest">{shift}</span>
               </div>
@@ -68,7 +68,7 @@ const Dashboard = () => {
       </div>
 
       {/* Tarjetas de Resumen */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         
         {/* Llenos en Central */}
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-shadow">
@@ -87,7 +87,7 @@ const Dashboard = () => {
                     </div>
                 </div>
             </div>
-            <div className="mt-6 w-full text-xs font-bold text-emerald-600 bg-emerald-50 py-2 px-3 rounded-xl border border-emerald-100">
+            <div className="mt-6 w-full text-xs font-bold text-emerald-600 bg-emerald-50 py-2 px-3 rounded-xl border border-emerald-100 text-center sm:text-left">
                 Ubicados en Almacén Central (Disponibles)
             </div>
         </div>
@@ -109,13 +109,13 @@ const Dashboard = () => {
                     </div>
                 </div>
             </div>
-            <div className="mt-6 w-full text-xs font-bold text-orange-600 bg-orange-50 py-2 px-3 rounded-xl border border-orange-100">
+            <div className="mt-6 w-full text-xs font-bold text-orange-600 bg-orange-50 py-2 px-3 rounded-xl border border-orange-100 text-center sm:text-left">
                 Ubicados en Almacén Central (Requieren Recarga)
             </div>
         </div>
 
         {/* Tanque Líquido */}
-        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-shadow">
+        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-shadow sm:col-span-2 lg:col-span-1">
             <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-blue-100 to-transparent rounded-bl-full opacity-50 transition-transform group-hover:scale-110"></div>
             <div className="flex items-start justify-between relative z-10">
                 <div>
@@ -131,7 +131,7 @@ const Dashboard = () => {
                     </div>
                 </div>
             </div>
-            <div className="mt-6 w-full text-xs font-bold text-blue-600 bg-blue-50 py-2 px-3 rounded-xl border border-blue-100">
+            <div className="mt-6 w-full text-xs font-bold text-blue-600 bg-blue-50 py-2 px-3 rounded-xl border border-blue-100 text-center sm:text-left truncate">
                 Última lectura: {loading ? 'cargando...' : (stats?.last_reading_time ?? '—')}
             </div>
         </div>
@@ -139,20 +139,20 @@ const Dashboard = () => {
       </div>
 
       {/* ── MATRIZ DE DESGLOSE EN CENTRAL ── */}
-      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
+      <div className="bg-white rounded-3xl p-4 sm:p-6 shadow-sm border border-slate-200">
           <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-slate-100 text-slate-600 rounded-lg"><MdOutlineInventory2 className="text-xl" /></div>
+              <div className="p-2 bg-slate-100 text-slate-600 rounded-lg shrink-0"><MdOutlineInventory2 className="text-xl" /></div>
               <div>
-                  <h3 className="text-lg font-black text-slate-800 tracking-tight">Desglose Exacto en Almacén Central</h3>
-                  <p className="text-xs font-semibold text-slate-400">Inventario físico por capacidad y tipo de propiedad</p>
+                  <h3 className="text-base sm:text-lg font-black text-slate-800 tracking-tight">Desglose Exacto en Almacén Central</h3>
+                  <p className="text-[10px] sm:text-xs font-semibold text-slate-400">Inventario físico por capacidad y tipo de propiedad</p>
               </div>
           </div>
 
-          <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-max">
+          <div className="overflow-x-auto rounded-xl border border-slate-100">
+              <table className="w-full text-left border-collapse min-w-[600px]">
                   <thead>
                       <tr>
-                          <th className="px-4 py-3 bg-slate-50 border-b-2 border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-widest text-center" rowSpan="2">Propietario</th>
+                          <th className="px-4 py-3 bg-slate-50 border-b-2 border-slate-200 text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest text-left sm:text-center sticky left-0 z-10" rowSpan="2">Propietario</th>
                           {capacities.map(cap => (
                               <th key={cap} className="px-4 py-2 bg-slate-50 border-b border-slate-200 border-l border-slate-200 text-sm font-black text-slate-700 text-center" colSpan="2">
                                   {cap} m³
@@ -162,8 +162,8 @@ const Dashboard = () => {
                       <tr>
                           {capacities.map(cap => (
                               <React.Fragment key={`sub-${cap}`}>
-                                  <th className="px-2 py-2 bg-emerald-50/50 border-b-2 border-emerald-200 border-l border-slate-200 text-[10px] font-bold text-emerald-600 uppercase tracking-wider text-center w-20">Llenos</th>
-                                  <th className="px-2 py-2 bg-orange-50/50 border-b-2 border-orange-200 text-[10px] font-bold text-orange-600 uppercase tracking-wider text-center w-20">Vacíos</th>
+                                  <th className="px-2 py-2 bg-emerald-50/50 border-b-2 border-emerald-200 border-l border-slate-200 text-[10px] font-bold text-emerald-600 uppercase tracking-wider text-center w-16 sm:w-20">Llenos</th>
+                                  <th className="px-2 py-2 bg-orange-50/50 border-b-2 border-orange-200 text-[10px] font-bold text-orange-600 uppercase tracking-wider text-center w-16 sm:w-20">Vacíos</th>
                               </React.Fragment>
                           ))}
                       </tr>
@@ -171,16 +171,16 @@ const Dashboard = () => {
                   <tbody className="divide-y divide-slate-100">
                       {owners.map(owner => (
                           <tr key={owner} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="px-4 py-3 text-sm font-bold text-slate-700 border-r border-slate-100">{owner}</td>
+                              <td className="px-4 py-3 text-[10px] sm:text-sm font-bold text-slate-700 border-r border-slate-100 sticky left-0 bg-white group-hover:bg-slate-50/50 z-10 whitespace-nowrap">{owner}</td>
                               {capacities.map(cap => {
                                   const full = getCount(owner, cap, 'full');
                                   const empty = getCount(owner, cap, 'empty');
                                   return (
                                       <React.Fragment key={`${owner}-${cap}`}>
-                                          <td className={`px-2 py-3 text-center text-sm font-black border-l border-slate-100 ${full > 0 ? 'text-emerald-600' : 'text-slate-300'}`}>
+                                          <td className={`px-2 py-3 text-center text-xs sm:text-sm font-black border-l border-slate-100 ${full > 0 ? 'text-emerald-600' : 'text-slate-300'}`}>
                                               {loading ? '-' : full}
                                           </td>
-                                          <td className={`px-2 py-3 text-center text-sm font-black ${empty > 0 ? 'text-orange-600' : 'text-slate-300'}`}>
+                                          <td className={`px-2 py-3 text-center text-xs sm:text-sm font-black ${empty > 0 ? 'text-orange-600' : 'text-slate-300'}`}>
                                               {loading ? '-' : empty}
                                           </td>
                                       </React.Fragment>
@@ -190,16 +190,16 @@ const Dashboard = () => {
                       ))}
                       {/* Fila de Totales */}
                       <tr className="bg-slate-50 border-t-2 border-slate-200">
-                          <td className="px-4 py-3 text-sm font-black text-slate-800 text-right uppercase tracking-wider">Total</td>
+                          <td className="px-4 py-3 text-xs sm:text-sm font-black text-slate-800 text-right uppercase tracking-wider sticky left-0 bg-slate-50 z-10">Total</td>
                           {capacities.map(cap => {
                               const totalFull = owners.reduce((sum, owner) => sum + getCount(owner, cap, 'full'), 0);
                               const totalEmpty = owners.reduce((sum, owner) => sum + getCount(owner, cap, 'empty'), 0);
                               return (
                                   <React.Fragment key={`total-${cap}`}>
-                                      <td className="px-2 py-3 text-center text-sm font-black text-emerald-700 border-l border-slate-200">
+                                      <td className="px-2 py-3 text-center text-xs sm:text-sm font-black text-emerald-700 border-l border-slate-200">
                                           {loading ? '-' : totalFull}
                                       </td>
-                                      <td className="px-2 py-3 text-center text-sm font-black text-orange-700">
+                                      <td className="px-2 py-3 text-center text-xs sm:text-sm font-black text-orange-700">
                                           {loading ? '-' : totalEmpty}
                                       </td>
                                   </React.Fragment>
@@ -212,34 +212,34 @@ const Dashboard = () => {
       </div>
 
       {/* Accesos Rápidos (Rediseñados) */}
-      <h3 className="text-lg font-black text-slate-800 pt-4 px-2">Accesos Rápidos</h3>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <button onClick={() => navigate('/inventory/exchange')} className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-3 hover:border-blue-300 hover:shadow-md transition-all group">
-              <div className="p-4 bg-slate-50 text-slate-600 rounded-2xl group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                  <MdSwapHoriz className="text-3xl" />
+      <h3 className="text-lg font-black text-slate-800 pt-2 px-2">Accesos Rápidos</h3>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <button onClick={() => navigate('/inventory/exchange')} className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-3 hover:border-blue-300 hover:shadow-md transition-all group active:scale-95">
+              <div className="p-3 sm:p-4 bg-slate-50 text-slate-600 rounded-2xl group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                  <MdSwapHoriz className="text-2xl sm:text-3xl" />
               </div>
-              <span className="text-sm font-bold text-slate-700">Canje de Balones</span>
+              <span className="text-[10px] sm:text-sm font-bold text-slate-700 text-center">Canje de Balones</span>
           </button>
 
-          <button onClick={() => navigate('/inventory/decanting')} className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-3 hover:border-emerald-300 hover:shadow-md transition-all group">
-              <div className="p-4 bg-slate-50 text-slate-600 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                  <MdScience className="text-3xl" />
+          <button onClick={() => navigate('/inventory/decanting')} className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-3 hover:border-emerald-300 hover:shadow-md transition-all group active:scale-95">
+              <div className="p-3 sm:p-4 bg-slate-50 text-slate-600 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                  <MdScience className="text-2xl sm:text-3xl" />
               </div>
-              <span className="text-sm font-bold text-slate-700">Registrar Trasiego</span>
+              <span className="text-[10px] sm:text-sm font-bold text-slate-700 text-center">Registrar Trasiego</span>
           </button>
 
-          <button onClick={() => navigate('/liquid/daily')} className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-3 hover:border-purple-300 hover:shadow-md transition-all group">
-              <div className="p-4 bg-slate-50 text-slate-600 rounded-2xl group-hover:bg-purple-600 group-hover:text-white transition-colors">
-                  <MdTrendingUp className="text-3xl" />
+          <button onClick={() => navigate('/liquid/daily')} className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-3 hover:border-purple-300 hover:shadow-md transition-all group active:scale-95">
+              <div className="p-3 sm:p-4 bg-slate-50 text-slate-600 rounded-2xl group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                  <MdTrendingUp className="text-2xl sm:text-3xl" />
               </div>
-              <span className="text-sm font-bold text-slate-700">Lectura de Tanque</span>
+              <span className="text-[10px] sm:text-sm font-bold text-slate-700 text-center">Lectura de Tanque</span>
           </button>
 
-          <button onClick={() => navigate('/patients')} className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-3 hover:border-orange-300 hover:shadow-md transition-all group">
-              <div className="p-4 bg-slate-50 text-slate-600 rounded-2xl group-hover:bg-orange-600 group-hover:text-white transition-colors">
-                  <MdPeople className="text-3xl" />
+          <button onClick={() => navigate('/patients')} className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm flex flex-col items-center justify-center gap-3 hover:border-orange-300 hover:shadow-md transition-all group active:scale-95">
+              <div className="p-3 sm:p-4 bg-slate-50 text-slate-600 rounded-2xl group-hover:bg-orange-600 group-hover:text-white transition-colors">
+                  <MdPeople className="text-2xl sm:text-3xl" />
               </div>
-              <span className="text-sm font-bold text-slate-700">Gestión Pacientes</span>
+              <span className="text-[10px] sm:text-sm font-bold text-slate-700 text-center">Gestión Pacientes</span>
           </button>
       </div>
 

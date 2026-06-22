@@ -81,15 +81,28 @@ class ReportController extends Controller
 
     /**
      * REPORTE 2: REGISTRO DE CONSUMO DE OXÍGENO DIARIO
-     * Panel consolidado de m3 entregados y estado de la reserva.
+     * Panel consolidado de m3 entregados y estado de la reserva por turnos.
      */
     public function dailyConsumptionDashboard(Request $request)
     {
         $date = $request->query('date', Carbon::today()->toDateString());
 
-        // 1. Consumo por Turno y Categoría
+        // 1. Obtener todos los movimientos del día con relaciones completas de cilindros y marcas
         $movements = InventoryMovement::whereDate('movement_at', $date)
-            ->with(['cylinderMovements.cylinder', 'user'])
+            ->with(['cylinderMovements.cylinder.ownershipType', 'user', 'patient', 'service'])
+            ->get();
+
+        // 2. Estado Físico ACTUAL del almacén
+        $fullStock = Cylinder::where('status', 'full')
+            ->select('location', 'capacity', 'ownership_type_id', DB::raw('count(*) as total'))
+            ->groupBy('location', 'capacity', 'ownership_type_id')
+            ->with('ownershipType')
+            ->get();
+
+        $emptyStock = Cylinder::where('status', 'empty')
+            ->select('location', 'capacity', 'ownership_type_id', DB::raw('count(*) as total'))
+            ->groupBy('location', 'capacity', 'ownership_type_id')
+            ->with('ownershipType')
             ->get();
 
         $shifts = ['Morning' => 'MAÑANA', 'Afternoon' => 'TARDE', 'Night' => 'NOCHE'];
@@ -97,57 +110,55 @@ class ReportController extends Controller
         $grandTotal = 0;
 
         foreach ($shifts as $key => $name) {
-            $shiftMoves = $movements->where('shift', $key);
+            $shiftMoves = $movements->where('shift', $key)->values();
             
             $padomi = 0;
             $hnagv = 0;
             $perifericos = 0;
+            $totalIngresoShift = 0;
 
             foreach ($shiftMoves as $move) {
-                $m3 = $move->cylinderMovements->where('action', 'Exit')->sum(fn($cm) => $cm->cylinder->capacity);
+                // Consumo (Salidas)
+                $m3Exit = $move->cylinderMovements->where('action', 'Exit')->sum(function($cm) {
+                    return (float) ($cm->cylinder->capacity ?? 0);
+                });
                 
-                if ($move->patient_id) $padomi += $m3;
-                elseif ($move->service_id && $move->type !== 'ServiceBulkExchange') $hnagv += $m3;
-                elseif ($move->type === 'ServiceBulkExchange') $perifericos += $m3;
+                if ($move->patient_id) $padomi += $m3Exit;
+                elseif ($move->service_id && $move->type !== 'ServiceBulkExchange') $hnagv += $m3Exit;
+                elseif ($move->type === 'ServiceBulkExchange') $perifericos += $m3Exit;
+
+                // Ingreso (Entradas de proveedores)
+                if (in_array($move->type, ['SupplierEntry', 'SupplierMovement'])) {
+                    $totalIngresoShift += $move->cylinderMovements->where('action', 'Entry')->sum(function($cm) {
+                        return (float) ($cm->cylinder->capacity ?? 0);
+                    });
+                }
             }
 
             $totalShift = $padomi + $hnagv + $perifericos;
             $grandTotal += $totalShift;
 
+            // Estructura anidada perfecta para React
             $shiftData[$name] = [
                 'padomi' => $padomi,
                 'hnagv' => $hnagv,
                 'perifericos' => $perifericos,
                 'total' => $totalShift,
-                'operators' => $shiftMoves->pluck('user.name')->unique()->filter()->values()
+                'total_ingreso' => $totalIngresoShift,
+                'operators' => $shiftMoves->pluck('user.name')->unique()->filter()->values(),
+                'reserva_llenos' => $fullStock,
+                'almacen_vacios' => $emptyStock,
+                'movements' => $shiftMoves
             ];
         }
 
-        // 2. Estado de Reserva (Cilindros LLENOS por ubicación)
-        $fullStock = Cylinder::where('status', 'full')
-            ->select('location', 'capacity', 'ownership_type_id', DB::raw('count(*) as total'))
-            ->groupBy('location', 'capacity', 'ownership_type_id')
-            ->get();
-
-        // 3. Estado de Almacén (Cilindros VACÍOS por ubicación)
-        $emptyStock = Cylinder::where('status', 'empty')
-            ->select('location', 'capacity', 'ownership_type_id', DB::raw('count(*) as total'))
-            ->groupBy('location', 'capacity', 'ownership_type_id')
-            ->get();
+        $initialBalance = 1170; 
 
         return response()->json([
             'date' => $date,
             'shifts' => $shiftData,
             'grand_total' => $grandTotal,
-            'reserva_llenos' => $fullStock,
-            'almacen_vacios' => $emptyStock,
-            'resumen_final' => [
-                'total_ingreso' => InventoryMovement::whereDate('movement_at', $date)
-                    ->whereIn('type', ['SupplierEntry', 'SupplierMovement'])
-                    ->join('cylinder_movements', 'inventory_movements.id', '=', 'cylinder_movements.inventory_movement_id')
-                    ->where('cylinder_movements.action', 'Entry')
-                    ->count()
-            ]
+            'initial_balance' => $initialBalance,
         ]);
     }
 

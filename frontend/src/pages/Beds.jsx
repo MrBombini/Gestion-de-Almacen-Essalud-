@@ -14,7 +14,7 @@ const Beds = () => {
   const [editingId, setEditingId] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   
-  // 1. Agregamos "status" al estado inicial
+  // Agregamos "status" al estado inicial
   const [formData, setFormData] = useState({
     bed_number: '',
     service_id: '',
@@ -78,19 +78,19 @@ const Beds = () => {
   return (
     <div className="space-y-6">
       {/* Cabecera */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg">
+          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg shrink-0">
             <MdSingleBed className="text-2xl" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-slate-800">Catálogo de Camas</h2>
-            <p className="text-slate-500 text-sm mt-1">Administra las camas asignadas a cada servicio médico.</p>
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-800">Catálogo de Camas</h2>
+            <p className="text-slate-500 text-xs sm:text-sm mt-1">Administra las camas asignadas a cada servicio médico.</p>
           </div>
         </div>
         <button 
           onClick={handleOpenCreate}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-sm"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-sm shrink-0"
         >
           <MdAdd className="text-xl" />
           Nueva Cama
@@ -100,7 +100,7 @@ const Beds = () => {
       {/* Tabla de Datos */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center gap-2">
-          <MdSearch className="text-slate-400 text-xl" />
+          <MdSearch className="text-slate-400 text-xl shrink-0" />
           <input 
             type="text" 
             placeholder="Buscar número de cama..." 
@@ -116,14 +116,14 @@ const Beds = () => {
 
         {!loading && (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[600px]">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
-                  <th className="px-6 py-4 font-semibold">ID</th>
-                  <th className="px-6 py-4 font-semibold">Cama</th>
-                  <th className="px-6 py-4 font-semibold">Servicio / Área</th>
-                  <th className="px-6 py-4 font-semibold">Estado</th>
-                  <th className="px-6 py-4 font-semibold text-right">Acciones</th>
+                  <th className="px-4 sm:px-6 py-4 font-semibold">ID</th>
+                  <th className="px-4 sm:px-6 py-4 font-semibold">Cama</th>
+                  <th className="px-4 sm:px-6 py-4 font-semibold">Servicio / Área</th>
+                  <th className="px-4 sm:px-6 py-4 font-semibold">Estado</th>
+                  <th className="px-4 sm:px-6 py-4 font-semibold text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -136,22 +136,21 @@ const Beds = () => {
                 ) : (
                   bedsList.map((bed) => (
                     <tr key={bed.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 text-sm text-slate-500">#{bed.id}</td>
-                      <td className="px-6 py-4 text-sm font-bold text-slate-800">{bed.bed_number}</td>
-                      <td className="px-6 py-4 text-sm text-slate-600">
+                      <td className="px-4 sm:px-6 py-4 text-sm text-slate-500">#{bed.id}</td>
+                      <td className="px-4 sm:px-6 py-4 text-sm font-bold text-slate-800">{bed.bed_number}</td>
+                      <td className="px-4 sm:px-6 py-4 text-sm text-slate-600">
                         <span className="bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-md border border-indigo-100 text-xs font-semibold">
                           {bed.service?.name || getServiceName(bed.service_id)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm">
-                        {/* 2. Badge visual para el estado */}
+                      <td className="px-4 sm:px-6 py-4 text-sm">
                         {bed.status === 'available' ? (
                           <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-md border border-emerald-200 text-xs font-bold">DISPONIBLE</span>
                         ) : (
                           <span className="bg-orange-50 text-orange-700 px-2.5 py-1 rounded-md border border-orange-200 text-xs font-bold">OCUPADA</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-right space-x-2">
+                      <td className="px-4 sm:px-6 py-4 text-right space-x-1 sm:space-x-2">
                         <button onClick={() => handleOpenEdit(bed)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                           <MdEdit className="text-lg" />
                         </button>
@@ -189,7 +188,7 @@ const Beds = () => {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Número de Cama</label>
               <input 
@@ -201,7 +200,6 @@ const Beds = () => {
                 placeholder="Ej: C-185"
               />
             </div>
-            {/* 3. Selector para el estado en el formulario */}
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Estado</label>
               <select 
@@ -216,9 +214,9 @@ const Beds = () => {
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-6">
-            <button type="button" onClick={handleCloseModal} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors">Cancelar</button>
-            <button type="submit" disabled={actionLoading} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-6 flex-col sm:flex-row">
+            <button type="button" onClick={handleCloseModal} className="w-full sm:w-auto px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors order-2 sm:order-1">Cancelar</button>
+            <button type="submit" disabled={actionLoading} className="w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors order-1 sm:order-2">
               {actionLoading ? 'Guardando...' : 'Guardar Cama'}
             </button>
           </div>

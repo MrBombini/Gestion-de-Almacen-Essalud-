@@ -1,53 +1,80 @@
 import { useState } from 'react';
-import { MdSave, MdLibraryAdd, MdHistory, MdAssignment, MdLocalShipping, MdInventory } from 'react-icons/md';
-import Select from 'react-select';
+import { MdSave, MdLibraryAdd, MdHistory, MdAssignment, MdLocalShipping } from 'react-icons/md';
+import AsyncSelect from 'react-select/async';
 import useFetch from '../hooks/useFetch';
 import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
 
 const SupplierMovement = () => {
   const { shift } = useAuth();
   
-  const { data: suppliers, loading: loadingS } = useFetch('/suppliers');
-  const { data: cylinders, loading: loadingC, refetch: refetchC } = useFetch('/cylinders?per_page=all');
-  
+  // Mantenemos solo el useFetch para guardar la transacción
   const { execute, loading: actionLoading } = useFetch('/inventory/supplier', 'POST', null, false);
-
-  const suppliersList = Array.isArray(suppliers) ? suppliers : (suppliers?.data || []);
-  const cylindersList = Array.isArray(cylinders) ? cylinders : (cylinders?.data || []);
 
   const [formData, setFormData] = useState({
     supplier_id: '',
     reference_document: '',
     shift: shift || 'Morning',
-    cylinders_in: [],  // Los que entran llenos
-    cylinders_out: [], // Los que se van vacíos
+    cylinders_in: [],  // Array de objetos { value, label }
+    cylinders_out: [], // Array de objetos { value, label }
     notes: ''
   });
 
+  const [selectedSupplierOption, setSelectedSupplierOption] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
 
-  // --- FORMATEO DE OPCIONES ---
-  const supplierOptions = suppliersList.map(s => ({
-    value: s.id,
-    label: s.name
-  }));
+  // ==========================================
+  // CARGA ASÍNCRONA DE PROVEEDORES
+  // ==========================================
+  const loadSupplierOptions = async (inputValue) => {
+    try {
+      const searchParam = inputValue && inputValue.length >= 2 ? `?search=${inputValue}` : '';
+      const response = await api.get(`/suppliers${searchParam}`);
+      const data = response.data.data || response.data || [];
+      
+      return data.map(s => ({ value: s.id, label: s.name }));
+    } catch (error) {
+      console.error('Error buscando proveedores:', error);
+      return [];
+    }
+  };
 
-  // Balones disponibles para SALIR (Deben estar vacíos, en CENTRAL, de 10m3 y NO de pacientes)
-  const cylindersOutOptions = cylindersList
-    .filter(c => c.status === 'empty' && c.location === 'CENTRAL' && Number(c.capacity) === 10 && !(c.ownership_type?.name?.toLowerCase().includes('propio') || c.ownership_type?.name?.toLowerCase().includes('paciente')))
-    .map(c => ({
-      value: c.id,
-      label: `${c.serial_number} | ${c.ownership_type?.name || 'S/D'} | ${Number(c.capacity)}m³`
-    }));
+  // ==========================================
+  // CARGA ASÍNCRONA DE CILINDROS (Inteligente)
+  // ==========================================
+  const loadCylinderOptions = async (inputValue, type) => {
+    try {
+      // Reglas de negocio del backend para optimizar la búsqueda
+      const status = type === 'OUT' ? 'empty' : 'in_transit';
+      const location = type === 'OUT' ? 'CENTRAL' : 'PROVEEDOR';
+      
+      const params = { status, location, per_page: 30 }; // Pedimos un lote moderado
+      
+      if (inputValue && inputValue.length >= 2) {
+        params.search = inputValue;
+      }
 
-  // Balones que podrían estar ENTRANDO (Solo los que están en el proveedor)
-  const cylindersInOptions = cylindersList
-    .filter(c => c.status === 'in_transit' && c.location === 'PROVEEDOR' && Number(c.capacity) === 10 && !(c.ownership_type?.name?.toLowerCase().includes('propio') || c.ownership_type?.name?.toLowerCase().includes('paciente')))
-    .map(c => ({
-      value: c.id,
-      label: `${c.serial_number} | ${c.ownership_type?.name || 'S/D'} | ${Number(c.capacity)}m³ [EN PROVEEDOR]`
-    }));
+      const response = await api.get('/cylinders', { params });
+      const data = response.data.data || response.data || [];
+
+      // Filtros locales adicionales (solo 10m3 y excluyendo los propios/paciente)
+      const filteredData = data.filter(c => {
+        const cap = Number(c.capacity);
+        const isOwn = c.ownership_type?.name?.toLowerCase().includes('propio') || 
+                      c.ownership_type?.name?.toLowerCase().includes('paciente');
+        return cap === 10 && !isOwn;
+      });
+
+      return filteredData.map(c => ({
+        value: c.id,
+        label: `${c.serial_number} | ${c.ownership_type?.name || 'S/D'} | ${Number(c.capacity)}m³ ${type === 'IN' ? '[EN PROVEEDOR]' : ''}`
+      }));
+    } catch (error) {
+      console.error('Error buscando cilindros:', error);
+      return [];
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -64,12 +91,15 @@ const SupplierMovement = () => {
       await execute({
         body: {
           ...formData,
+          // Mapeamos los arrays de objetos para enviar solo los IDs al backend
           cylinders_in: formData.cylinders_in.map(c => c.value),
           cylinders_out: formData.cylinders_out.map(c => c.value)
         }
       });
 
       setSuccessMessage('¡Movimiento de proveedor registrado con éxito!');
+      
+      // Limpieza de formulario y selects
       setFormData({
         supplier_id: '',
         reference_document: '',
@@ -78,7 +108,7 @@ const SupplierMovement = () => {
         cylinders_out: [],
         notes: ''
       });
-      refetchC();
+      setSelectedSupplierOption(null);
     } catch (err) {
       setErrorMessage(err.response?.data?.message || 'Error en el registro.');
     }
@@ -101,10 +131,6 @@ const SupplierMovement = () => {
       fontWeight: 'bold'
     })
   };
-
-  if (loadingS || loadingC) {
-    return <div className="flex h-full items-center justify-center animate-pulse text-blue-600 font-bold text-xl">Cargando Módulo de Proveedores...</div>;
-  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-10">
@@ -141,12 +167,19 @@ const SupplierMovement = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">Proveedor</label>
-              <Select 
-                options={supplierOptions} 
+              <AsyncSelect 
+                cacheOptions
+                defaultOptions
+                loadOptions={loadSupplierOptions}
                 styles={customStyles} 
-                placeholder="-- Seleccionar Empresa --"
-                value={supplierOptions.find(o => o.value === formData.supplier_id)}
-                onChange={(s) => setFormData({...formData, supplier_id: s?.value || ''})}
+                isClearable
+                placeholder="-- Buscar Empresa --"
+                value={selectedSupplierOption}
+                onChange={(s) => {
+                  setSelectedSupplierOption(s);
+                  setFormData({...formData, supplier_id: s?.value || ''});
+                }}
+                noOptionsMessage={({ inputValue }) => !inputValue ? "Sugerencias cargando..." : "No se encontró proveedor."}
               />
             </div>
             <div>
@@ -178,7 +211,7 @@ const SupplierMovement = () => {
         {/* CARGA Y DESCARGA */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
-          {/* SALIDA (LO QUE SE LLEVA) */}
+          {/* SALIDA (LO QUE SE LLEVA EL CAMIÓN) */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="text-lg font-bold text-red-600 flex items-center gap-2">
@@ -187,14 +220,17 @@ const SupplierMovement = () => {
               <span className="px-3 py-1 bg-red-50 text-red-600 rounded-full text-xs font-bold">VACÍOS</span>
             </div>
             <p className="text-slate-500 text-xs italic">Busca y selecciona todos los balones que el camión está cargando para llevarse.</p>
-            <Select 
+            <AsyncSelect 
               isMulti
-              options={cylindersOutOptions}
+              cacheOptions
+              defaultOptions
+              loadOptions={(val) => loadCylinderOptions(val, 'OUT')}
               styles={customStyles}
-              placeholder="-- Buscar balones para enviar --"
-              value={formData.cylinders_out}
+              placeholder="-- Escribir series para enviar --"
+              value={formData.cylinders_out} // isMulti acepta el array completo de objetos
               onChange={(s) => setFormData({...formData, cylinders_out: s || []})}
               closeMenuOnSelect={false}
+              noOptionsMessage={({ inputValue }) => !inputValue ? "Escriba al menos 2 letras..." : "No se encontró el balón."}
             />
             <div className="mt-4 p-4 bg-slate-50 rounded-xl border border-dashed border-slate-300 flex items-center justify-between">
                <span className="text-sm text-slate-600 font-medium">Total a entregar:</span>
@@ -202,7 +238,7 @@ const SupplierMovement = () => {
             </div>
           </div>
 
-          {/* ENTRADA (LO QUE NOS DEJA) */}
+          {/* ENTRADA (LO QUE NOS DEJA EL CAMIÓN) */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="text-lg font-bold text-emerald-600 flex items-center gap-2">
@@ -211,14 +247,17 @@ const SupplierMovement = () => {
               <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-xs font-bold">LLENOS</span>
             </div>
             <p className="text-slate-500 text-xs italic">Selecciona los balones que el proveedor está descargando en el almacén.</p>
-            <Select 
+            <AsyncSelect 
               isMulti
-              options={cylindersInOptions}
+              cacheOptions
+              defaultOptions
+              loadOptions={(val) => loadCylinderOptions(val, 'IN')}
               styles={customStyles}
-              placeholder="-- Buscar balones recibidos --"
-              value={formData.cylinders_in}
+              placeholder="-- Escribir series recibidas --"
+              value={formData.cylinders_in} // isMulti acepta el array completo de objetos
               onChange={(s) => setFormData({...formData, cylinders_in: s || []})}
               closeMenuOnSelect={false}
+              noOptionsMessage={({ inputValue }) => !inputValue ? "Escriba al menos 2 letras..." : "No se encontró el balón."}
             />
             <div className="mt-4 p-4 bg-emerald-50 rounded-xl border border-dashed border-emerald-300 flex items-center justify-between">
                <span className="text-sm text-emerald-700 font-medium">Total a recibir:</span>

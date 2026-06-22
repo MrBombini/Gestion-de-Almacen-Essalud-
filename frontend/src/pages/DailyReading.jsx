@@ -93,29 +93,29 @@ const DailyReading = () => {
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
-      {/* Cabecera */}
-      <div className="flex items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-        <div className="p-4 bg-blue-50 text-blue-600 rounded-xl"><MdTimeline className="text-3xl" /></div>
+    <div className="max-w-6xl mx-auto space-y-6 sm:space-y-8 pb-10">
+      {/* Cabecera Responsiva */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
+        <div className="p-3 sm:p-4 bg-blue-50 text-blue-600 rounded-xl shrink-0"><MdTimeline className="text-2xl sm:text-3xl" /></div>
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Lectura Diaria de Tanque</h2>
-          <p className="text-slate-500 text-sm mt-1">
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-800">Lectura Diaria de Tanque</h2>
+          <p className="text-slate-500 text-xs sm:text-sm mt-1">
             Monitoreo de nivel físico y consumo acumulado (Turno: <span className="text-blue-600 font-bold">{shift}</span>)
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
         
         {/* ── Formulario de Registro ── */}
         <div className="lg:col-span-1">
           <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="p-6 bg-slate-50 border-b border-slate-200">
+            <div className="p-4 sm:p-6 bg-slate-50 border-b border-slate-200">
               <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                <MdSave className="text-blue-600" /> Registrar Nueva Lectura
+                <MdSave className="text-blue-600 text-lg sm:text-xl" /> Registrar Nueva Lectura
               </h3>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-4 sm:p-6 space-y-4">
               {successMessage && <div className="bg-emerald-50 text-emerald-700 p-3 rounded-lg text-sm font-medium">{successMessage}</div>}
               {errorMessage && <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm font-medium">{errorMessage}</div>}
 
@@ -123,14 +123,14 @@ const DailyReading = () => {
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Fecha</label>
                 <input type="date" required value={formData.reading_date}
                   onChange={(e) => setFormData({...formData, reading_date: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Turno</label>
                 <select required value={formData.shift} onChange={(e) => setFormData({...formData, shift: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm">
                   <option value="Morning">Mañana</option>
                   <option value="Afternoon">Tarde</option>
                   <option value="Night">Noche</option>
@@ -145,9 +145,9 @@ const DailyReading = () => {
                   <input type="number" step="0.01" required placeholder="Ej: 85.5"
                     value={formData.tank_level}
                     onChange={(e) => setFormData({...formData, tank_level: e.target.value})}
-                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold"
+                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold pr-16"
                   />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">inH2O</span>
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs sm:text-sm">inH2O</span>
                 </div>
               </div>
 
@@ -159,9 +159,9 @@ const DailyReading = () => {
                   <input type="number" step="0.01" required placeholder="Ej: 125430.2"
                     value={formData.flow_meter_reading}
                     onChange={(e) => setFormData({...formData, flow_meter_reading: e.target.value})}
-                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 font-bold"
+                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 font-bold pr-12"
                   />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">m³</span>
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs sm:text-sm">m³</span>
                 </div>
                 {liveConsumption > 0 && (
                   <div className="mt-2 p-2 bg-orange-50 border border-orange-100 rounded-lg flex justify-between items-center">
@@ -181,108 +181,111 @@ const DailyReading = () => {
 
         {/* ── Historial de Lecturas ── */}
         <div className="lg:col-span-2 space-y-4">
-          <h3 className="font-bold text-slate-800 flex items-center gap-2 px-2">
-            <MdHistory className="text-slate-400" /> Historial de Lecturas
-            <span className="text-xs text-slate-400 font-normal">(Haz clic en ✏️ para corregir una lectura)</span>
+          <h3 className="font-bold text-slate-800 flex items-center gap-2 px-2 text-sm sm:text-base">
+            <MdHistory className="text-slate-400 text-lg sm:text-xl" /> Historial de Lecturas
+            <span className="text-[10px] sm:text-xs text-slate-400 font-normal ml-auto sm:ml-2">(Haz clic en ✏️ para corregir)</span>
           </h3>
 
           {editError && <div className="p-3 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm font-medium rounded">{editError}</div>}
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-100">
-                  <th className="px-4 py-4">Fecha / Turno</th>
-                  <th className="px-4 py-4 text-center">Nivel</th>
-                  <th className="px-4 py-4 text-center">Flujómetro</th>
-                  <th className="px-4 py-4 text-center">Consumo</th>
-                  <th className="px-4 py-4 text-center">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {readingsList.length === 0 ? (
-                  <tr><td colSpan="5" className="px-6 py-10 text-center text-slate-400">No hay lecturas registradas.</td></tr>
-                ) : readingsList.map(r => (
-                  editingId === r.id ? (
-                    /* ── FILA EN MODO EDICIÓN ── */
-                    <tr key={r.id} className="bg-amber-50 border-l-4 border-amber-400">
-                      <td className="px-3 py-3">
-                        <input type="date" value={editForm.reading_date}
-                          onChange={e => setEditForm({...editForm, reading_date: e.target.value})}
-                          className="w-full px-2 py-1 border border-amber-300 rounded text-xs outline-none focus:ring-1 focus:ring-amber-500 mb-1"
-                        />
-                        <select value={editForm.shift} onChange={e => setEditForm({...editForm, shift: e.target.value})}
-                          className="w-full px-2 py-1 border border-amber-300 rounded text-xs outline-none bg-white">
-                          <option value="Morning">Mañana</option>
-                          <option value="Afternoon">Tarde</option>
-                          <option value="Night">Noche</option>
-                        </select>
-                      </td>
-                      <td className="px-3 py-3">
-                        <input type="number" step="0.01" value={editForm.tank_level}
-                          onChange={e => setEditForm({...editForm, tank_level: e.target.value})}
-                          className="w-20 px-2 py-1 border border-amber-300 rounded text-xs outline-none text-center"
-                        />
-                      </td>
-                      <td className="px-3 py-3">
-                        <input type="number" step="0.01" value={editForm.flow_meter_reading}
-                          onChange={e => setEditForm({...editForm, flow_meter_reading: e.target.value})}
-                          className="w-28 px-2 py-1 border border-amber-300 rounded text-xs outline-none font-mono text-center"
-                        />
-                      </td>
-                      <td className="px-3 py-3 text-center text-xs text-slate-400 italic">recalcula al guardar</td>
-                      <td className="px-3 py-3 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button onClick={() => handleSaveEdit(r.id)} disabled={editSaving}
-                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold transition-colors disabled:opacity-50">
-                            {editSaving ? '...' : '✓ Guardar'}
-                          </button>
-                          <button onClick={handleCancelEdit}
-                            className="p-1 text-slate-400 hover:text-red-500 transition-colors">
-                            <MdClose className="text-lg" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    /* ── FILA NORMAL ── */
-                    <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-4 py-4">
-                        <div className="text-sm font-bold text-slate-800">{r.reading_date}</div>
-                        <div className="text-[10px] font-medium text-slate-400 uppercase tracking-tighter">
-                          Turno: {shiftLabel(r.shift)}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-center">
-                        <span className={`px-2 py-1 rounded-md font-bold text-xs ${r.tank_level < 20 ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
-                          {r.tank_level} inH2O
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-center font-mono text-xs text-slate-600">
-                        {Number(r.flow_meter_reading).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-4 text-center">
-                        <div className="text-sm font-black text-slate-800">
-                          {r.calculated_consumption > 0 ? `+${r.calculated_consumption}` : '—'}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button onClick={() => handleStartEdit(r)}
-                            className="p-1.5 text-slate-300 hover:text-amber-500 hover:bg-amber-50 rounded transition-colors" title="Editar lectura">
-                            <MdEdit className="text-lg" />
-                          </button>
-                          <button onClick={() => handleDelete(r.id)}
-                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors" title="Eliminar lectura">
-                            <MdDelete className="text-lg" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                ))}
-              </tbody>
-            </table>
+            {/* Contenedor con Scroll Horizontal (Responsive) */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left min-w-[700px]">
+                <thead>
+                  <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-100">
+                    <th className="px-4 py-4 whitespace-nowrap">Fecha / Turno</th>
+                    <th className="px-4 py-4 text-center whitespace-nowrap">Nivel</th>
+                    <th className="px-4 py-4 text-center whitespace-nowrap">Flujómetro</th>
+                    <th className="px-4 py-4 text-center whitespace-nowrap">Consumo</th>
+                    <th className="px-4 py-4 text-center whitespace-nowrap">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {readingsList.length === 0 ? (
+                    <tr><td colSpan="5" className="px-6 py-10 text-center text-slate-400">No hay lecturas registradas.</td></tr>
+                  ) : readingsList.map(r => (
+                    editingId === r.id ? (
+                      /* ── FILA EN MODO EDICIÓN ── */
+                      <tr key={r.id} className="bg-amber-50 border-l-4 border-amber-400">
+                        <td className="px-3 py-3">
+                          <input type="date" value={editForm.reading_date}
+                            onChange={e => setEditForm({...editForm, reading_date: e.target.value})}
+                            className="w-full min-w-[110px] px-2 py-1 border border-amber-300 rounded text-xs outline-none focus:ring-1 focus:ring-amber-500 mb-1"
+                          />
+                          <select value={editForm.shift} onChange={e => setEditForm({...editForm, shift: e.target.value})}
+                            className="w-full min-w-[100px] px-2 py-1 border border-amber-300 rounded text-xs outline-none bg-white">
+                            <option value="Morning">Mañana</option>
+                            <option value="Afternoon">Tarde</option>
+                            <option value="Night">Noche</option>
+                          </select>
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <input type="number" step="0.01" value={editForm.tank_level}
+                            onChange={e => setEditForm({...editForm, tank_level: e.target.value})}
+                            className="w-24 mx-auto px-2 py-1 border border-amber-300 rounded text-xs outline-none text-center"
+                          />
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <input type="number" step="0.01" value={editForm.flow_meter_reading}
+                            onChange={e => setEditForm({...editForm, flow_meter_reading: e.target.value})}
+                            className="w-32 mx-auto px-2 py-1 border border-amber-300 rounded text-xs outline-none font-mono text-center"
+                          />
+                        </td>
+                        <td className="px-3 py-3 text-center text-[10px] text-slate-400 italic whitespace-nowrap">recalcula al guardar</td>
+                        <td className="px-3 py-3 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <button onClick={() => handleSaveEdit(r.id)} disabled={editSaving}
+                              className="px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold transition-colors disabled:opacity-50 whitespace-nowrap flex items-center gap-1">
+                              {editSaving ? '...' : '✓ Guardar'}
+                            </button>
+                            <button onClick={handleCancelEdit}
+                              className="p-1.5 bg-white border border-slate-200 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors shadow-sm">
+                              <MdClose className="text-base" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      /* ── FILA NORMAL ── */
+                      <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <div className="text-sm font-bold text-slate-800">{r.reading_date}</div>
+                          <div className="text-[10px] font-medium text-slate-400 uppercase tracking-tighter">
+                            Turno: {shiftLabel(r.shift)}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 text-center whitespace-nowrap">
+                          <span className={`px-2 py-1 rounded-md font-bold text-xs ${r.tank_level < 20 ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
+                            {r.tank_level} inH2O
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-center font-mono text-xs text-slate-600 whitespace-nowrap">
+                          {Number(r.flow_meter_reading).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-4 text-center whitespace-nowrap">
+                          <div className="text-sm font-black text-slate-800">
+                            {r.calculated_consumption > 0 ? `+${r.calculated_consumption}` : '—'}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <button onClick={() => handleStartEdit(r)}
+                              className="p-2 bg-white border border-slate-200 text-slate-400 hover:text-amber-500 hover:bg-amber-50 hover:border-amber-200 rounded-lg transition-colors shadow-sm" title="Editar lectura">
+                              <MdEdit className="text-base" />
+                            </button>
+                            <button onClick={() => handleDelete(r.id)}
+                              className="p-2 bg-white border border-slate-200 text-slate-400 hover:text-red-500 hover:bg-red-50 hover:border-red-200 rounded-lg transition-colors shadow-sm" title="Eliminar lectura">
+                              <MdDelete className="text-base" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 

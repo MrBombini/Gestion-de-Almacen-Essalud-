@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { MdSwapHoriz, MdSave, MdPerson, MdLocalHospital, MdPropaneTank, MdHotel, MdWarning, MdSettingsInputComponent, MdPrint } from 'react-icons/md';
+import AsyncSelect from 'react-select/async';
 import Select from 'react-select';
 import useFetch from '../hooks/useFetch';
 import { useAuth } from '../context/AuthContext';
@@ -13,6 +14,9 @@ const Exchange = () => {
   const { data: patients, loading: loadingP, refetch: refetchP } = useFetch('/patients');
   const { data: services, loading: loadingS } = useFetch('/services');
   const { data: cylinders, loading: loadingC, refetch: refetchC } = useFetch('/cylinders?per_page=all');
+  const [selectedPatientOption, setSelectedPatientOption] = useState(null);
+  const [selectedCylOutOption, setSelectedCylOutOption] = useState(null);
+  const [selectedCylInOption, setSelectedCylInOption] = useState(null);
 
   const { execute, loading: actionLoading } = useFetch('/inventory/exchange', 'POST', null, false);
 
@@ -42,13 +46,51 @@ const Exchange = () => {
   const [rxForm, setRxForm] = useState({ dosage: '', usage_time: '', expires_at: '', authorization_date: '', promissory_note: '', status: 'active' });
   const [rxSaving, setRxSaving] = useState(false);
 
+  const loadPatientOptions = async (inputValue) => {
+    // Si escribe menos de 2 letras, no cargamos nada para evitar peticiones basura
+    if (!inputValue || inputValue.length < 2) return [];
+
+    try {
+      const response = await api.get(`/patients?search=${inputValue}&per_page=15`);
+      const data = response.data.data || response.data;
+
+      return data.map(p => ({
+        value: p.id,
+        label: `${p.exchange_code || 'S/C'} | ${p.full_name}`
+      }));
+    } catch (error) {
+      console.error('Error buscando pacientes:', error);
+      return [];
+    }
+  };
+
+  const loadCylinderOptions = async (inputValue, type) => {
+    // type: 'OUT' (para llenos), 'IN' (para vacíos)
+    try {
+      // Ajustamos la query según si buscamos llenos o vacíos
+      const status = type === 'OUT' ? 'full' : 'in_use';
+      const search = inputValue || '';
+
+      const response = await api.get(`/cylinders?search=${search}&status=${status}&per_page=15`);
+      const data = response.data.data || response.data;
+
+      return data.map(c => ({
+        value: c.id,
+        label: `${c.serial_number} | ${c.ownership_type?.name || 'S/D'} | ${Number(c.capacity)} m³`
+      }));
+    } catch (error) {
+      console.error('Error buscando cilindros:', error);
+      return [];
+    }
+  };
+
   const handleRxSubmit = async (e) => {
     e.preventDefault();
     setRxSaving(true);
     try {
       await api.post('/prescriptions', { ...rxForm, patient_id: formData.patient_id });
       setRxModal(false);
-      refetchP(); 
+      refetchP();
       setFormData(prev => ({ ...prev, patient_id: '' }));
       setPrescriptionAlert({ type: 'success', msg: 'Receta actualizada correctamente. Vuelve a seleccionar al paciente.' });
     } catch (err) {
@@ -130,12 +172,12 @@ const Exchange = () => {
   const cylinderOutOptions = cylindersList
     .filter(c => {
       const isFull = c.status === 'full';
-      if (destinationType === 'patient') return isFull; 
-      return isFull && Number(c.capacity) === 10; 
+      if (destinationType === 'patient') return isFull;
+      return isFull && Number(c.capacity) === 10;
     })
     .filter(c => {
       if (c.location === 'CENTRAL' && c.status === 'full') return true;
-      return c.ownership_type_id !== 3; 
+      return c.ownership_type_id !== 3;
     })
     .map(c => ({
       value: c.id,
@@ -145,8 +187,8 @@ const Exchange = () => {
   const cylinderInOptions = cylindersList
     .filter(c => {
       const isInUse = c.status === 'in_use';
-      if (destinationType === 'patient') return isInUse; 
-      return isInUse && Number(c.capacity) === 10; 
+      if (destinationType === 'patient') return isInUse;
+      return isInUse && Number(c.capacity) === 10;
     })
     .filter(c => {
       if (destinationType === 'patient' && formData.patient_id) {
@@ -415,7 +457,19 @@ const Exchange = () => {
               <div className="space-y-4 animate-fade-in">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Buscar por Código de Canje</label>
-                  <Select options={patientOptions} styles={customStyles} isClearable placeholder="-- Ingrese Código de Intercambio --" value={patientOptions.find(o => o.value === formData.patient_id) || null} onChange={(s) => setFormData({ ...formData, patient_id: s?.value || '' })} />
+                  <AsyncSelect
+                    cacheOptions
+                    loadOptions={loadPatientOptions} // Usamos la nueva función
+                    isClearable
+                    placeholder="-- Escriba nombre o código de canje --"
+                    value={selectedPatientOption}
+                    onChange={(s) => {
+                      setSelectedPatientOption(s); // Guardamos la opción completa para que el label persista
+                      setFormData({ ...formData, patient_id: s?.value || '' });
+                    }}
+                    noOptionsMessage={({ inputValue }) => !inputValue ? "Escriba para buscar..." : "No se encontró el paciente."}
+                    styles={customStyles}
+                  />
                 </div>
                 {prescriptionAlert && (
                   <div className={`p-3 rounded-xl flex items-center justify-between text-sm font-bold border ${prescriptionAlert.type === 'error' ? 'bg-red-50 border-red-200 text-red-600' : 'bg-emerald-50 border-emerald-200 text-emerald-600'}`}>
@@ -459,12 +513,12 @@ const Exchange = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Seleccione el Manifold (Lado)</label>
-                  <Select 
-                    options={serviceOptions.filter(s => s.type?.toLowerCase() === 'manifold' || s.label?.toUpperCase().includes('MANIFOLD'))} 
-                    styles={customStyles} 
-                    placeholder="-- Elegir Manifold Lado A o B --" 
-                    value={serviceOptions.find(o => o.value === formData.service_id) || null} 
-                    onChange={(s) => setFormData({ ...formData, service_id: s?.value || '' })} 
+                  <Select
+                    options={serviceOptions.filter(s => s.type?.toLowerCase() === 'manifold' || s.label?.toUpperCase().includes('MANIFOLD'))}
+                    styles={customStyles}
+                    placeholder="-- Elegir Manifold Lado A o B --"
+                    value={serviceOptions.find(o => o.value === formData.service_id) || null}
+                    onChange={(s) => setFormData({ ...formData, service_id: s?.value || '' })}
                   />
                 </div>
               </div>
@@ -478,20 +532,30 @@ const Exchange = () => {
 
             <div>
               <label className="block text-sm font-semibold text-emerald-700 mb-1 font-mono uppercase tracking-wider">Cilindro ENTREGADO (Lleno)</label>
-              <Select options={cylinderOutOptions} styles={customStyles} isClearable placeholder="-- Seleccionar Lleno de Almacén --" value={cylinderOutOptions.find(o => o.value === formData.cylinder_out) || null} onChange={(s) => setFormData({ ...formData, cylinder_out: s?.value || '' })} />
+              <AsyncSelect
+                cacheOptions
+                loadOptions={(val) => loadCylinderOptions(val, 'OUT')}
+                isClearable
+                placeholder="-- Buscar balón lleno por serie --"
+                value={cylinderOutOptions.find(o => o.value === formData.cylinder_out) || null}
+                onChange={(s) => setFormData({ ...formData, cylinder_out: s?.value || '' })}
+                noOptionsMessage={({ inputValue }) => !inputValue ? "Escriba para buscar..." : "No se encontró cilindro."}
+                styles={customStyles}
+              />
             </div>
 
             <div>
               <label className="block text-sm font-semibold text-orange-700 mb-1 font-mono uppercase tracking-wider">Cilindro RECIBIDO (Vacío)</label>
-              <Select
-                options={cylinderInOptions}
-                styles={customStyles}
+              <AsyncSelect
+                cacheOptions
+                loadOptions={(val) => loadCylinderOptions(val, 'IN')}
                 isClearable
-                isDisabled={(destinationType === 'patient' && !formData.patient_id) || (destinationType === 'service' && !formData.bed_id) || (destinationType === 'manifold' && !formData.service_id)}
-                placeholder="-- Seleccionar Balón que el destino devuelve --"
+                placeholder="-- Buscar balón vacío por serie --"
                 value={cylinderInOptions.find(o => o.value === formData.cylinder_in) || null}
                 onChange={(s) => setFormData({ ...formData, cylinder_in: s?.value || '' })}
-                noOptionsMessage={() => "No se encontraron balones asignados a esta ubicación."}
+                isDisabled={(destinationType === 'patient' && !formData.patient_id)}
+                noOptionsMessage={({ inputValue }) => !inputValue ? "Escriba para buscar..." : "No se encontró cilindro."}
+                styles={customStyles}
               />
             </div>
           </div>
@@ -512,7 +576,7 @@ const Exchange = () => {
       {createdMovement && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
           <div className="bg-white rounded-3xl shadow-2xl p-6 max-w-md w-full border border-slate-100 space-y-6">
-            
+
             {/* Cabecera */}
             <div className="text-center space-y-2">
               <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-3xl font-bold border border-emerald-100 shadow-sm animate-bounce">
@@ -569,34 +633,34 @@ const Exchange = () => {
       {/* Modal para Renovar Receta en Intercambio */}
       <Modal isOpen={rxModal} onClose={() => setRxModal(false)} title="Actualizar Receta del Paciente">
         <form onSubmit={handleRxSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Dosis (Lts/min)</label>
-                    <input type="number" step="0.1" required value={rxForm.dosage} onChange={e => setRxForm({ ...rxForm, dosage: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Tiempo de uso (Hrs/día)</label>
-                    <input type="number" required value={rxForm.usage_time} onChange={e => setRxForm({ ...rxForm, usage_time: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Fecha Autorización</label>
-                    <input type="date" required value={rxForm.authorization_date} onChange={e => setRxForm({ ...rxForm, authorization_date: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Fecha de Vencimiento</label>
-                    <input type="date" required value={rxForm.expires_at} onChange={e => setRxForm({ ...rxForm, expires_at: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div className="col-span-2">
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">N° Pagaré (Opcional)</label>
-                    <input type="text" value={rxForm.promissory_note} onChange={e => setRxForm({ ...rxForm, promissory_note: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Dosis (Lts/min)</label>
+              <input type="number" step="0.1" required value={rxForm.dosage} onChange={e => setRxForm({ ...rxForm, dosage: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
-            <div className="flex justify-end gap-3 mt-6">
-                <button type="button" onClick={() => setRxModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium">Cancelar</button>
-                <button type="submit" disabled={rxSaving} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium">
-                    {rxSaving ? 'Guardando...' : 'Guardar Receta'}
-                </button>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Tiempo de uso (Hrs/día)</label>
+              <input type="number" required value={rxForm.usage_time} onChange={e => setRxForm({ ...rxForm, usage_time: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Fecha Autorización</label>
+              <input type="date" required value={rxForm.authorization_date} onChange={e => setRxForm({ ...rxForm, authorization_date: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Fecha de Vencimiento</label>
+              <input type="date" required value={rxForm.expires_at} onChange={e => setRxForm({ ...rxForm, expires_at: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-semibold text-slate-700 mb-1">N° Pagaré (Opcional)</label>
+              <input type="text" value={rxForm.promissory_note} onChange={e => setRxForm({ ...rxForm, promissory_note: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 mt-6">
+            <button type="button" onClick={() => setRxModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium">Cancelar</button>
+            <button type="submit" disabled={rxSaving} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium">
+              {rxSaving ? 'Guardando...' : 'Guardar Receta'}
+            </button>
+          </div>
         </form>
       </Modal>
 
