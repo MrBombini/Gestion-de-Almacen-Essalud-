@@ -15,6 +15,7 @@ class PatientController extends Controller
             $q->orderBy('created_at', 'desc');
         }])->orderBy('created_at', 'desc');
 
+        // Filtro de Búsqueda
         if ($request->has('search') && $request->search != '') {
             $search = $request->search;
             $query->where(function($q) use ($search) {
@@ -23,6 +24,7 @@ class PatientController extends Controller
             });
         }
 
+        // Filtro de Estado de Receta
         if ($request->has('rx_status') && $request->rx_status !== 'ALL') {
             if ($request->rx_status === 'ACTIVE') {
                 $query->whereHas('prescriptions', function($q) {
@@ -32,6 +34,15 @@ class PatientController extends Controller
                 $query->whereDoesntHave('prescriptions', function($q) {
                     $q->where('status', 'active');
                 });
+            }
+        }
+
+        // NUEVO: Filtro por Tipo de Código (Trasiego / Exchange)
+        if ($request->has('code_type') && $request->code_type !== 'ALL') {
+            if ($request->code_type === 'TRASIEGO') {
+                $query->whereNotNull('trasiego_code');
+            } elseif ($request->code_type === 'EXCHANGE') {
+                $query->whereNotNull('exchange_code');
             }
         }
 
@@ -69,7 +80,7 @@ class PatientController extends Controller
             
             $patient = Patient::create($patientData);
 
-            // Crear receta inicial si hay datos (authorization_date o expires_at son los más importantes)
+            // Crear receta inicial si hay datos
             if (!empty($validated['authorization_date']) || !empty($validated['expires_at'])) {
                 Prescription::create([
                     'patient_id'         => $patient->id,

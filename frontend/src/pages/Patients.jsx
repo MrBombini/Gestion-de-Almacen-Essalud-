@@ -10,6 +10,9 @@ const Patients = () => {
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [searchTerm, setSearchTerm]       = useState('');
     const [filterRxStatus, setFilterRxStatus] = useState('ALL');
+    
+    // NUEVO: Estado para el filtro de códigos
+    const [filterCodeType, setFilterCodeType] = useState('ALL'); 
 
     useEffect(() => {
         const handler = setTimeout(() => {
@@ -19,18 +22,20 @@ const Patients = () => {
         return () => clearTimeout(handler);
     }, [searchTerm]);
 
+    // Reseteamos a la página 1 si cambia cualquier filtro
     useEffect(() => {
         setCurrentPage(1);
-    }, [filterRxStatus]);
+    }, [filterRxStatus, filterCodeType]);
 
-    const { data: patients, loading, execute, refetch } = useFetch(`/patients?page=${currentPage}&search=${debouncedSearch}&rx_status=${filterRxStatus}`);
+    // Añadimos el nuevo parámetro code_type a la URL
+    const { data: patients, loading, execute, refetch } = useFetch(`/patients?page=${currentPage}&search=${debouncedSearch}&rx_status=${filterRxStatus}&code_type=${filterCodeType}`);
 
     const [isModalOpen, setIsModalOpen]     = useState(false);
     const [editingId, setEditingId]         = useState(null);
     const [actionLoading, setActionLoading] = useState(false);
 
     // ── Sub-CRUD de Recetas ──
-    const [rxPatient, setRxPatient]     = useState(null); // paciente cuyas recetas se ven
+    const [rxPatient, setRxPatient]     = useState(null);
     const [rxModal, setRxModal]         = useState(false);
     const [rxEditId, setRxEditId]       = useState(null);
     const [rxForm, setRxForm]           = useState({ dosage: '', usage_time: '', expires_at: '', authorization_date: '', promissory_note: '', status: 'active' });
@@ -158,7 +163,7 @@ const Patients = () => {
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 
                 {/* Filtros Superiores */}
-                <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row gap-4">
+                <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col lg:flex-row gap-4">
                     <div className="flex-1 flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm">
                         <MdSearch className="text-slate-400 text-xl shrink-0" />
                         <input type="text" placeholder="Buscar por nombre o DNI..."
@@ -166,14 +171,27 @@ const Patients = () => {
                             className="bg-transparent border-none outline-none text-sm w-full text-slate-700 placeholder-slate-400"
                         />
                     </div>
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Receta:</label>
-                        <select value={filterRxStatus} onChange={(e) => setFilterRxStatus(e.target.value)}
-                            className="flex-1 sm:flex-none bg-white border border-slate-200 text-xs font-semibold px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-purple-500 shadow-sm">
-                            <option value="ALL">TODOS</option>
-                            <option value="ACTIVE">CON RECETA ACTIVA</option>
-                            <option value="NONE">SIN RECETA ACTIVA</option>
-                        </select>
+                    
+                    {/* Contenedor responsivo para los selects */}
+                    <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0">Código:</label>
+                            <select value={filterCodeType} onChange={(e) => setFilterCodeType(e.target.value)}
+                                className="w-full sm:w-auto bg-white border border-slate-200 text-xs font-semibold px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-purple-500 shadow-sm">
+                                <option value="ALL">TODOS</option>
+                                <option value="TRASIEGO">CON TRASIEGO</option>
+                                <option value="EXCHANGE">CON CANJE</option>
+                            </select>
+                        </div>
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0">Receta:</label>
+                            <select value={filterRxStatus} onChange={(e) => setFilterRxStatus(e.target.value)}
+                                className="w-full sm:w-auto bg-white border border-slate-200 text-xs font-semibold px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-purple-500 shadow-sm">
+                                <option value="ALL">TODAS</option>
+                                <option value="ACTIVE">CON RECETA ACTIVA</option>
+                                <option value="NONE">SIN RECETA ACTIVA</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -193,7 +211,7 @@ const Patients = () => {
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {filtered.length === 0 ? (
-                                    <tr><td colSpan="5" className="px-6 py-8 text-center text-slate-500">No se encontraron pacientes.</td></tr>
+                                    <tr><td colSpan="5" className="px-6 py-8 text-center text-slate-500">No se encontraron pacientes con esos filtros.</td></tr>
                                 ) : filtered.map((patient) => {
                                     const activeRx = patient.prescriptions?.find(p => p.status === 'active');
                                     return (
