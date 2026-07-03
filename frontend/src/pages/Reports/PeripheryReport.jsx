@@ -3,9 +3,21 @@ import { MdPrint, MdDownload, MdSearch, MdLocalHospital } from 'react-icons/md';
 import useFetch from '../../hooks/useFetch';
 
 const PeripheryReport = () => {
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [searchUrl, setSearchUrl] = useState('/reports/kardex?per_page=all');
+
   // 1. Fetch Kardex history
-  const { data: kardexData, loading, error } = useFetch('/reports/kardex');
+  const { data: kardexData, loading, error } = useFetch(searchUrl);
   const kardexList = Array.isArray(kardexData) ? kardexData : (kardexData?.data || []);
+
+  const handleFetchDates = () => {
+    const params = new URLSearchParams();
+    params.append('per_page', 'all');
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    setSearchUrl(`/reports/kardex?${params.toString()}`);
+  };
 
   // 2. Filter ONLY periphery movements
   const peripheryMovements = kardexList.filter(mov => 
@@ -147,7 +159,7 @@ const PeripheryReport = () => {
         
         {/* LEFT COLUMN: List & Search */}
         <div className="xl:col-span-1 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[700px]">
-          <div className="p-4 border-b border-slate-200 bg-slate-50">
+          <div className="p-4 border-b border-slate-200 bg-slate-50 space-y-3">
             <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-slate-300 focus-within:ring-2 focus-within:ring-blue-500 transition-shadow">
               <MdSearch className="text-slate-400 text-xl" />
               <input 
@@ -157,6 +169,30 @@ const PeripheryReport = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="bg-transparent border-none outline-none text-sm w-full text-slate-700"
               />
+            </div>
+            
+            <div className="flex gap-2">
+              <input 
+                type="date" 
+                value={startDate} 
+                onChange={e => setStartDate(e.target.value)} 
+                className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-1 focus:ring-blue-500" 
+                title="Fecha Desde" 
+              />
+              <input 
+                type="date" 
+                value={endDate} 
+                onChange={e => setEndDate(e.target.value)} 
+                className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-1 focus:ring-blue-500" 
+                title="Fecha Hasta" 
+              />
+              <button 
+                onClick={handleFetchDates} 
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold flex items-center justify-center transition-colors"
+                title="Filtrar por Fechas"
+              >
+                <MdSearch className="text-lg" />
+              </button>
             </div>
           </div>
 
