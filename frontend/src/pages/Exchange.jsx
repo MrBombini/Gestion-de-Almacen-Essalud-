@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MdSwapHoriz, MdSave, MdPerson, MdLocalHospital, MdPropaneTank, MdHotel, MdWarning, MdSettingsInputComponent, MdPrint } from 'react-icons/md';
+import { MdSwapHoriz, MdSave, MdPerson, MdLocalHospital, MdPropaneTank, MdHotel, MdWarning, MdSettingsInputComponent, MdPrint, MdEdit } from 'react-icons/md';
 import AsyncSelect from 'react-select/async';
 import Select from 'react-select';
 import useFetch from '../hooks/useFetch';
@@ -45,6 +45,8 @@ const Exchange = () => {
   const [rxModal, setRxModal] = useState(false);
   const [rxForm, setRxForm] = useState({ dosage: '', usage_time: '', expires_at: '', authorization_date: '', promissory_note: '', status: 'active' });
   const [rxSaving, setRxSaving] = useState(false);
+  const [rxEditId, setRxEditId] = useState(null);
+  const [rxError, setRxError] = useState(null);
 
   const loadPatientOptions = async (inputValue) => {
     // Si escribe menos de 2 letras, no cargamos nada para evitar peticiones basura
@@ -56,7 +58,8 @@ const Exchange = () => {
 
       return data.map(p => ({
         value: p.id,
-        label: `${p.exchange_code || 'S/C'} | ${p.full_name}`
+        label: `${p.exchange_code || 'S/C'} | ${p.full_name}`,
+        patientData: p
       }));
     } catch (error) {
       console.error('Error buscando pacientes:', error);
@@ -84,19 +87,41 @@ const Exchange = () => {
     }
   };
 
+  const openRxEdit = (rx) => {
+    setRxEditId(rx.id);
+    setRxForm({ dosage: rx.dosage || '', usage_time: rx.usage_time || '', expires_at: rx.expires_at || '', authorization_date: rx.authorization_date || '', promissory_note: rx.promissory_note || '', status: rx.status });
+  };
+
   const handleRxSubmit = async (e) => {
     e.preventDefault();
     setRxSaving(true);
+    setRxError(null);
     try {
-      await api.post('/prescriptions', { ...rxForm, patient_id: formData.patient_id });
-      setRxModal(false);
-      refetchP();
-      setFormData(prev => ({ ...prev, patient_id: '' }));
-      setPrescriptionAlert({ type: 'success', msg: 'Receta actualizada correctamente. Vuelve a seleccionar al paciente.' });
+      if (rxEditId) {
+        await api.put(`/prescriptions/${rxEditId}`, rxForm);
+      } else {
+        await api.post('/prescriptions', { ...rxForm, patient_id: formData.patient_id });
+      }
+      setRxEditId(null);
+      setRxForm({ dosage: '', usage_time: '', expires_at: '', authorization_date: '', promissory_note: '', status: 'active' });
+      
+      const res = await api.get(`/patients/${formData.patient_id}`);
+      setSelectedPatientData(res.data);
     } catch (err) {
-      alert('Error al guardar la receta.');
+      setRxError(err?.response?.data?.message || 'Error al guardar la receta.');
     } finally {
       setRxSaving(false);
+    }
+  };
+
+  const handleRxDelete = async (rxId) => {
+    if (!window.confirm('¿Eliminar esta receta?')) return;
+    try {
+      await api.delete(`/prescriptions/${rxId}`);
+      const res = await api.get(`/patients/${formData.patient_id}`);
+      setSelectedPatientData(res.data);
+    } catch (err) {
+      alert(err?.response?.data?.message || 'No se pudo eliminar.');
     }
   };
 
@@ -119,9 +144,8 @@ const Exchange = () => {
 
   // --- LOGICA DE PACIENTES Y RECETAS ---
   useEffect(() => {
-    if (destinationType === 'patient' && formData.patient_id) {
-      const patient = patientsList.find(p => p.id === formData.patient_id);
-      setSelectedPatientData(patient);
+    if (destinationType === 'patient' && formData.patient_id && selectedPatientData) {
+      const patient = selectedPatientData;
 
       if (patient?.prescriptions && patient.prescriptions.length > 0) {
         const activePrescription = patient.prescriptions.find(pr => pr.status === 'active');
@@ -146,7 +170,7 @@ const Exchange = () => {
         setPrescriptionAlert({ type: 'error', msg: 'El paciente no tiene recetas registradas.' });
       }
     }
-  }, [formData.patient_id, destinationType, patientsList]);
+  }, [formData.patient_id, destinationType, selectedPatientData]);
 
   // --- FORMATEO Y FILTRADO DE DATOS ---
   const patientOptions = patientsList
@@ -466,6 +490,7 @@ const Exchange = () => {
                     onChange={(s) => {
                       setSelectedPatientOption(s); // Guardamos la opción completa para que el label persista
                       setFormData({ ...formData, patient_id: s?.value || '' });
+                      if (s?.patientData) setSelectedPatientData(s.patientData);
                     }}
                     noOptionsMessage={({ inputValue }) => !inputValue ? "Escriba para buscar..." : "No se encontró el paciente."}
                     styles={customStyles}
@@ -478,7 +503,12 @@ const Exchange = () => {
                       <div>{prescriptionAlert.msg}</div>
                     </div>
                     {prescriptionAlert.type === 'error' && (
-                      <button type="button" onClick={() => setRxModal(true)} className="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ml-2">
+                      <button type="button" onClick={() => {
+                        setRxEditId(null);
+                        setRxForm({ dosage: '', usage_time: '', expires_at: '', authorization_date: '', promissory_note: '', status: 'active' });
+                        setRxError(null);
+                        setRxModal(true);
+                      }} className="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ml-2">
                         + Actualizar Receta
                       </button>
                     )}
@@ -631,37 +661,91 @@ const Exchange = () => {
       )}
 
       {/* Modal para Renovar Receta en Intercambio */}
-      <Modal isOpen={rxModal} onClose={() => setRxModal(false)} title="Actualizar Receta del Paciente">
-        <form onSubmit={handleRxSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Dosis (Lts/min)</label>
-              <input type="number" step="0.1" required value={rxForm.dosage} onChange={e => setRxForm({ ...rxForm, dosage: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+      <Modal isOpen={rxModal} onClose={() => setRxModal(false)} title={`📋 Recetas de ${selectedPatientData?.full_name || ''}`} elevated maxWidth="max-w-2xl">
+        {rxError && <div className="mb-3 p-3 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm font-medium rounded">{rxError}</div>}
+
+        {/* Historial de recetas */}
+        <div className="space-y-2 max-h-60 overflow-y-auto mb-4 pr-1">
+          {selectedPatientData?.prescriptions?.length === 0 && (
+            <p className="text-center text-slate-400 text-sm py-4">Sin recetas registradas.</p>
+          )}
+          {selectedPatientData?.prescriptions?.map(rx => (
+            <div key={rx.id} className={`flex flex-col sm:flex-row sm:items-start justify-between p-3 rounded-xl border text-xs gap-3 ${rx.status === 'active' ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
+              <div className="space-y-1 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-0.5 rounded border text-[10px] font-bold uppercase shrink-0 ${rx.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : rx.status === 'expired' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                    {rx.status === 'active' ? 'Activa' : rx.status === 'expired' ? 'Vencida' : 'Inactiva'}
+                  </span>
+                  <span className="font-bold text-slate-700">{rx.dosage} L/min · {rx.usage_time} hrs</span>
+                </div>
+                <div className="text-slate-500 break-words">
+                  Autorización: {rx.authorization_date || '—'} · Vence: <span className={rx.days_remaining < 0 ? 'text-red-600 font-bold' : ''}>{rx.expires_at || '—'}</span>
+                  {rx.days_remaining !== null && rx.days_remaining !== undefined && (
+                    <span className={`ml-1 sm:ml-2 font-semibold ${rx.days_remaining < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                      ({rx.days_remaining < 0 ? `Vencida hace ${Math.abs(rx.days_remaining)}d` : rx.days_remaining === 0 ? 'Vence hoy' : `${rx.days_remaining}d restantes`})
+                    </span>
+                  )}
+                </div>
+                {rx.promissory_note && <div className="text-slate-400">Pagaré: {rx.promissory_note}</div>}
+              </div>
+              <div className="flex gap-2 sm:ml-3 shrink-0 self-end sm:self-auto border-t sm:border-none pt-2 sm:pt-0 w-full sm:w-auto justify-end border-slate-200">
+                <button type="button" onClick={() => openRxEdit(rx)} className="px-3 py-1.5 sm:p-1 bg-white sm:bg-transparent border sm:border-none border-slate-200 text-blue-500 hover:text-blue-700 rounded transition-colors flex items-center gap-1 font-semibold sm:font-normal"><MdEdit className="text-base" /> <span className="sm:hidden">Editar</span></button>
+                <button type="button" onClick={() => handleRxDelete(rx.id)} className="px-3 py-1.5 sm:p-1 bg-white sm:bg-transparent border sm:border-none border-slate-200 text-red-400 hover:text-red-600 rounded transition-colors flex items-center gap-1 font-semibold sm:font-normal"> <span className="sm:hidden">Eliminar</span></button>
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Tiempo de uso (Hrs/día)</label>
-              <input type="number" required value={rxForm.usage_time} onChange={e => setRxForm({ ...rxForm, usage_time: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Fecha Autorización</label>
-              <input type="date" required value={rxForm.authorization_date} onChange={e => setRxForm({ ...rxForm, authorization_date: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Fecha de Vencimiento</label>
-              <input type="date" required value={rxForm.expires_at} onChange={e => setRxForm({ ...rxForm, expires_at: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div className="col-span-2">
-              <label className="block text-xs font-semibold text-slate-700 mb-1">N° Pagaré (Opcional)</label>
-              <input type="text" value={rxForm.promissory_note} onChange={e => setRxForm({ ...rxForm, promissory_note: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
+          ))}
+        </div>
+
+        {/* Formulario nueva/editar receta */}
+        <div className="border-t border-slate-200 pt-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-bold text-slate-700">{rxEditId ? '✏️ Editar Receta' : '➕ Nueva Receta'}</p>
+            {rxEditId && <button type="button" onClick={() => { setRxEditId(null); setRxForm({ dosage: '', usage_time: '', expires_at: '', authorization_date: '', promissory_note: '', status: 'active' }); }} className="text-slate-400 hover:text-red-500 transition-colors p-1"><span className="text-xl">✕</span></button>}
           </div>
-          <div className="flex justify-end gap-3 mt-6">
-            <button type="button" onClick={() => setRxModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium">Cancelar</button>
-            <button type="submit" disabled={rxSaving} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium">
-              {rxSaving ? 'Guardando...' : 'Guardar Receta'}
-            </button>
-          </div>
-        </form>
+          <form onSubmit={handleRxSubmit} className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Dosificación</label>
+                <input type="text" value={rxForm.dosage} onChange={e => setRxForm({...rxForm, dosage: e.target.value})}
+                  placeholder="Ej: 3 L/min" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Tiempo Uso</label>
+                <input type="text" value={rxForm.usage_time} onChange={e => setRxForm({...rxForm, usage_time: e.target.value})}
+                  placeholder="Ej: 24 hrs" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Fecha Autorización *</label>
+                <input type="date" required value={rxForm.authorization_date} onChange={e => setRxForm({...rxForm, authorization_date: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Fecha Vencimiento *</label>
+                <input type="date" required value={rxForm.expires_at} onChange={e => setRxForm({...rxForm, expires_at: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Nº Pagaré</label>
+                <input type="text" value={rxForm.promissory_note} onChange={e => setRxForm({...rxForm, promissory_note: e.target.value})}
+                  placeholder="PAG-2024-001" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Estado</label>
+                <select value={rxForm.status} onChange={e => setRxForm({...rxForm, status: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none bg-white focus:ring-2 focus:ring-blue-500">
+                  <option value="active">Activa</option>
+                  <option value="expired">Vencida</option>
+                  <option value="inactive">Inactiva</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end pt-2">
+              <button type="submit" disabled={rxSaving} className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50 transition-colors shadow-sm">
+                {rxSaving ? 'Guardando...' : rxEditId ? 'Actualizar Receta' : 'Agregar Receta'}
+              </button>
+            </div>
+          </form>
+        </div>
       </Modal>
 
     </div>

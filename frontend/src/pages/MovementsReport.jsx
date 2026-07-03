@@ -26,12 +26,14 @@ const MovementsReport = () => {
   const { data: cylindersData, loading: loadingCylinders } = useFetch('/cylinders?per_page=all');
   const { data: patientsData, loading: loadingPatients } = useFetch('/patients');
   const { data: servicesData, loading: loadingServices } = useFetch('/services');
+  const { data: bedsData, loading: loadingBeds } = useFetch('/beds');
   const { data: suppliersData, loading: loadingSuppliers } = useFetch('/suppliers');
 
   // Convertir a arreglos seguros
   const cylindersList = Array.isArray(cylindersData) ? cylindersData : (cylindersData?.data || []);
   const patientsList = Array.isArray(patientsData) ? patientsData : (patientsData?.data || []);
   const servicesList = Array.isArray(servicesData) ? servicesData : (servicesData?.data || []);
+  const bedsList = Array.isArray(bedsData) ? bedsData : (bedsData?.data || []);
   const suppliersList = Array.isArray(suppliersData) ? suppliersData : (suppliersData?.data || []);
 
   // Formatear las opciones para react-select
@@ -59,6 +61,7 @@ const MovementsReport = () => {
   const [selectedCylinder, setSelectedCylinder] = useState(null);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [selectedService, setSelectedService] = useState(null);
+  const [selectedBed, setSelectedBed] = useState(null);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
   const [reference, setReference] = useState('');
   const [shift, setShift] = useState('');
@@ -78,6 +81,7 @@ const MovementsReport = () => {
     if (selectedCylinder) params.append('cylinder', selectedCylinder.value);
     if (selectedPatient) params.append('patient', selectedPatient.value);
     if (selectedService) params.append('service', selectedService.value);
+    if (selectedBed) params.append('bed', selectedBed.value);
     if (selectedSupplier) params.append('supplier', selectedSupplier.value);
     if (reference) params.append('reference', reference);
     if (shift) params.append('shift', shift);
@@ -92,6 +96,7 @@ const MovementsReport = () => {
     setSelectedCylinder(null);
     setSelectedPatient(null);
     setSelectedService(null);
+    setSelectedBed(null);
     setSelectedSupplier(null);
     setReference('');
     setShift('');
@@ -155,6 +160,13 @@ const MovementsReport = () => {
     }),
     menu: (base) => ({ ...base, zIndex: 9999 }),
   };
+
+  const bedOptions = bedsList
+    .filter(b => selectedService ? b.service_id === selectedService.value : true)
+    .map(b => ({
+      value: b.id,
+      label: `Cama ${b.bed_number} - ${b.room}`
+    }));
 
   // Traducir turnos
   const translateShift = (s) => {
@@ -302,7 +314,25 @@ const MovementsReport = () => {
               isLoading={loadingServices}
               placeholder="Buscar Servicio..."
               value={selectedService}
-              onChange={(opt) => setSelectedService(opt)}
+              onChange={(opt) => {
+                setSelectedService(opt);
+                setSelectedBed(null); // Resetear cama si cambia el servicio
+              }}
+            />
+          </div>
+
+          {/* Cama */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide">Cama</label>
+            <Select
+              options={bedOptions}
+              styles={selectStyles}
+              isClearable
+              isLoading={loadingBeds}
+              placeholder="Buscar Cama..."
+              value={selectedBed}
+              onChange={(opt) => setSelectedBed(opt)}
+              isDisabled={!selectedService}
             />
           </div>
 

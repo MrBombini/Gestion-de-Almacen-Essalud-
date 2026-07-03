@@ -88,6 +88,8 @@ const Cylinders = () => {
   const [filterSupplier, setFilterSupplier] = useState('');
   const [filterOwnership, setFilterOwnership] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [filterService, setFilterService] = useState('');
+  const [filterBed, setFilterBed] = useState('');
 
   const [currentPage, setCurrentPage] = useState(1);
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -102,24 +104,29 @@ const Cylinders = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterLocation, filterSupplier, filterOwnership, filterStatus]);
+  }, [filterLocation, filterSupplier, filterOwnership, filterStatus, filterService, filterBed]);
 
-  const { data: cylinders, loading, error, refetch } = useFetch(`/cylinders?page=${currentPage}&search=${debouncedSearch}&location=${filterLocation}&supplier_id=${filterSupplier}&ownership_type_id=${filterOwnership}&status=${filterStatus}`);
+  const { data: cylinders, loading, error, refetch } = useFetch(`/cylinders?page=${currentPage}&search=${debouncedSearch}&location=${filterLocation}&supplier_id=${filterSupplier}&ownership_type_id=${filterOwnership}&status=${filterStatus}&service_id=${filterService}&bed_id=${filterBed}`);
   const { data: suppliers, refetch: refetchSuppliers } = useFetch('/suppliers?per_page=all');
   const { data: ownershipTypes, refetch: refetchOwnership } = useFetch('/ownership-types?per_page=all');
   const { data: patients } = useFetch('/patients?per_page=all');
+  const { data: services } = useFetch('/services?per_page=all');
+  const { data: bedsData } = useFetch('/beds');
 
   const cylindersList = Array.isArray(cylinders) ? cylinders : (cylinders?.data || []);
   const suppliersList = Array.isArray(suppliers) ? suppliers : (suppliers?.data || []);
   const ownershipTypesList = Array.isArray(ownershipTypes) ? ownershipTypes : (ownershipTypes?.data || []);
   const patientsList = Array.isArray(patients) ? patients : (patients?.data || []);
+  const servicesList = Array.isArray(services) ? services : (services?.data || []);
+  const bedsList = Array.isArray(bedsData) ? bedsData : (bedsData?.data || []);
 
   const emptyForm = {
     serial_number: '', barcode: '', supplier_id: '', ownership_type_id: '',
-    patient_id: '', gas_type: 'OXÍGENO MEDICINAL', capacity: '',
+    patient_id: '', service_id: '', gas_type: 'OXÍGENO MEDICINAL', capacity: '',
     status: 'empty', location: 'CENTRAL', hydrostatic_test_date: '', physical_condition: 'Good'
   };
   const [formData, setFormData] = useState(emptyForm);
+  const [ownerType, setOwnerType] = useState('patient'); // 'patient' o 'service'
 
   // ── Estado quick-add ──
   const [quickAdd, setQuickAdd] = useState(null);
@@ -128,6 +135,10 @@ const Cylinders = () => {
   // ── Opciones para react-select ──
   const supplierOptions = suppliersList.map(s => ({ value: s.id, label: s.name }));
   const ownershipOptions = ownershipTypesList.map(t => ({ value: t.id, label: t.name }));
+  const serviceOptions = servicesList.map(s => ({ value: s.id, label: `${s.name} (${s.type})` }));
+  const bedOptions = bedsList
+    .filter(b => filterService ? b.service_id == filterService : true)
+    .map(b => ({ value: b.id, label: `Cama ${b.bed_number} - ${b.room}` }));
 
   const selectStyles = {
     control: (base, state) => ({
@@ -172,12 +183,13 @@ const Cylinders = () => {
   };
 
   // ── CRUD principal ──
-  const handleOpenCreate = () => { setFormData(emptyForm); setEditingId(null); setIsModalOpen(true); };
+  const handleOpenCreate = () => { setFormData(emptyForm); setEditingId(null); setOwnerType('patient'); setIsModalOpen(true); };
   const handleOpenEdit = (c) => {
+    setOwnerType(c.service_id ? 'service' : 'patient');
     setFormData({
       serial_number: c.serial_number, barcode: c.barcode || '',
       supplier_id: c.supplier_id || '', ownership_type_id: c.ownership_type_id || '',
-      patient_id: c.patient_id || '', gas_type: c.gas_type || 'OXÍGENO MEDICINAL',
+      patient_id: c.patient_id || '', service_id: c.service_id || '', gas_type: c.gas_type || 'OXÍGENO MEDICINAL',
       capacity: c.capacity, status: c.status, location: c.location || 'CENTRAL',
       hydrostatic_test_date: c.hydrostatic_test_date || '', physical_condition: c.physical_condition || 'Good'
     });
@@ -191,13 +203,21 @@ const Cylinders = () => {
     const finalData = { ...formData };
     
     if (isCylinderPropio()) {
-      if (!formData.patient_id) {
+      if (ownerType === 'patient' && !formData.patient_id) {
         alert('Debe seleccionar un paciente para un balón propio.');
         setActionLoading(false);
         return;
       }
+      if (ownerType === 'service' && !formData.service_id) {
+        alert('Debe seleccionar un servicio/periferia para un balón propio.');
+        setActionLoading(false);
+        return;
+      }
+      if (ownerType === 'patient') finalData.service_id = null;
+      if (ownerType === 'service') finalData.patient_id = null;
     } else {
       finalData.patient_id = null;
+      finalData.service_id = null;
     }
     
     try {
@@ -411,6 +431,27 @@ const Cylinders = () => {
                 onChange={(s) => setFilterOwnership(s?.value || '')}
               />
             </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Servicio / Periferia</label>
+              <Select
+                options={[{value: '', label: 'TODOS'}, ...serviceOptions]}
+                styles={selectStyles}
+                placeholder="Servicio..."
+                value={filterService ? {value: filterService, label: serviceOptions.find(o => o.value == filterService)?.label} : {value: '', label: 'TODOS'}}
+                onChange={(s) => { setFilterService(s?.value || ''); setFilterBed(''); }}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Cama</label>
+              <Select
+                options={[{value: '', label: 'TODAS'}, ...bedOptions]}
+                styles={selectStyles}
+                placeholder="Cama..."
+                isDisabled={!filterService}
+                value={filterBed ? {value: filterBed, label: bedOptions.find(o => o.value == filterBed)?.label} : {value: '', label: 'TODAS'}}
+                onChange={(s) => setFilterBed(s?.value || '')}
+              />
+            </div>
           </div>
         </div>
 
@@ -444,7 +485,9 @@ const Cylinders = () => {
                         )}
                       </div>
                       <div className="text-[10px] text-slate-400 uppercase font-medium mt-1">
-                        {cylinder.ownership_type?.name} {cylinder.patient ? `(${cylinder.patient.full_name})` : ''}
+                        {cylinder.ownership_type?.name} 
+                        {cylinder.patient ? ` (${cylinder.patient.full_name})` : ''}
+                        {cylinder.service ? ` (${cylinder.service.name})` : ''}
                       </div>
                     </td>
                     <td className="px-4 sm:px-6 py-4">
@@ -748,15 +791,36 @@ const Cylinders = () => {
             />
           </div>
 
-          {/* Paciente */}
+          {/* Paciente o Servicio */}
           {isCylinderPropio() && (
             <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 mt-2">
-              <label className="block text-sm font-bold text-blue-700 mb-2 flex items-center gap-2"><MdPerson /> Dueño (Paciente)</label>
-              <select required value={formData.patient_id} onChange={(e) => setFormData({ ...formData, patient_id: e.target.value })}
-                className="w-full px-3 py-2 border border-blue-200 rounded-lg bg-white text-sm outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="" disabled>Seleccionar paciente...</option>
-                {patientsList.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-              </select>
+              <label className="block text-sm font-bold text-blue-700 mb-2 flex items-center gap-2"><MdPerson /> Propietario del Balón</label>
+              <div className="flex gap-4 mb-3">
+                <label className="flex items-center gap-2 text-sm text-slate-700 font-medium cursor-pointer">
+                  <input type="radio" name="ownerType" value="patient" checked={ownerType === 'patient'} onChange={() => setOwnerType('patient')} className="w-4 h-4 text-blue-600 focus:ring-blue-500" />
+                  Paciente
+                </label>
+                <label className="flex items-center gap-2 text-sm text-slate-700 font-medium cursor-pointer">
+                  <input type="radio" name="ownerType" value="service" checked={ownerType === 'service'} onChange={() => setOwnerType('service')} className="w-4 h-4 text-blue-600 focus:ring-blue-500" />
+                  Servicio / Periferia
+                </label>
+              </div>
+
+              {ownerType === 'patient' && (
+                <select required value={formData.patient_id} onChange={(e) => setFormData({ ...formData, patient_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-blue-200 rounded-lg bg-white text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="" disabled>Seleccionar paciente...</option>
+                  {patientsList.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                </select>
+              )}
+
+              {ownerType === 'service' && (
+                <select required value={formData.service_id} onChange={(e) => setFormData({ ...formData, service_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-blue-200 rounded-lg bg-white text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="" disabled>Seleccionar servicio o periferia...</option>
+                  {servicesList.map(s => <option key={s.id} value={s.id}>{s.name} ({s.type})</option>)}
+                </select>
+              )}
             </div>
           )}
 

@@ -20,6 +20,9 @@ const Services = () => {
         type: 'Hospital' // Valores comunes: Hospital, Manifold, Externo
     });
 
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterType, setFilterType] = useState('');
+
     // Manejadores del Modal
     const handleOpenCreate = () => {
         setFormData({ name: '', abbreviation: '', type: 'Hospital' });
@@ -83,6 +86,13 @@ const Services = () => {
         ? services
         : (services?.data ? services.data : []);
 
+    const filteredServices = servicesList.filter(service => {
+        const matchSearch = service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            (service.abbreviation && service.abbreviation.toLowerCase().includes(searchTerm.toLowerCase()));
+        const matchType = filterType ? service.type === filterType : true;
+        return matchSearch && matchType;
+    });
+
     return (
         <div className="space-y-6">
             {/* Cabecera */}
@@ -108,13 +118,29 @@ const Services = () => {
             {/* Tabla de Servicios */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
 
-                <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center gap-2">
-                    <MdSearch className="text-slate-400 text-xl" />
-                    <input
-                        type="text"
-                        placeholder="Buscar área o servicio..."
-                        className="bg-transparent border-none outline-none text-sm w-full text-slate-700 placeholder-slate-400"
-                    />
+                <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-center gap-3">
+                    <div className="flex-1 flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200 focus-within:ring-2 focus-within:ring-blue-500 w-full">
+                        <MdSearch className="text-slate-400 text-xl" />
+                        <input
+                            type="text"
+                            placeholder="Buscar área o servicio..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="bg-transparent border-none outline-none text-sm w-full text-slate-700 placeholder-slate-400"
+                        />
+                    </div>
+                    <div className="w-full sm:w-auto min-w-[200px]">
+                        <select
+                            value={filterType}
+                            onChange={(e) => setFilterType(e.target.value)}
+                            className="w-full bg-white border border-slate-200 text-sm font-medium px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                        >
+                            <option value="">TODOS LOS TIPOS</option>
+                            <option value="Hospital">Hospital</option>
+                            <option value="Manifold">Manifold</option>
+                            <option value="PERIFERIE">Periferia</option>
+                        </select>
+                    </div>
                 </div>
 
                 {loading && !services && (
@@ -142,14 +168,14 @@ const Services = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {servicesList.length === 0 ? (
+                                {filteredServices.length === 0 ? (
                                     <tr>
-                                        <td colSpan="4" className="px-6 py-8 text-center text-slate-500">
-                                            No hay servicios registrados.
+                                        <td colSpan="5" className="px-6 py-8 text-center text-slate-500">
+                                            No hay servicios registrados o no coinciden con la búsqueda.
                                         </td>
                                     </tr>
                                 ) : (
-                                    servicesList.map((service) => (
+                                    filteredServices.map((service) => (
                                         <tr key={service.id} className="hover:bg-slate-50 transition-colors">
                                             <td className="px-6 py-4 text-sm text-slate-500">#{service.id}</td>
                                             <td className="px-6 py-4 text-sm font-medium text-slate-600">{service.abbreviation || '-'}</td>

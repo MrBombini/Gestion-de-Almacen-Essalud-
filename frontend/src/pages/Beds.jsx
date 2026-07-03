@@ -13,6 +13,9 @@ const Beds = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterService, setFilterService] = useState('');
   
   // Agregamos "status" al estado inicial
   const [formData, setFormData] = useState({
@@ -75,6 +78,12 @@ const Beds = () => {
     return service ? service.name : serviceId;
   };
 
+  const filteredBeds = bedsList.filter(bed => {
+    const matchSearch = bed.bed_number.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchService = filterService ? bed.service_id.toString() === filterService : true;
+    return matchSearch && matchService;
+  });
+
   return (
     <div className="space-y-6">
       {/* Cabecera */}
@@ -99,13 +108,29 @@ const Beds = () => {
 
       {/* Tabla de Datos */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center gap-2">
-          <MdSearch className="text-slate-400 text-xl shrink-0" />
-          <input 
-            type="text" 
-            placeholder="Buscar número de cama..." 
-            className="bg-transparent border-none outline-none text-sm w-full text-slate-700 placeholder-slate-400"
-          />
+        <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-center gap-3">
+          <div className="flex-1 flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200 focus-within:ring-2 focus-within:ring-blue-500 w-full">
+            <MdSearch className="text-slate-400 text-xl shrink-0" />
+            <input 
+              type="text" 
+              placeholder="Buscar número de cama..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="bg-transparent border-none outline-none text-sm w-full text-slate-700 placeholder-slate-400"
+            />
+          </div>
+          <div className="w-full sm:w-auto min-w-[250px]">
+            <select
+              value={filterService}
+              onChange={(e) => setFilterService(e.target.value)}
+              className="w-full bg-white border border-slate-200 text-sm font-medium px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+            >
+              <option value="">TODOS LOS SERVICIOS</option>
+              {servicesList.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {loading && bedsList.length === 0 && (
@@ -127,14 +152,14 @@ const Beds = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {bedsList.length === 0 ? (
+                {filteredBeds.length === 0 ? (
                   <tr>
                     <td colSpan="5" className="px-6 py-8 text-center text-slate-500">
-                      No hay camas registradas aún.
+                      No hay camas registradas o no coinciden con la búsqueda.
                     </td>
                   </tr>
                 ) : (
-                  bedsList.map((bed) => (
+                  filteredBeds.map((bed) => (
                     <tr key={bed.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 sm:px-6 py-4 text-sm text-slate-500">#{bed.id}</td>
                       <td className="px-4 sm:px-6 py-4 text-sm font-bold text-slate-800">{bed.bed_number}</td>

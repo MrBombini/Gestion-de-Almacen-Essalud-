@@ -171,7 +171,10 @@ class ReportController extends Controller
         if ($perPage > 500) {
             $perPage = 500;
         }
-        $kardex = InventoryMovement::with([
+        $startDate = $request->query('start_date');
+        $endDate = $request->query('end_date');
+
+        $query = InventoryMovement::with([
                 'user',
                 'patient',
                 'service',
@@ -180,8 +183,16 @@ class ReportController extends Controller
                 'cylinderMovements.cylinder.ownershipType',
                 'cylinderMovements.cylinder.supplier'
             ])
-            ->orderBy('movement_at', 'desc')
-            ->paginate($perPage);
+            ->orderBy('movement_at', 'desc');
+
+        if ($startDate) {
+            $query->whereDate('movement_at', '>=', $startDate);
+        }
+        if ($endDate) {
+            $query->whereDate('movement_at', '<=', $endDate);
+        }
+
+        $kardex = $query->paginate($perPage);
                            
         return response()->json($kardex);
     }
@@ -436,6 +447,7 @@ class ReportController extends Controller
     {
         $patientQuery = $request->query('patient');      // ID, DNI or Name
         $serviceQuery = $request->query('service');      // ID or Name
+        $bedQuery = $request->query('bed');              // ID
         $supplierQuery = $request->query('supplier');    // ID or Name
         $cylinderQuery = $request->query('cylinder');    // serial number or barcode
         $referenceQuery = $request->query('reference');  // reference_document
@@ -476,6 +488,12 @@ class ReportController extends Controller
                 } else {
                     $q->where('name', 'like', "%{$serviceQuery}%");
                 }
+            });
+        }
+
+        if ($bedQuery) {
+            $cmQuery->whereHas('inventoryMovement', function ($q) use ($bedQuery) {
+                $q->where('bed_id', $bedQuery);
             });
         }
 
