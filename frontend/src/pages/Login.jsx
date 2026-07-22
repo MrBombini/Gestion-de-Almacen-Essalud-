@@ -64,13 +64,16 @@ const Login = () => {
         {/* Cabecera */}
         <div className="text-center mb-8">
           <div className="mx-auto bg-blue-600 w-16 h-16 rounded-full flex items-center justify-center mb-4 shadow-lg">
-            {/* Ícono de cilindro/almacén simple usando SVG */}
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+            <svg className="w-9 h-9 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="8" y="8" width="8" height="13" rx="2" fill="currentColor" />
+              <path d="M8 8v-1a4 4 0 018 0v1H8z" fill="#93c5fd" />
+              <rect x="11" y="3" width="2" height="3" fill="#e2e8f0" rx="0.5" />
+              <rect x="9" y="2" width="6" height="1.5" fill="#cbd5e1" rx="0.5" />
+              <rect x="14" y="4" width="2" height="1.5" fill="#cbd5e1" rx="0.5" />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-slate-800">Almacén EsSalud</h2>
-          <p className="text-slate-500 mt-1 text-sm">Control de Oxígeno y Activos</p>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Central de Oxígeno</h2>
+          <p className="text-slate-500 mt-1 text-sm font-medium">Control de Inventario y Trazabilidad</p>
         </div>
 
         {/* Alerta de Error */}

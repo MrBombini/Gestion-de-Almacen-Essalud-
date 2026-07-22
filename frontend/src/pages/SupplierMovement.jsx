@@ -81,12 +81,12 @@ const SupplierMovement = () => {
       const response = await api.get('/cylinders', { params });
       const data = response.data.data || response.data || [];
 
-      // Filtros locales adicionales (solo 10m3 y excluyendo los propios/paciente)
+      // Filtros locales adicionales (6m3 a 10m3 y excluyendo los propios/paciente)
       const filteredData = data.filter(c => {
         const cap = Number(c.capacity);
         const isOwn = c.ownership_type?.name?.toLowerCase().includes('propio') || 
                       c.ownership_type?.name?.toLowerCase().includes('paciente');
-        return cap === 10 && !isOwn;
+        return cap >= 6 && cap <= 10 && !isOwn;
       });
 
       return filteredData.map(c => ({

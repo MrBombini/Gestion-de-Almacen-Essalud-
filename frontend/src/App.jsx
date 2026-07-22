@@ -27,6 +27,7 @@ import DailyKardexReport from './pages/DailyKardexReport';
 import ConsumptionDashboard from './pages/Reports/ConsumptionDashboard';
 import PatientAlertsReport from './pages/Reports/PatientAlertsReport';
 import KardexResume from './pages/KardexResume';
+import HospitalizationControl from './pages/Reports/HospitalizationControl';
 
 
 
@@ -63,6 +64,7 @@ function App() {
             <Route path="/reports/alerts" element={<PatientAlertsReport />} />
             <Route path="/reports/kardexresume" element={<KardexResume />} />
             <Route path="/reports/kardex" element={<DailyKardexReport />} />
+            <Route path="/reports/hospitalization-control" element={<HospitalizationControl />} />
             <Route path="/reports/cylinder-tracking" element={<CylinderTracking />} />
             <Route path="/reports/movements-report" element={<MovementsReport />} />
 

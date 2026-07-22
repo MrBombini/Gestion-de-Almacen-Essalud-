@@ -102,6 +102,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::get('/consumption-dashboard', [ReportController::class, 'dailyConsumptionDashboard']);
             Route::get('/kardex', [ReportController::class, 'kardexGeneral']);
             Route::get('/patient-alerts', [ReportController::class, 'patientAlerts']);
+            Route::get('/hospitalization-control', [ReportController::class, 'hospitalizationControl']);
         });
         
     });
