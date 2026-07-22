@@ -43,7 +43,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       {/* OVERLAY OSCURO PARA MÓVILES */}
       {/* Solo se muestra en pantallas pequeñas (lg:hidden) cuando isOpen es true */}
       {isOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-40 lg:hidden transition-opacity"
           onClick={() => setIsOpen(false)}
         />
@@ -52,19 +52,24 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       {/* SIDEBAR */}
       {/* Usamos transformaciones para ocultarlo (-translate-x-full) o mostrarlo (translate-x-0) en móviles.
           En desktop (lg:), siempre será estático y visible (lg:translate-x-0 lg:static). */}
-      <aside 
-        className={`fixed lg:static top-0 left-0 h-screen w-64 bg-slate-900 flex flex-col text-sm shadow-xl shrink-0 z-50 transition-transform duration-300 ease-in-out ${
-          isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-        }`}
+      <aside
+        className={`fixed lg:static top-0 left-0 h-screen w-64 bg-slate-900 flex flex-col text-sm shadow-xl shrink-0 z-50 transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+          }`}
       >
         {/* Cabecera del Sidebar */}
         <div className="p-6 border-b border-slate-800 flex items-center justify-between lg:justify-center">
           <div className="text-white font-bold text-xl tracking-wider flex items-center gap-3">
-            <MdLocalHospital className="text-3xl text-blue-500" />
-            EsSalud
+            <svg className="w-8 h-8 text-blue-500" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="8" y="8" width="8" height="13" rx="2" fill="currentColor" />
+              <path d="M8 8v-1a4 4 0 018 0v1H8z" fill="#60a5fa" />
+              <rect x="11" y="3" width="2" height="3" fill="#cbd5e1" rx="0.5" />
+              <rect x="9" y="2" width="6" height="1.5" fill="#94a3b8" rx="0.5" />
+              <rect x="14" y="4" width="2" height="1.5" fill="#94a3b8" rx="0.5" />
+            </svg>
+            <span className="text-lg leading-tight">Central de<br />Oxígeno</span>
           </div>
           {/* Botón Cerrar (Solo visible en móviles) */}
-          <button 
+          <button
             onClick={() => setIsOpen(false)}
             className="lg:hidden text-slate-400 hover:text-white transition-colors"
           >
@@ -105,7 +110,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
             </NavLink>
             <NavLink to="/inventory/periphery" className={navLinkClass} onClick={closeSidebarMobile}>
               <MdSwapCalls className="text-lg" />
-              <span>Canje de Red</span>
+              <span>Periferia/Centros Medicos</span>
             </NavLink>
           </div>
 
@@ -162,6 +167,10 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
             <NavLink to="/reports/alerts" className={navLinkClass} onClick={closeSidebarMobile}>
               <MdAssignment className="text-lg" />
               <span>Alertas de Pacientes</span>
+            </NavLink>
+            <NavLink to="/reports/hospitalization-control" className={navLinkClass} onClick={closeSidebarMobile}>
+              <MdLocalHospital className="text-lg" />
+              <span>Control Hospitalización</span>
             </NavLink>
             <NavLink to="/reports/cylinder-tracking" className={navLinkClass} onClick={closeSidebarMobile}>
               <MdAssignment className="text-lg" />

@@ -42,6 +42,9 @@ class ReportController extends Controller
             ->groupBy('capacity', 'status', 'ownership_type_id')
             ->get();
             
+        $startDateTime = Carbon::parse($date)->setTime(7, 0, 0);
+        $endDateTime = Carbon::parse($date)->addDay()->setTime(7, 0, 0);
+
         // 3. Movimientos del día agrupados por turno
         $allMovements = InventoryMovement::with([
                 'cylinderMovements.cylinder.ownershipType', 
@@ -52,7 +55,7 @@ class ReportController extends Controller
                 'bed',
                 'supplier'
             ])
-            ->whereDate('movement_at', $date)
+            ->whereBetween('movement_at', [$startDateTime, $endDateTime])
             ->orderBy('movement_at', 'asc')
             ->get();
 
@@ -86,9 +89,12 @@ class ReportController extends Controller
     public function dailyConsumptionDashboard(Request $request)
     {
         $date = $request->query('date', Carbon::today()->toDateString());
+        
+        $startDateTime = Carbon::parse($date)->setTime(7, 0, 0);
+        $endDateTime = Carbon::parse($date)->addDay()->setTime(7, 0, 0);
 
         // 1. Obtener todos los movimientos del día con relaciones completas de cilindros y marcas
-        $movements = InventoryMovement::whereDate('movement_at', $date)
+        $movements = InventoryMovement::whereBetween('movement_at', [$startDateTime, $endDateTime])
             ->with(['cylinderMovements.cylinder.ownershipType', 'user', 'patient', 'service'])
             ->get();
 
@@ -362,18 +368,21 @@ class ReportController extends Controller
         $date = $request->query('date', Carbon::today()->toDateString());
         $shift = $request->query('shift', 'Morning');
 
+        $startDateTime = Carbon::parse($date)->setTime(7, 0, 0);
+        $endDateTime = Carbon::parse($date)->addDay()->setTime(7, 0, 0);
+
         $movements = InventoryMovement::with(['user', 'patient', 'service', 'supplier', 'cylinderMovements.cylinder'])
-            ->whereDate('movement_at', $date)
+            ->whereBetween('movement_at', [$startDateTime, $endDateTime])
             ->where('shift', $shift)
             ->get();
 
         $decantings = Decanting::with(['user', 'patient', 'service', 'cylinder'])
-            ->whereDate('decanted_at', $date)
+            ->whereBetween('decanted_at', [$startDateTime, $endDateTime])
             ->where('shift', $shift)
             ->get();
 
         $readings = \App\Models\DailyReading::with('user')
-            ->whereDate('reading_date', $date)
+            ->whereBetween('reading_date', [$startDateTime, $endDateTime])
             ->where('shift', $shift)
             ->get();
 
@@ -759,5 +768,20 @@ class ReportController extends Controller
             ->values();
 
         return response()->json($cylinders);
+    }
+
+    public function hospitalizationControl(Request $request)
+    {
+        $cylinders = Cylinder::with(['ownershipType', 'currentService', 'currentBed'])
+            ->where('status', 'in_use')
+            ->where('location', 'HOSPITALIZACION')
+            ->get();
+
+        $sorted = $cylinders->sortBy([
+            ['currentService.name', 'asc'],
+            ['currentBed.name', 'asc']
+        ])->values();
+
+        return response()->json($sorted);
     }
 }
