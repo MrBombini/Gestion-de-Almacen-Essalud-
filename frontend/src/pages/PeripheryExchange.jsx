@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MdLocalHospital, MdSave, MdHistory, MdSwapCalls, MdAssignment, MdQrCodeScanner } from 'react-icons/md';
 import AsyncSelect from 'react-select/async';
 import useFetch from '../hooks/useFetch';
@@ -23,6 +23,29 @@ const PeripheryExchange = () => {
   const [selectedServiceOption, setSelectedServiceOption] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
+  const [restoredDraft, setRestoredDraft] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('periphery_exchange_draft');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.formData.service_id || parsed.formData.reference_document || parsed.formData.cylinders_in?.length > 0 || parsed.formData.cylinders_out?.length > 0) {
+          setFormData(parsed.formData);
+          if (parsed.selectedServiceOption) setSelectedServiceOption(parsed.selectedServiceOption);
+          setRestoredDraft(true);
+        }
+      } catch (e) {
+        console.error('Error parsing draft', e);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (formData.service_id || formData.reference_document || formData.cylinders_in.length > 0 || formData.cylinders_out.length > 0) {
+      localStorage.setItem('periphery_exchange_draft', JSON.stringify({ formData, selectedServiceOption }));
+    }
+  }, [formData, selectedServiceOption]);
 
   // ==========================================
   // CARGA ASÍNCRONA DE SERVICIOS (PERIFERIE)
@@ -116,6 +139,8 @@ const PeripheryExchange = () => {
       });
 
       setSuccessMessage('¡Canje de red registrado con éxito!');
+      localStorage.removeItem('periphery_exchange_draft');
+      setRestoredDraft(false);
       
       // Limpieza post-guardado
       setFormData({
@@ -175,6 +200,20 @@ const PeripheryExchange = () => {
       {(successMessage || errorMessage) && (
         <div className={`p-4 rounded-xl font-medium border-l-4 animate-fade-in ${successMessage ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-red-50 border-red-500 text-red-700'}`}>
           {successMessage || errorMessage}
+        </div>
+      )}
+
+      {restoredDraft && !successMessage && (
+        <div className="p-4 bg-indigo-50 border-l-4 border-indigo-500 text-indigo-700 rounded-xl font-medium flex justify-between items-center animate-fade-in">
+          <span>Se ha recuperado un registro pendiente (Borrador).</span>
+          <button type="button" onClick={() => {
+            localStorage.removeItem('periphery_exchange_draft');
+            setFormData({ service_id: '', reference_document: '', shift: shift || 'Morning', cylinders_in: [], cylinders_out: [], notes: '' });
+            setSelectedServiceOption(null);
+            setRestoredDraft(false);
+          }} className="px-3 py-1 bg-indigo-200 hover:bg-indigo-300 text-indigo-800 rounded-lg text-sm font-bold transition-colors">
+            Descartar Borrador
+          </button>
         </div>
       )}
 

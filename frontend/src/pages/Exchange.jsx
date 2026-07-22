@@ -79,7 +79,8 @@ const Exchange = () => {
 
       return data.map(c => ({
         value: c.id,
-        label: `${c.serial_number} | ${c.ownership_type?.name || 'S/D'} | ${Number(c.capacity)} m³`
+        label: `${c.serial_number} | ${c.ownership_type?.name || 'S/D'} | ${Number(c.capacity)} m³`,
+        cylinderData: c
       }));
     } catch (error) {
       console.error('Error buscando cilindros:', error);
@@ -136,6 +137,9 @@ const Exchange = () => {
       cylinder_out: '',
       notes: ''
     });
+    setSelectedPatientOption(null);
+    setSelectedCylInOption(null);
+    setSelectedCylOutOption(null);
     setSelectedPatientData(null);
     setPrescriptionAlert(null);
     setSuccessMessage(null);
@@ -186,12 +190,13 @@ const Exchange = () => {
     type: s.type // Guardamos el tipo para filtrar en el JSX
   }));
 
-  const bedOptions = formData.service_id
-    ? servicesList.find(s => s.id === formData.service_id)?.beds?.map(b => ({
+  const bedOptions = servicesList
+    .filter(s => s.type?.toUpperCase() === 'HOSPITALIZACION' || s.type?.toLowerCase() === 'hospital')
+    .flatMap(s => (s.beds || []).map(b => ({
       value: b.id,
-      label: `Cama: ${b.bed_number}`
-    })) || []
-    : [];
+      service_id: s.id,
+      label: `Cama: ${b.bed_number} — ${s.name}`
+    })));
 
   const cylinderOutOptions = cylindersList
     .filter(c => {
@@ -208,28 +213,7 @@ const Exchange = () => {
       label: `${c.serial_number} | ${c.ownership_type?.name || 'S/D'} | ${Number(c.capacity)}m³`
     }));
 
-  const cylinderInOptions = cylindersList
-    .filter(c => {
-      const isInUse = c.status === 'in_use';
-      if (destinationType === 'patient') return isInUse;
-      return isInUse && Number(c.capacity) === 10;
-    })
-    .filter(c => {
-      if (destinationType === 'patient' && formData.patient_id) {
-        return c.current_patient_id === formData.patient_id;
-      }
-      if ((destinationType === 'service' || destinationType === 'manifold') && formData.service_id) {
-        if (destinationType === 'service' && formData.bed_id) {
-          return c.current_bed_id === formData.bed_id;
-        }
-        return c.current_service_id === formData.service_id;
-      }
-      return false;
-    })
-    .map(c => ({
-      value: c.id,
-      label: `${c.serial_number} | ${c.ownership_type?.name || 'S/D'} | ${Number(c.capacity)}m³`
-    }));
+  const cylinderInOptions = []; // Ya no se usa para filtrar en local
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -263,6 +247,9 @@ const Exchange = () => {
         patient_id: '', service_id: '', bed_id: '',
         prescription_id: '', cylinder_in: '', cylinder_out: '', notes: ''
       });
+      setSelectedPatientOption(null);
+      setSelectedCylInOption(null);
+      setSelectedCylOutOption(null);
       setPrescriptionAlert(null);
       refetchC();
       refetchP();
@@ -485,7 +472,7 @@ const Exchange = () => {
                     cacheOptions
                     loadOptions={loadPatientOptions} // Usamos la nueva función
                     isClearable
-                    placeholder="-- Escriba nombre o código de canje --"
+                    placeholder="-- Buscar por Nombre, Apellido o Código --"
                     value={selectedPatientOption}
                     onChange={(s) => {
                       setSelectedPatientOption(s); // Guardamos la opción completa para que el label persista
@@ -520,12 +507,20 @@ const Exchange = () => {
             {destinationType === 'service' && (
               <div className="space-y-4 animate-fade-in">
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2"><MdLocalHospital className="text-slate-400" /> Servicio</label>
-                  <Select options={serviceOptions.filter(s => s.type?.toUpperCase() === 'HOSPITALIZACION' || s.type?.toLowerCase() === 'hospital')} styles={customStyles} placeholder="-- Seleccionar Servicio --" value={serviceOptions.find(o => o.value === formData.service_id) || null} onChange={(s) => setFormData({ ...formData, service_id: s?.value || '', bed_id: '' })} />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2"><MdHotel className="text-slate-400" /> Cama Específica</label>
-                  <Select options={bedOptions} styles={customStyles} isDisabled={!formData.service_id} placeholder="-- Seleccionar Cama --" value={bedOptions.find(o => o.value === formData.bed_id) || null} onChange={(s) => setFormData({ ...formData, bed_id: s?.value || '' })} />
+                  <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2"><MdHotel className="text-slate-400" /> Buscar Cama por Número</label>
+                  <Select 
+                    options={bedOptions} 
+                    styles={customStyles} 
+                    placeholder="-- Buscar o Seleccionar Cama --" 
+                    value={bedOptions.find(o => o.value === formData.bed_id) || null} 
+                    onChange={(s) => setFormData({ ...formData, service_id: s?.service_id || '', bed_id: s?.value || '' })} 
+                    isSearchable
+                  />
+                  {formData.service_id && (
+                     <p className="mt-2 text-xs font-semibold text-blue-600 bg-blue-50 p-2 rounded-lg border border-blue-100 flex items-center gap-2">
+                        <MdLocalHospital className="text-blue-500" /> Servicio asignado: {servicesList.find(s => s.id === formData.service_id)?.name}
+                     </p>
+                  )}
                 </div>
               </div>
             )}
@@ -567,8 +562,11 @@ const Exchange = () => {
                 loadOptions={(val) => loadCylinderOptions(val, 'OUT')}
                 isClearable
                 placeholder="-- Buscar balón lleno por serie --"
-                value={cylinderOutOptions.find(o => o.value === formData.cylinder_out) || null}
-                onChange={(s) => setFormData({ ...formData, cylinder_out: s?.value || '' })}
+                value={selectedCylOutOption}
+                onChange={(s) => {
+                  setSelectedCylOutOption(s);
+                  setFormData({ ...formData, cylinder_out: s?.value || '' });
+                }}
                 noOptionsMessage={({ inputValue }) => !inputValue ? "Escriba para buscar..." : "No se encontró cilindro."}
                 styles={customStyles}
               />
@@ -581,12 +579,26 @@ const Exchange = () => {
                 loadOptions={(val) => loadCylinderOptions(val, 'IN')}
                 isClearable
                 placeholder="-- Buscar balón vacío por serie --"
-                value={cylinderInOptions.find(o => o.value === formData.cylinder_in) || null}
-                onChange={(s) => setFormData({ ...formData, cylinder_in: s?.value || '' })}
+                value={selectedCylInOption}
+                onChange={(s) => {
+                  setSelectedCylInOption(s);
+                  setFormData({ ...formData, cylinder_in: s?.value || '' });
+                }}
                 isDisabled={(destinationType === 'patient' && !formData.patient_id)}
                 noOptionsMessage={({ inputValue }) => !inputValue ? "Escriba para buscar..." : "No se encontró cilindro."}
                 styles={customStyles}
               />
+              {selectedCylInOption && selectedCylInOption.cylinderData && destinationType === 'service' && formData.bed_id && (
+                selectedCylInOption.cylinderData.current_bed_id !== formData.bed_id || selectedCylInOption.cylinderData.current_service_id !== formData.service_id
+              ) && (
+                <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm font-semibold flex gap-2 items-start animate-fade-in">
+                  <MdWarning className="text-xl shrink-0 text-amber-500" />
+                  <div>
+                    ¡Aviso! Este balón no está registrado en la cama seleccionada.<br/>
+                    <span className="font-normal text-amber-700">Ubicación actual: {selectedCylInOption.cylinderData.current_service?.name || 'S/D'} — Cama {selectedCylInOption.cylinderData.current_bed?.bed_number || 'S/D'}</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

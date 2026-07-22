@@ -115,7 +115,6 @@ const DailyKardexReport = () => {
 
   const getCylinderColumnIndex = (mov, cylMov) => {
     if (!mov || !cylMov || !cylMov.cylinder) return -1;
-    const isPeriferie = checkIsPeriferie(mov);
     
     let rawCap = Math.floor(parseFloat(cylMov.cylinder.capacity || 0));
     let cap = 10;
@@ -126,9 +125,9 @@ const DailyKardexReport = () => {
 
     for (let i = 0; i < matrixColumns.length; i++) {
       const col = matrixColumns[i];
-      if (col.isPeriferie && isPeriferie) {
+      if (col.isPeriferie && brandName.includes('PERIFERIE')) {
         return i; 
-      } else if (!col.isPeriferie && !isPeriferie && cap === col.cap) {
+      } else if (!col.isPeriferie && cap === col.cap) {
         if (col.brand === 'ESSALUD' && (brandName.includes('ESSALUD') || brandName === 'MAT' || brandName === 'YA' || brandName === 'JD' || brandName.includes('KIOSHI'))) return i;
         if (col.brand === 'PACIENTE' && (brandName.includes('PACIENT') || brandName.includes('PROPIO'))) return i;
         if (col.brand === 'PRAXAIR' && (brandName.includes('PRAXAIR') || brandName === 'PX')) return i;

@@ -20,7 +20,9 @@ class PatientController extends Controller
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('full_name', 'like', '%' . $search . '%')
-                  ->orWhere('dni', 'like', '%' . $search . '%');
+                  ->orWhere('dni', 'like', '%' . $search . '%')
+                  ->orWhere('exchange_code', 'like', '%' . $search . '%')
+                  ->orWhere('trasiego_code', 'like', '%' . $search . '%');
             });
         }
 

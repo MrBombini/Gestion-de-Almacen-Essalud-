@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MdSave, MdLibraryAdd, MdHistory, MdAssignment, MdLocalShipping } from 'react-icons/md';
 import AsyncSelect from 'react-select/async';
 import useFetch from '../hooks/useFetch';
@@ -23,6 +23,29 @@ const SupplierMovement = () => {
   const [selectedSupplierOption, setSelectedSupplierOption] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
+  const [restoredDraft, setRestoredDraft] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('supplier_movement_draft');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.formData.supplier_id || parsed.formData.reference_document || parsed.formData.cylinders_in?.length > 0 || parsed.formData.cylinders_out?.length > 0) {
+          setFormData(parsed.formData);
+          if (parsed.selectedSupplierOption) setSelectedSupplierOption(parsed.selectedSupplierOption);
+          setRestoredDraft(true);
+        }
+      } catch (e) {
+        console.error('Error parsing draft', e);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (formData.supplier_id || formData.reference_document || formData.cylinders_in.length > 0 || formData.cylinders_out.length > 0) {
+      localStorage.setItem('supplier_movement_draft', JSON.stringify({ formData, selectedSupplierOption }));
+    }
+  }, [formData, selectedSupplierOption]);
 
   // ==========================================
   // CARGA ASÍNCRONA DE PROVEEDORES
@@ -98,6 +121,8 @@ const SupplierMovement = () => {
       });
 
       setSuccessMessage('¡Movimiento de proveedor registrado con éxito!');
+      localStorage.removeItem('supplier_movement_draft');
+      setRestoredDraft(false);
       
       // Limpieza de formulario y selects
       setFormData({
@@ -157,6 +182,20 @@ const SupplierMovement = () => {
       {(successMessage || errorMessage) && (
         <div className={`p-4 rounded-xl font-medium border-l-4 animate-fade-in ${successMessage ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-red-50 border-red-500 text-red-700'}`}>
           {successMessage || errorMessage}
+        </div>
+      )}
+
+      {restoredDraft && !successMessage && (
+        <div className="p-4 bg-amber-50 border-l-4 border-amber-500 text-amber-700 rounded-xl font-medium flex justify-between items-center animate-fade-in">
+          <span>Se ha recuperado un registro pendiente (Borrador).</span>
+          <button type="button" onClick={() => {
+            localStorage.removeItem('supplier_movement_draft');
+            setFormData({ supplier_id: '', reference_document: '', shift: shift || 'Morning', cylinders_in: [], cylinders_out: [], notes: '' });
+            setSelectedSupplierOption(null);
+            setRestoredDraft(false);
+          }} className="px-3 py-1 bg-amber-200 hover:bg-amber-300 text-amber-800 rounded-lg text-sm font-bold transition-colors">
+            Descartar Borrador
+          </button>
         </div>
       )}
 
