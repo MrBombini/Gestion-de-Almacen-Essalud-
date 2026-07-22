@@ -123,7 +123,8 @@ const Cylinders = () => {
   const emptyForm = {
     serial_number: '', barcode: '', supplier_id: '', ownership_type_id: '',
     patient_id: '', service_id: '', gas_type: 'OXÍGENO MEDICINAL', capacity: '',
-    status: 'empty', location: 'CENTRAL', hydrostatic_test_date: '', physical_condition: 'Good'
+    status: 'empty', location: 'CENTRAL', hydrostatic_test_date: '', physical_condition: 'Good',
+    current_service_id: ''
   };
   const [formData, setFormData] = useState(emptyForm);
   const [ownerType, setOwnerType] = useState('patient'); // 'patient' o 'service'
@@ -136,9 +137,17 @@ const Cylinders = () => {
   const supplierOptions = suppliersList.map(s => ({ value: s.id, label: s.name }));
   const ownershipOptions = ownershipTypesList.map(t => ({ value: t.id, label: t.name }));
   const serviceOptions = servicesList.map(s => ({ value: s.id, label: `${s.name} (${s.type})` }));
+  const patientOptions = patientsList.map(p => ({ value: p.id, label: p.full_name }));
   const bedOptions = bedsList
     .filter(b => filterService ? b.service_id == filterService : true)
     .map(b => ({ value: b.id, label: `Cama ${b.bed_number} - ${b.room}` }));
+
+  // Opciones de servicio actual (Asignación física) filtradas por la ubicación seleccionada
+  const filteredCurrentServices = servicesList.filter(s => {
+    if (formData.location === 'HOSPITALIZACION') return s.type === 'Hospital' || s.type === 'Manifold';
+    if (formData.location === 'PERIFERIE/CENTROS MEDICOS') return s.type === 'PERIFERIE';
+    return true; // Por si acaso
+  }).map(s => ({ value: s.id, label: `${s.name} (${s.type})` }));
 
   const selectStyles = {
     control: (base, state) => ({
@@ -191,7 +200,8 @@ const Cylinders = () => {
       supplier_id: c.supplier_id || '', ownership_type_id: c.ownership_type_id || '',
       patient_id: c.patient_id || '', service_id: c.service_id || '', gas_type: c.gas_type || 'OXÍGENO MEDICINAL',
       capacity: c.capacity, status: c.status, location: c.location || 'CENTRAL',
-      hydrostatic_test_date: c.hydrostatic_test_date || '', physical_condition: c.physical_condition || 'Good'
+      hydrostatic_test_date: c.hydrostatic_test_date || '', physical_condition: c.physical_condition || 'Good',
+      current_service_id: c.current_service_id || ''
     });
     setEditingId(c.id);
     setIsModalOpen(true);
@@ -259,6 +269,7 @@ const Cylinders = () => {
       PADOMI: 'bg-purple-50 text-purple-700 border-purple-100',
       ALMACEN: 'bg-amber-50 text-amber-700 border-amber-100',
       PROVEEDOR: 'bg-orange-50 text-orange-700 border-orange-100',
+      'PERIFERIE/CENTROS MEDICOS': 'bg-teal-50 text-teal-700 border-teal-100'
     };
     return (
       <span className={`px-2 py-1 rounded-md border text-[10px] font-bold flex items-center gap-1 w-fit whitespace-nowrap ${map[loc] || 'bg-slate-50 text-slate-700 border-slate-200'}`}>
@@ -398,6 +409,7 @@ const Cylinders = () => {
                 <option value="PADOMI">PADOMI</option>
                 <option value="ALMACEN">ALMACÉN</option>
                 <option value="PROVEEDOR">PROVEEDOR</option>
+                <option value="PERIFERIE/CENTROS MEDICOS">PERIFERIE/CENTROS MEDICOS</option>
               </select>
             </div>
             <div>
@@ -729,9 +741,29 @@ const Cylinders = () => {
                 <option value="PADOMI">PADOMI</option>
                 <option value="ALMACEN">ALMACÉN</option>
                 <option value="PROVEEDOR">PROVEEDOR</option>
+                <option value="PERIFERIE/CENTROS MEDICOS">PERIFERIE/CENTROS MEDICOS</option>
               </select>
             </div>
           </div>
+
+          {/* Selector de servicio actual condicional a la ubicación (Solo visible si es HOSPITALIZACION o PERIFERIE) */}
+          {(formData.location === 'HOSPITALIZACION' || formData.location === 'PERIFERIE/CENTROS MEDICOS') && (
+            <div className="p-4 bg-teal-50 rounded-xl border border-teal-100 mt-2">
+              <label className="block text-sm font-semibold text-teal-800 mb-2 flex items-center gap-2">
+                <MdLocationOn /> Asignación Actual (Dónde está ubicado físicamente)
+              </label>
+              <Select
+                options={filteredCurrentServices}
+                styles={selectStyles}
+                placeholder={`Seleccione ${formData.location === 'HOSPITALIZACION' ? 'servicio' : 'centro médico'} actual...`}
+                isClearable
+                value={filteredCurrentServices.find(o => o.value === formData.current_service_id) || null}
+                onChange={(s) => setFormData({ ...formData, current_service_id: s?.value || '' })}
+                menuPortalTarget={document.body}
+                menuPosition="fixed"
+              />
+            </div>
+          )}
 
           {/* Fecha Prueba Hidrostática y Condición Física */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -807,19 +839,29 @@ const Cylinders = () => {
               </div>
 
               {ownerType === 'patient' && (
-                <select required value={formData.patient_id} onChange={(e) => setFormData({ ...formData, patient_id: e.target.value })}
-                  className="w-full px-3 py-2 border border-blue-200 rounded-lg bg-white text-sm outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="" disabled>Seleccionar paciente...</option>
-                  {patientsList.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-                </select>
+                <Select
+                  options={patientOptions}
+                  styles={selectStyles}
+                  placeholder="Buscar y seleccionar paciente..."
+                  isClearable
+                  value={patientOptions.find(o => o.value === formData.patient_id) || null}
+                  onChange={(s) => setFormData({ ...formData, patient_id: s?.value || '' })}
+                  menuPortalTarget={document.body}
+                  menuPosition="fixed"
+                />
               )}
 
               {ownerType === 'service' && (
-                <select required value={formData.service_id} onChange={(e) => setFormData({ ...formData, service_id: e.target.value })}
-                  className="w-full px-3 py-2 border border-blue-200 rounded-lg bg-white text-sm outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="" disabled>Seleccionar servicio o periferia...</option>
-                  {servicesList.map(s => <option key={s.id} value={s.id}>{s.name} ({s.type})</option>)}
-                </select>
+                <Select
+                  options={serviceOptions}
+                  styles={selectStyles}
+                  placeholder="Buscar y seleccionar servicio o periferia..."
+                  isClearable
+                  value={serviceOptions.find(o => o.value === formData.service_id) || null}
+                  onChange={(s) => setFormData({ ...formData, service_id: s?.value || '' })}
+                  menuPortalTarget={document.body}
+                  menuPosition="fixed"
+                />
               )}
             </div>
           )}

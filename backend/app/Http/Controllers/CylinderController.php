@@ -36,6 +36,10 @@ class CylinderController extends Controller
             $query->where('status', $request->status);
         }
 
+        if ($request->filled('current_service_id') && $request->current_service_id !== 'ALL' && $request->current_service_id !== 'null') {
+            $query->where('current_service_id', $request->current_service_id);
+        }
+
         $perPage = $request->get('per_page', 20);
         
         if ($perPage === 'all') {
@@ -67,6 +71,9 @@ class CylinderController extends Controller
             $locationMap = [
                 'HOSPITALIZACIÓN' => 'HOSPITALIZACION',
                 'ALMACÉN' => 'ALMACEN',
+                'PERIFERIE' => 'PERIFERIE/CENTROS MEDICOS',
+                'PERIFERIA' => 'PERIFERIE/CENTROS MEDICOS',
+                'CENTROS MEDICOS' => 'PERIFERIE/CENTROS MEDICOS',
             ];
             $request->merge(['location' => $locationMap[$location] ?? $location]);
         }
@@ -86,9 +93,11 @@ class CylinderController extends Controller
             'gas_type'              => 'required|string',
             'capacity'              => 'required|numeric',
             'status'                => 'required|string|in:full,empty,in_use,lost,in_transit',
-            'location'              => 'required|string|in:CENTRAL,HOSPITALIZACION,PADOMI,ALMACEN,PROVEEDOR',
+            'location'              => 'required|string|in:CENTRAL,HOSPITALIZACION,PADOMI,ALMACEN,PROVEEDOR,PERIFERIE/CENTROS MEDICOS',
             'hydrostatic_test_date' => 'nullable|date',
             'physical_condition'    => 'nullable|string',
+            'current_service_id'    => 'nullable|exists:services,id',
+            'current_bed_id'        => 'nullable|exists:beds,id',
         ]);
 
         $cylinder = Cylinder::create($validated);
@@ -116,9 +125,11 @@ class CylinderController extends Controller
             'gas_type'              => 'required|string',
             'capacity'              => 'required|numeric',
             'status'                => 'required|string|in:full,empty,in_use,lost,in_transit',
-            'location'              => 'required|string|in:CENTRAL,HOSPITALIZACION,PADOMI,ALMACEN,PROVEEDOR',
+            'location'              => 'required|string|in:CENTRAL,HOSPITALIZACION,PADOMI,ALMACEN,PROVEEDOR,PERIFERIE/CENTROS MEDICOS',
             'hydrostatic_test_date' => 'nullable|date',
             'physical_condition'    => 'nullable|string',
+            'current_service_id'    => 'nullable|exists:services,id',
+            'current_bed_id'        => 'nullable|exists:beds,id',
         ]);
 
         $cylinder->update($validated);

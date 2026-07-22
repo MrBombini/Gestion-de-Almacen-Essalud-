@@ -344,7 +344,7 @@ class InventoryMovementController extends Controller
                     $cylinder = Cylinder::where('id', $cylinderId)->lockForUpdate()->first();
                     $cylinder->update([
                         'status'             => 'in_use',
-                        'location'           => 'HOSPITALIZACION', // Destino genérico para servicios
+                        'location'           => 'PERIFERIE/CENTROS MEDICOS', // Destino específico para periferia
                         'current_patient_id' => null,
                         'current_service_id' => $validated['service_id'],
                         'current_bed_id'     => null
