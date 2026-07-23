@@ -69,14 +69,23 @@ const MovementsReport = () => {
   const [endDate, setEndDate] = useState('');
 
   // 3. Estado de URL de búsqueda y Hook de datos
-  const [searchUrl, setSearchUrl] = useState('/reports/movements-search');
+  const [searchUrl, setSearchUrl] = useState('/reports/movements-search?page=1');
   const { data: results, loading: loadingResults, refetch } = useFetch(searchUrl);
-  const movementResults = Array.isArray(results) ? results : [];
+  const movementResults = results?.data || [];
+  const paginationMeta = results ? {
+    currentPage: results.current_page || 1,
+    lastPage: results.last_page || 1,
+    total: results.total || 0,
+    perPage: results.per_page || 20
+  } : null;
+
+  const [currentPage, setCurrentPage] = useState(1);
 
   const reportRef = useRef(null);
 
   // 4. Ejecutar búsqueda
-  const handleSearch = () => {
+  const handleSearch = (pageIndex = 1) => {
+    setCurrentPage(pageIndex);
     const params = new URLSearchParams();
     if (selectedCylinder) params.append('cylinder', selectedCylinder.value);
     if (selectedPatient) params.append('patient', selectedPatient.value);
@@ -87,6 +96,7 @@ const MovementsReport = () => {
     if (shift) params.append('shift', shift);
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
+    params.append('page', pageIndex);
 
     setSearchUrl(`/reports/movements-search?${params.toString()}`);
   };
@@ -102,7 +112,8 @@ const MovementsReport = () => {
     setShift('');
     setStartDate('');
     setEndDate('');
-    setSearchUrl('/reports/movements-search');
+    setCurrentPage(1);
+    setSearchUrl('/reports/movements-search?page=1');
   };
 
   // 6. Exportar a Excel (.xls nativo compatible)
@@ -410,12 +421,12 @@ const MovementsReport = () => {
           >
             <MdOutlineClear className="text-lg" /> Limpiar
           </button>
-          <button
-            onClick={handleSearch}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold transition-all shadow-sm hover:shadow-md text-sm"
-          >
-            <MdSearch className="text-lg" /> Buscar
-          </button>
+          <button 
+          onClick={() => handleSearch(1)}
+          className="col-span-full xl:col-span-1 xl:col-start-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2"
+        >
+          <MdSearch className="text-2xl" /> Buscar
+        </button>
         </div>
       </div>
 
@@ -570,6 +581,38 @@ const MovementsReport = () => {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Paginación */}
+        {paginationMeta && paginationMeta.lastPage > 1 && (
+          <div className="bg-white border-t border-slate-200 px-6 py-4 flex items-center justify-between rounded-b-3xl">
+            <div className="text-sm text-slate-500 font-medium">
+              Mostrando <span className="font-bold text-slate-800">{(paginationMeta.currentPage - 1) * paginationMeta.perPage + 1}</span> a <span className="font-bold text-slate-800">{Math.min(paginationMeta.currentPage * paginationMeta.perPage, paginationMeta.total)}</span> de <span className="font-bold text-slate-800">{paginationMeta.total}</span> resultados
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleSearch(paginationMeta.currentPage - 1)}
+                disabled={paginationMeta.currentPage === 1}
+                className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Anterior
+              </button>
+              
+              <div className="flex items-center gap-1">
+                <span className="px-4 py-2 bg-blue-50 text-blue-700 font-bold rounded-lg text-sm">
+                  Página {paginationMeta.currentPage} de {paginationMeta.lastPage}
+                </span>
+              </div>
+
+              <button
+                onClick={() => handleSearch(paginationMeta.currentPage + 1)}
+                disabled={paginationMeta.currentPage === paginationMeta.lastPage}
+                className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Siguiente
+              </button>
+            </div>
           </div>
         )}
       </div>

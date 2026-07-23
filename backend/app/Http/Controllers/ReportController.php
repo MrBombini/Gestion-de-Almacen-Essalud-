@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use App\Models\Decanting;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class ReportController extends Controller
 {
@@ -38,8 +39,9 @@ class ReportController extends Controller
 
         // 2. Saldo Inicial Detallado (Para lógica de celdas)
         $initialBalance = Cylinder::where('location', 'CENTRAL')
-            ->select('capacity', 'status', 'ownership_type_id', DB::raw('count(*) as total'))
-            ->groupBy('capacity', 'status', 'ownership_type_id')
+            ->select('capacity', 'status', 'ownership_type_id', 'supplier_id', DB::raw('count(*) as total'))
+            ->groupBy('capacity', 'status', 'ownership_type_id', 'supplier_id')
+            ->with(['ownershipType', 'supplier'])
             ->get();
             
         $startDateTime = Carbon::parse($date)->setTime(7, 0, 0);
@@ -229,9 +231,9 @@ class ReportController extends Controller
         // 4. Desglose detallado de balones en CENTRAL
         $centralBreakdown = Cylinder::where('location', 'CENTRAL')
             ->whereIn('status', ['full', 'empty'])
-            ->select('status', 'capacity', 'ownership_type_id', DB::raw('count(*) as total'))
-            ->groupBy('status', 'capacity', 'ownership_type_id')
-            ->with('ownershipType')
+            ->select('status', 'capacity', 'ownership_type_id', 'supplier_id', DB::raw('count(*) as total'))
+            ->groupBy('status', 'capacity', 'ownership_type_id', 'supplier_id')
+            ->with(['ownershipType', 'supplier'])
             ->get();
 
         return response()->json([
@@ -739,7 +741,20 @@ class ReportController extends Controller
         // 4. Combine and sort
         $results = $mappedMovements->concat($mappedDecantings)->sortByDesc('date')->values();
 
-        return response()->json($results);
+        // 5. Manual Pagination
+        $page = $request->query('page', 1);
+        $perPage = 20;
+        $total = $results->count();
+
+        $paginatedResults = new LengthAwarePaginator(
+            $results->forPage($page, $perPage)->values(),
+            $total,
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        return response()->json($paginatedResults);
     }
 
     public function patientAlerts(Request $request)
