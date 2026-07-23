@@ -68,10 +68,39 @@ const DailyKardexReport = () => {
   };
 
   // ==========================================
-  // 3. SALDO INICIAL SEGURO (FLEX-MATCHER APLICADO)
+  // 3. MAPEO DE COLUMNAS (Mueve esto arriba para reutilizarlo)
+  // ==========================================
+  const getCylinderColumnIndex = (mov, cylMov) => {
+    if (!mov || !cylMov || !cylMov.cylinder) return -1;
+    
+    let rawCap = Math.floor(parseFloat(cylMov.cylinder.capacity || 0));
+    let cap = 10;
+    if (rawCap <= 6) cap = 6;
+    else if (rawCap <= 8) cap = 8;
+
+    const brandName = String(cylMov.cylinder.ownership_type_name || cylMov.cylinder.ownership_type?.name || cylMov.cylinder.ownershipType?.name || 'ESSALUD').toUpperCase();
+    const supName = String(cylMov.cylinder.supplier_name || cylMov.cylinder.supplier?.name || '').toUpperCase();
+
+    for (let i = 0; i < matrixColumns.length; i++) {
+      const col = matrixColumns[i];
+      if (col.isPeriferie && brandName.includes('PERIFERIE')) {
+        return i; 
+      } else if (!col.isPeriferie && cap === col.cap) {
+        if (col.brand === 'ESSALUD' && (supName.includes('ESSALUD') || (!supName.includes('LINDE') && !supName.includes('PRAXAIR') && (brandName.includes('ESSALUD') || brandName === 'MAT' || brandName === 'YA' || brandName === 'JD' || brandName.includes('KIOSHI'))))) return i;
+        if (col.brand === 'PACIENTE' && (brandName.includes('PACIENT') || brandName.includes('PROPIO'))) return i;
+        if (col.brand === 'PRAXAIR' && (supName.includes('LINDE') || supName.includes('PRAXAIR') || brandName.includes('PRAXAIR') || brandName === 'PX')) return i;
+        if (col.brand === 'OXICUSCO' && brandName.includes('OXICUSCO')) return i;
+      }
+    }
+    return -1;
+  };
+
+  // ==========================================
+  // 4. SALDO INICIAL SEGURO (FLEX-MATCHER APLICADO)
   // ==========================================
   const startingBalances = useMemo(() => {
-    const balances = matrixColumns.map(() => ({ LLENO: 0, VACIO: 0 }));
+    // 1. Calcular el stock actual (tiempo real)
+    const currentBals = matrixColumns.map(() => ({ LLENO: 0, VACIO: 0 }));
 
     initialBalance.forEach(item => {
       if (!item) return;
@@ -86,56 +115,67 @@ const DailyKardexReport = () => {
       const isEmpty = status === 'empty' || status === 'vacio' || status === 'vacío' || status === 'in_transit';
       
       const brandName = String(item.ownership_type_name || item.ownership_type?.name || item.ownershipType?.name || '').toUpperCase();
+      const supName = String(item.supplier_name || item.supplier?.name || '').toUpperCase();
       const count = parseInt(item.total, 10) || 0;
 
       for (let i = 0; i < matrixColumns.length; i++) {
         const col = matrixColumns[i];
         
         if (col.isPeriferie && brandName.includes('PERIFERIE')) {
-            if (isFull) balances[i].LLENO += count;
-            if (isEmpty) balances[i].VACIO += count;
+            if (isFull) currentBals[i].LLENO += count;
+            if (isEmpty) currentBals[i].VACIO += count;
             break;
         } else if (!col.isPeriferie && col.cap === cap) {
           let matched = false;
-          if (col.brand === 'ESSALUD' && (brandName.includes('ESSALUD') || brandName === 'MAT' || brandName === 'YA' || brandName === 'JD' || brandName.includes('KIOSHI'))) matched = true;
+          if (col.brand === 'ESSALUD' && (supName.includes('ESSALUD') || (!supName.includes('LINDE') && !supName.includes('PRAXAIR') && (brandName.includes('ESSALUD') || brandName === 'MAT' || brandName === 'YA' || brandName === 'JD' || brandName.includes('KIOSHI'))))) matched = true;
           else if (col.brand === 'PACIENTE' && (brandName.includes('PACIENT') || brandName.includes('PROPIO'))) matched = true;
-          else if (col.brand === 'PRAXAIR' && (brandName.includes('PRAXAIR') || brandName === 'PX')) matched = true;
+          else if (col.brand === 'PRAXAIR' && (supName.includes('LINDE') || supName.includes('PRAXAIR') || brandName.includes('PRAXAIR') || brandName === 'PX')) matched = true;
           else if (col.brand === 'OXICUSCO' && brandName.includes('OXICUSCO')) matched = true;
 
           if (matched) {
-            if (isFull) balances[i].LLENO += count;
-            if (isEmpty) balances[i].VACIO += count;
+            if (isFull) currentBals[i].LLENO += count;
+            if (isEmpty) currentBals[i].VACIO += count;
             break;
           }
         }
       }
     });
-    return balances;
-  }, [initialBalance, matrixColumns]);
 
-  const getCylinderColumnIndex = (mov, cylMov) => {
-    if (!mov || !cylMov || !cylMov.cylinder) return -1;
-    
-    let rawCap = Math.floor(parseFloat(cylMov.cylinder.capacity || 0));
-    let cap = 10;
-    if (rawCap <= 6) cap = 6;
-    else if (rawCap <= 8) cap = 8;
+    // 2. Revertir los movimientos del día para reconstruir el stock a las 07:00 AM
+    const allMovs = [
+      ...(shiftsData['MAÑANA']?.movements || []),
+      ...(shiftsData['TARDE']?.movements || []),
+      ...(shiftsData['NOCHE']?.movements || [])
+    ];
 
-    const brandName = String(cylMov.cylinder.ownership_type_name || cylMov.cylinder.ownership_type?.name || cylMov.cylinder.ownershipType?.name || 'ESSALUD').toUpperCase();
+    allMovs.forEach(mov => {
+        if (!mov) return;
+        const cylMovs = ensureArray(mov.cylinder_movements);
+        
+        cylMovs.forEach(cylMov => {
+            const colIdx = getCylinderColumnIndex(mov, cylMov);
+            if (colIdx !== -1) {
+                const cStatus = String(cylMov.cylinder_status || '').toLowerCase().trim();
+                const isFull = cStatus === 'full' || cStatus === 'in_use' || cStatus === 'lleno';
+                
+                const act = String(cylMov.action || '').toLowerCase().trim();
+                const isExit = act === 'exit' || act === 'salida';
+                const isEntry = act === 'entry' || act === 'ingreso';
 
-    for (let i = 0; i < matrixColumns.length; i++) {
-      const col = matrixColumns[i];
-      if (col.isPeriferie && brandName.includes('PERIFERIE')) {
-        return i; 
-      } else if (!col.isPeriferie && cap === col.cap) {
-        if (col.brand === 'ESSALUD' && (brandName.includes('ESSALUD') || brandName === 'MAT' || brandName === 'YA' || brandName === 'JD' || brandName.includes('KIOSHI'))) return i;
-        if (col.brand === 'PACIENTE' && (brandName.includes('PACIENT') || brandName.includes('PROPIO'))) return i;
-        if (col.brand === 'PRAXAIR' && (brandName.includes('PRAXAIR') || brandName === 'PX')) return i;
-        if (col.brand === 'OXICUSCO' && brandName.includes('OXICUSCO')) return i;
-      }
-    }
-    return -1;
-  };
+                // REVERSIÓN
+                if (isFull) {
+                    if (isEntry) currentBals[colIdx].LLENO -= 1;
+                    if (isExit) currentBals[colIdx].LLENO += 1;
+                } else { 
+                    if (isEntry) currentBals[colIdx].VACIO -= 1;
+                    if (isExit) currentBals[colIdx].VACIO += 1;
+                }
+            }
+        });
+    });
+
+    return currentBals;
+  }, [initialBalance, matrixColumns, shiftsData]);
 
   // ==========================================
   // 4. MOTOR MATEMÁTICO EN CASCADA
@@ -332,7 +372,11 @@ const DailyKardexReport = () => {
 
           if (mov._type === 'STANDARD') {
             colNum = mov._num;
-            codeBed = mov.patient?.exchange_code || mov.bed_id || '';
+            const serviceAbbr = mov.service?.abbreviation || '';
+            const bedNum = mov.bed?.bed_number || '';
+            codeBed = mov.patient?.exchange_code 
+              ? mov.patient.exchange_code 
+              : (serviceAbbr || bedNum ? `${serviceAbbr}${bedNum}` : '');
             nameServ = mov.patient?.full_name || mov.service?.name || '';
             cylOut = cylMovs.find(m => {
                 const a = String(m.action || '').toLowerCase();

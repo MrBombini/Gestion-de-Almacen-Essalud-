@@ -180,6 +180,10 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
               <MdAssignment className="text-lg" />
               <span>Búsqueda de Movimientos</span>
             </NavLink>
+            <NavLink to="/reports/trasiegos" className={navLinkClass} onClick={closeSidebarMobile}>
+              <FaGasPump className="text-lg" />
+              <span>Reporte de Trasiegos</span>
+            </NavLink>
             <NavLink to="/reports/kardexresume" className={navLinkClass} onClick={closeSidebarMobile}>
               <MdAssignment className="text-lg" />
               <span>Resumen de Kardex</span>

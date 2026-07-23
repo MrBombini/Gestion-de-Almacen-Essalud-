@@ -21,15 +21,32 @@ const Dashboard = () => {
   let capacities = [...new Set([...breakdown.map(b => Number(b.capacity)), 10, 8, 6])].sort((a,b) => b - a);
   capacities = capacities.filter(c => c > 0);
 
-  // Extraer propietarios únicos
-  let owners = [...new Set(breakdown.map(b => b.ownership_type?.name || 'OTRO'))].sort();
-  if (owners.length === 0) {
-      owners = ['ESSALUD', 'B.PROPIO P', 'PERIFERIA'];
+  // Agrupar breakdown por proveedor
+  const suppliersMap = new Map();
+  breakdown.forEach(b => {
+      let supName = 'OTROS PROVEEDORES';
+      if (b.supplier && b.supplier.name) {
+          supName = b.supplier.name.toUpperCase();
+      }
+      if (!suppliersMap.has(supName)) {
+          suppliersMap.set(supName, []);
+      }
+      suppliersMap.get(supName).push(b);
+  });
+  
+  // Convertir a array estructurado
+  const suppliersList = Array.from(suppliersMap.entries()).map(([supName, items]) => {
+      let owners = [...new Set(items.map(b => b.ownership_type?.name || 'OTRO'))].sort();
+      return { supName, items, owners };
+  });
+
+  if (suppliersList.length === 0) {
+      suppliersList.push({ supName: 'SISTEMA', items: [], owners: ['ESSALUD', 'B.PROPIO P', 'PERIFERIA'] });
   }
 
   // Helper para buscar cantidad
-  const getCount = (owner, cap, status) => {
-      const match = breakdown.find(b => 
+  const getCount = (items, owner, cap, status) => {
+      const match = items.find(b => 
           (b.ownership_type?.name || 'OTRO') === owner && 
           Number(b.capacity) === cap && 
           b.status === status
@@ -144,70 +161,79 @@ const Dashboard = () => {
               <div className="p-2 bg-slate-100 text-slate-600 rounded-lg shrink-0"><MdOutlineInventory2 className="text-xl" /></div>
               <div>
                   <h3 className="text-base sm:text-lg font-black text-slate-800 tracking-tight">Desglose Exacto en Almacén Central</h3>
-                  <p className="text-[10px] sm:text-xs font-semibold text-slate-400">Inventario físico por capacidad y tipo de propiedad</p>
+                  <p className="text-[10px] sm:text-xs font-semibold text-slate-400">Inventario físico por capacidad, proveedor y modelo</p>
               </div>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-slate-100">
-              <table className="w-full text-left border-collapse min-w-[600px]">
-                  <thead>
-                      <tr>
-                          <th className="px-4 py-3 bg-slate-50 border-b-2 border-slate-200 text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest text-left sm:text-center sticky left-0 z-10" rowSpan="2">Propietario</th>
-                          {capacities.map(cap => (
-                              <th key={cap} className="px-4 py-2 bg-slate-50 border-b border-slate-200 border-l border-slate-200 text-sm font-black text-slate-700 text-center" colSpan="2">
-                                  {cap} m³
-                              </th>
-                          ))}
-                      </tr>
-                      <tr>
-                          {capacities.map(cap => (
-                              <React.Fragment key={`sub-${cap}`}>
-                                  <th className="px-2 py-2 bg-emerald-50/50 border-b-2 border-emerald-200 border-l border-slate-200 text-[10px] font-bold text-emerald-600 uppercase tracking-wider text-center w-16 sm:w-20">Llenos</th>
-                                  <th className="px-2 py-2 bg-orange-50/50 border-b-2 border-orange-200 text-[10px] font-bold text-orange-600 uppercase tracking-wider text-center w-16 sm:w-20">Vacíos</th>
-                              </React.Fragment>
-                          ))}
-                      </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                      {owners.map(owner => (
-                          <tr key={owner} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="px-4 py-3 text-[10px] sm:text-sm font-bold text-slate-700 border-r border-slate-100 sticky left-0 bg-white group-hover:bg-slate-50/50 z-10 whitespace-nowrap">{owner}</td>
-                              {capacities.map(cap => {
-                                  const full = getCount(owner, cap, 'full');
-                                  const empty = getCount(owner, cap, 'empty');
-                                  return (
-                                      <React.Fragment key={`${owner}-${cap}`}>
-                                          <td className={`px-2 py-3 text-center text-xs sm:text-sm font-black border-l border-slate-100 ${full > 0 ? 'text-emerald-600' : 'text-slate-300'}`}>
-                                              {loading ? '-' : full}
-                                          </td>
-                                          <td className={`px-2 py-3 text-center text-xs sm:text-sm font-black ${empty > 0 ? 'text-orange-600' : 'text-slate-300'}`}>
-                                              {loading ? '-' : empty}
-                                          </td>
-                                      </React.Fragment>
-                                  );
-                              })}
-                          </tr>
-                      ))}
-                      {/* Fila de Totales */}
-                      <tr className="bg-slate-50 border-t-2 border-slate-200">
-                          <td className="px-4 py-3 text-xs sm:text-sm font-black text-slate-800 text-right uppercase tracking-wider sticky left-0 bg-slate-50 z-10">Total</td>
-                          {capacities.map(cap => {
-                              const totalFull = owners.reduce((sum, owner) => sum + getCount(owner, cap, 'full'), 0);
-                              const totalEmpty = owners.reduce((sum, owner) => sum + getCount(owner, cap, 'empty'), 0);
-                              return (
-                                  <React.Fragment key={`total-${cap}`}>
-                                      <td className="px-2 py-3 text-center text-xs sm:text-sm font-black text-emerald-700 border-l border-slate-200">
-                                          {loading ? '-' : totalFull}
-                                      </td>
-                                      <td className="px-2 py-3 text-center text-xs sm:text-sm font-black text-orange-700">
-                                          {loading ? '-' : totalEmpty}
-                                      </td>
-                                  </React.Fragment>
-                              );
-                          })}
-                      </tr>
-                  </tbody>
-              </table>
+          <div className="space-y-8">
+              {suppliersList.map(({ supName, items, owners }) => (
+                  <div key={supName} className="border border-slate-200 rounded-2xl overflow-hidden">
+                      <div className="bg-slate-100 px-4 py-3 border-b border-slate-200">
+                          <h4 className="font-black text-slate-800 uppercase tracking-widest text-sm">PROPIEDAD DE: {supName}</h4>
+                      </div>
+                      <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse min-w-[600px]">
+                              <thead>
+                                  <tr>
+                                      <th className="px-4 py-3 bg-white border-b-2 border-slate-200 text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest text-left sm:text-center sticky left-0 z-10" rowSpan="2">Modelo / Tipo</th>
+                                      {capacities.map(cap => (
+                                          <th key={cap} className="px-4 py-2 bg-white border-b border-slate-200 border-l border-slate-200 text-sm font-black text-slate-700 text-center" colSpan="2">
+                                              {cap} m³
+                                          </th>
+                                      ))}
+                                  </tr>
+                                  <tr>
+                                      {capacities.map(cap => (
+                                          <React.Fragment key={`sub-${cap}`}>
+                                              <th className="px-2 py-2 bg-emerald-50/50 border-b-2 border-emerald-200 border-l border-slate-200 text-[10px] font-bold text-emerald-600 uppercase tracking-wider text-center w-16 sm:w-20">Llenos</th>
+                                              <th className="px-2 py-2 bg-orange-50/50 border-b-2 border-orange-200 text-[10px] font-bold text-orange-600 uppercase tracking-wider text-center w-16 sm:w-20">Vacíos</th>
+                                          </React.Fragment>
+                                      ))}
+                                  </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                  {owners.map(owner => (
+                                      <tr key={owner} className="hover:bg-slate-50/50 transition-colors">
+                                          <td className="px-4 py-3 text-[10px] sm:text-sm font-bold text-slate-700 border-r border-slate-100 sticky left-0 bg-white group-hover:bg-slate-50/50 z-10 whitespace-nowrap">{owner}</td>
+                                          {capacities.map(cap => {
+                                              const full = getCount(items, owner, cap, 'full');
+                                              const empty = getCount(items, owner, cap, 'empty');
+                                              return (
+                                                  <React.Fragment key={`${owner}-${cap}`}>
+                                                      <td className={`px-2 py-3 text-center text-xs sm:text-sm font-black border-l border-slate-100 ${full > 0 ? 'text-emerald-600' : 'text-slate-300'}`}>
+                                                          {loading ? '-' : full}
+                                                      </td>
+                                                      <td className={`px-2 py-3 text-center text-xs sm:text-sm font-black ${empty > 0 ? 'text-orange-600' : 'text-slate-300'}`}>
+                                                          {loading ? '-' : empty}
+                                                      </td>
+                                                  </React.Fragment>
+                                              );
+                                          })}
+                                      </tr>
+                                  ))}
+                                  {/* Fila de Totales por Proveedor */}
+                                  <tr className="bg-slate-50 border-t-2 border-slate-200">
+                                      <td className="px-4 py-3 text-xs sm:text-sm font-black text-slate-800 text-right uppercase tracking-wider sticky left-0 bg-slate-50 z-10">Total {supName}</td>
+                                      {capacities.map(cap => {
+                                          const totalFull = owners.reduce((sum, owner) => sum + getCount(items, owner, cap, 'full'), 0);
+                                          const totalEmpty = owners.reduce((sum, owner) => sum + getCount(items, owner, cap, 'empty'), 0);
+                                          return (
+                                              <React.Fragment key={`total-${cap}`}>
+                                                  <td className="px-2 py-3 text-center text-xs sm:text-sm font-black text-emerald-700 border-l border-slate-200">
+                                                      {loading ? '-' : totalFull}
+                                                  </td>
+                                                  <td className="px-2 py-3 text-center text-xs sm:text-sm font-black text-orange-700">
+                                                      {loading ? '-' : totalEmpty}
+                                                  </td>
+                                              </React.Fragment>
+                                          );
+                                      })}
+                                  </tr>
+                              </tbody>
+                          </table>
+                      </div>
+                  </div>
+              ))}
           </div>
       </div>
 

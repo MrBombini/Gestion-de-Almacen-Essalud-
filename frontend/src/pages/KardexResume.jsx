@@ -177,8 +177,10 @@ const KardexResume = () => {
         else if (rawCap <= 8) cap = 8;
 
         const sBrand = String(cm.cylinder?.ownership_type_name || cm.cylinder?.ownership_type?.name || '').toUpperCase().trim();
+        const supName = String(cm.cylinder?.supplier_name || cm.cylinder?.supplier?.name || '').toUpperCase().trim();
+        
         let brandKey = 'ESSALUD';
-        if (sBrand.includes('PRAXAIR') || sBrand === 'PX') brandKey = 'PRAXAIR';
+        if (supName.includes('PRAXAIR') || supName.includes('LINDE') || sBrand.includes('PRAXAIR') || sBrand === 'PX') brandKey = 'PRAXAIR';
 
         // Salidas (Consumo Físico)
         if (act === 'exit' || act === 'salida') {

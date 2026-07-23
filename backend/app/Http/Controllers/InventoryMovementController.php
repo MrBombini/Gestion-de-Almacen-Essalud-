@@ -393,14 +393,45 @@ class InventoryMovementController extends Controller
             $perPage = 500;
         }
 
-        $decantings = Decanting::with([
+        $query = Decanting::with([
                 'user',
                 'patient',
                 'service',
                 'cylinder.ownershipType',
                 'prescription'
-            ])
-            ->orderBy('decanted_at', 'desc')
+            ]);
+
+        if ($request->filled('patient_id')) {
+            $query->where('patient_id', $request->patient_id);
+        }
+
+        if ($request->filled('service_id')) {
+            $query->where('service_id', $request->service_id);
+        }
+
+        if ($request->filled('shift')) {
+            $query->where('shift', $request->shift);
+        }
+
+        if ($request->filled('start_date') && $request->filled('end_date')) {
+            $start = \Carbon\Carbon::parse($request->start_date)->startOfDay();
+            $end = \Carbon\Carbon::parse($request->end_date)->endOfDay();
+            $query->whereBetween('decanted_at', [$start, $end]);
+        } elseif ($request->filled('start_date')) {
+            $start = \Carbon\Carbon::parse($request->start_date)->startOfDay();
+            $query->where('decanted_at', '>=', $start);
+        } elseif ($request->filled('end_date')) {
+            $end = \Carbon\Carbon::parse($request->end_date)->endOfDay();
+            $query->where('decanted_at', '<=', $end);
+        }
+
+        if ($request->filled('capacity')) {
+            $query->whereHas('cylinder', function ($q) use ($request) {
+                $q->where('capacity', $request->capacity);
+            });
+        }
+
+        $decantings = $query->orderBy('decanted_at', 'desc')
             ->paginate($perPage);
 
         return response()->json($decantings);

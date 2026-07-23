@@ -10,7 +10,7 @@ class Service extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $fillable = ['name', 'type'];
+    protected $fillable = ['name', 'type', 'abbreviation'];
 
     public function beds()
     {
