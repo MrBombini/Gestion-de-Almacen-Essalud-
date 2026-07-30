@@ -103,14 +103,27 @@ const KardexResume = () => {
         else if (rawCap <= 8) sCap = 8;
 
         const sBrand = String(s.ownership_type?.name || s.ownership_name || s.ownership_type_name || '').toUpperCase();
+        const sSupplier = String(s.supplier?.name || s.supplier_name || '').toUpperCase();
 
-        if (sLoc.includes(location.toUpperCase()) && sCap === capacity) {
+        let resolvedBrand = sBrand;
+        if (sSupplier.includes('PRAXAIR') || sSupplier.includes('LINDE') || sBrand.includes('PRAXAIR') || sBrand === 'PX') {
+            resolvedBrand = 'PRAXAIR';
+        }
+
+        let locMatch = false;
+        if (location.toUpperCase() === 'CENTRAL') {
+            if (sLoc.includes('CENTRAL') || sLoc.includes('ALMACEN')) locMatch = true;
+        } else {
+            if (sLoc.includes(location.toUpperCase())) locMatch = true;
+        }
+
+        if (locMatch && sCap === capacity) {
             let matched = false;
-            if (brandKeyword === 'ESSALUD' && (sBrand.includes('ESSALUD') || sBrand === 'MAT' || sBrand === 'YA' || sBrand === 'JD' || sBrand.includes('KIOSHI'))) matched = true;
-            else if (brandKeyword === 'PROPIO' && (sBrand.includes('PACIENT') || sBrand.includes('PROPIO'))) matched = true;
-            else if (brandKeyword === 'PRAXAIR' && (sBrand.includes('PRAXAIR') || sBrand === 'PX')) matched = true;
-            else if (brandKeyword === 'OXICUSCO' && sBrand.includes('OXICUSCO')) matched = true;
-            else if (brandKeyword === 'PERIFERIE' && sBrand.includes('PERIFERIE')) matched = true;
+            if (brandKeyword === 'ESSALUD' && (resolvedBrand.includes('ESSALUD') || resolvedBrand === 'MAT' || resolvedBrand === 'YA' || resolvedBrand === 'JD' || resolvedBrand.includes('KIOSHI'))) matched = true;
+            else if (brandKeyword === 'PROPIO' && (resolvedBrand.includes('PACIENT') || resolvedBrand.includes('PROPIO'))) matched = true;
+            else if (brandKeyword === 'PRAXAIR' && (resolvedBrand === 'PRAXAIR')) matched = true;
+            else if (brandKeyword === 'OXICUSCO' && resolvedBrand.includes('OXICUSCO')) matched = true;
+            else if (brandKeyword === 'PERIFERIE' && resolvedBrand.includes('PERIFERIE')) matched = true;
 
             if (matched) total += (parseInt(s.total, 10) || 0);
         }
@@ -203,17 +216,17 @@ const KardexResume = () => {
     });
 
     const sumReserva = 
-      getStock(llenos, 'CENTRAL', 6, 'ESSALUD') +
-      getStock(llenos, 'CENTRAL', 10, 'OXICUSCO') +
-      getStock(llenos, 'CENTRAL', 10, 'ESSALUD') +
-      getStock(llenos, 'CENTRAL', 10, 'PRAXAIR') +
-      getStock(llenos, 'CENTRAL', 8, 'ESSALUD') +
-      getStock(llenos, 'CENTRAL', 10, 'PROPIO') +
-      getStock(llenos, 'CENTRAL', 6, 'PROPIO') +
-      getStock(llenos, 'CENTRAL', 10, 'PERIFERIE') +
-      getStock(llenos, 'PLANTA', 6, 'ESSALUD') +
-      getStock(llenos, 'PLANTA', 10, 'ESSALUD') +
-      getStock(llenos, 'PLANTA', 8, 'ESSALUD');
+      (getStock(llenos, 'CENTRAL', 6, 'ESSALUD') * 6) +
+      (getStock(llenos, 'CENTRAL', 10, 'OXICUSCO') * 10) +
+      (getStock(llenos, 'CENTRAL', 10, 'ESSALUD') * 10) +
+      (getStock(llenos, 'CENTRAL', 10, 'PRAXAIR') * 10) +
+      (getStock(llenos, 'CENTRAL', 8, 'ESSALUD') * 8) +
+      (getStock(llenos, 'CENTRAL', 10, 'PROPIO') * 10) +
+      (getStock(llenos, 'CENTRAL', 6, 'PROPIO') * 6) +
+      (getStock(llenos, 'CENTRAL', 10, 'PERIFERIE') * 10) +
+      (getStock(llenos, 'PLANTA', 6, 'ESSALUD') * 6) +
+      (getStock(llenos, 'PLANTA', 10, 'ESSALUD') * 10) +
+      (getStock(llenos, 'PLANTA', 8, 'ESSALUD') * 8);
 
     return (
       <div key={shiftName} className="mb-6">

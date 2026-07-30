@@ -102,15 +102,15 @@ class ReportController extends Controller
 
         // 2. Estado Físico ACTUAL del almacén
         $fullStock = Cylinder::where('status', 'full')
-            ->select('location', 'capacity', 'ownership_type_id', DB::raw('count(*) as total'))
-            ->groupBy('location', 'capacity', 'ownership_type_id')
-            ->with('ownershipType')
+            ->select('location', 'capacity', 'ownership_type_id', 'supplier_id', DB::raw('count(*) as total'))
+            ->groupBy('location', 'capacity', 'ownership_type_id', 'supplier_id')
+            ->with(['ownershipType', 'supplier'])
             ->get();
 
         $emptyStock = Cylinder::where('status', 'empty')
-            ->select('location', 'capacity', 'ownership_type_id', DB::raw('count(*) as total'))
-            ->groupBy('location', 'capacity', 'ownership_type_id')
-            ->with('ownershipType')
+            ->select('location', 'capacity', 'ownership_type_id', 'supplier_id', DB::raw('count(*) as total'))
+            ->groupBy('location', 'capacity', 'ownership_type_id', 'supplier_id')
+            ->with(['ownershipType', 'supplier'])
             ->get();
 
         $shifts = ['Morning' => 'MAÑANA', 'Afternoon' => 'TARDE', 'Night' => 'NOCHE'];
@@ -160,8 +160,21 @@ class ReportController extends Controller
             ];
         }
 
-        $initialBalance = 1170; 
+        // Calcular Saldo Inicial Dinámico
+        // Saldo Inicial = Stock Actual Físico Lleno (m3) - Total Ingresos del Día + Total Consumos del Día
+        $currentFullM3 = 0;
+        foreach ($fullStock as $stock) {
+            $currentFullM3 += ((float) $stock->capacity * (int) $stock->total);
+        }
 
+        $totalIngresoDay = 0;
+        $totalConsumoDay = 0;
+        foreach ($shiftData as $shift) {
+            $totalIngresoDay += $shift['total_ingreso'];
+            $totalConsumoDay += $shift['total'];
+        }
+
+        $initialBalance = $currentFullM3 - $totalIngresoDay + $totalConsumoDay;
         return response()->json([
             'date' => $date,
             'shifts' => $shiftData,

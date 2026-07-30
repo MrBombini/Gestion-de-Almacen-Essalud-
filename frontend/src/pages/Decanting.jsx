@@ -193,6 +193,11 @@ const Decanting = () => {
     setSuccessMessage(null);
     setErrorMessage(null);
 
+    // Confirmación de seguridad (Evita envíos accidentales por escáner de código de barras)
+    if (!window.confirm('¿Está seguro de registrar este trasiego/recarga con los datos ingresados?')) {
+      return;
+    }
+
     if (destinationType === 'service' && !formData.service_id) {
       return setErrorMessage('Selecciona un servicio válido de EsSalud.');
     }
