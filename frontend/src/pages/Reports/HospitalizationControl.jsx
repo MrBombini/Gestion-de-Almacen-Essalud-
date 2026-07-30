@@ -28,10 +28,16 @@ const HospitalizationControl = () => {
     }
   }, [data]);
 
+  const [selectedService, setSelectedService] = useState('');
+  const [selectedBed, setSelectedBed] = useState('');
+
   // Cálculos de fórmula: Tiempo = (Volumen_Litros * Presion_Bar) / Flujo
   // 10m3 = 50L, 8m3 = 40L, 6m3 = 30L
-  const handleInputChange = (index, field, value) => {
+  const handleInputChange = (id, field, value) => {
     const updated = [...localData];
+    const index = updated.findIndex(c => c.id === id);
+    if (index === -1) return;
+
     updated[index][field] = value;
 
     const presionPsi = parseFloat(updated[index].presion_psi) || 0;
@@ -96,10 +102,17 @@ const HospitalizationControl = () => {
     return new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
   };
 
+  // Filtrado
+  const filteredData = localData.filter(cyl => {
+    const matchService = !selectedService || cyl.current_service?.name === selectedService;
+    const matchBed = !selectedBed || cyl.current_bed?.bed_number === selectedBed;
+    return matchService && matchBed;
+  });
+
   // Dividimos en dos columnas para emular el reporte original si hay muchos datos
-  const half = Math.ceil(localData.length / 2);
-  const leftCol = localData.slice(0, half);
-  const rightCol = localData.slice(half);
+  const half = Math.ceil(filteredData.length / 2);
+  const leftCol = filteredData.slice(0, half);
+  const rightCol = filteredData.slice(half);
 
   const renderTable = (columnData, startIndex) => (
     <table className="w-full text-xs bg-white border-collapse border border-black text-center shadow-sm">
@@ -110,8 +123,8 @@ const HospitalizationControl = () => {
           <th className="border border-black p-1 bg-slate-100">SERVICIO</th>
           <th className="border border-black p-1 bg-slate-100">CÓDIGO CILINDRO</th>
           <th className="border border-black p-1 bg-slate-100">MODELO</th>
-          <th className="border border-black p-1 w-16 bg-slate-100">PRESIÓN</th>
-          <th className="border border-black p-1 w-16 bg-slate-100">FLUJO</th>
+          <th className="border border-black p-1 w-16 bg-slate-100 no-print">PRESIÓN</th>
+          <th className="border border-black p-1 w-16 bg-slate-100 no-print">FLUJO</th>
           <th className="border border-black p-1 w-16 bg-slate-100">TIEMPO (H)</th>
         </tr>
       </thead>
@@ -121,25 +134,25 @@ const HospitalizationControl = () => {
           return (
             <tr key={cyl.id} className="hover:bg-slate-50">
               <td className="border border-black p-1">{globalIdx + 1}</td>
-              <td className="border border-black p-1 text-[10px] uppercase">{cyl.current_bed?.name || '-'}</td>
+              <td className="border border-black p-1 text-[10px] uppercase font-bold text-blue-700">{cyl.current_bed?.bed_number || '-'}</td>
               <td className="border border-black p-1 text-[10px] uppercase truncate max-w-[120px]">{cyl.current_service?.name || '-'}</td>
               <td className="border border-black p-1 uppercase">{cyl.serial_number}</td>
               <td className="border border-black p-1 text-[10px] truncate max-w-[80px] uppercase">{cyl.ownership_type?.name || 'ESSALUD'}</td>
-              <td className="border border-black p-0">
+              <td className="border border-black p-0 no-print">
                 <input 
                   type="number" 
                   className="w-full h-full text-center outline-none bg-transparent"
                   value={cyl.presion_psi}
-                  onChange={(e) => handleInputChange(globalIdx, 'presion_psi', e.target.value)}
+                  onChange={(e) => handleInputChange(cyl.id, 'presion_psi', e.target.value)}
                   placeholder="PSI"
                 />
               </td>
-              <td className="border border-black p-0">
+              <td className="border border-black p-0 no-print">
                 <input 
                   type="number" 
                   className="w-full h-full text-center outline-none bg-transparent"
                   value={cyl.flujo_lmin}
-                  onChange={(e) => handleInputChange(globalIdx, 'flujo_lmin', e.target.value)}
+                  onChange={(e) => handleInputChange(cyl.id, 'flujo_lmin', e.target.value)}
                   placeholder="L/min"
                 />
               </td>
@@ -152,6 +165,13 @@ const HospitalizationControl = () => {
       </tbody>
     </table>
   );
+
+  const uniqueServices = Array.from(new Set(localData.map(c => c.current_service?.name).filter(Boolean))).sort();
+  const uniqueBeds = Array.from(new Set(localData
+    .filter(c => !selectedService || c.current_service?.name === selectedService)
+    .map(c => c.current_bed?.bed_number)
+    .filter(Boolean)
+  )).sort();
 
   return (
     <div className="space-y-6 pb-12">
@@ -182,6 +202,33 @@ const HospitalizationControl = () => {
 
       {!loading && !error && (
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
+          {/* Filtros */}
+          <div className="flex flex-col sm:flex-row gap-4 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <div className="flex-1">
+              <label className="block text-xs font-bold text-slate-600 mb-1">Filtrar por Servicio:</label>
+              <select 
+                className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white"
+                value={selectedService}
+                onChange={(e) => { setSelectedService(e.target.value); setSelectedBed(''); }}
+              >
+                <option value="">-- Todos los servicios --</option>
+                {uniqueServices.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs font-bold text-slate-600 mb-1">Filtrar por Cama:</label>
+              <select 
+                className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white"
+                value={selectedBed}
+                onChange={(e) => setSelectedBed(e.target.value)}
+                disabled={!selectedService}
+              >
+                <option value="">-- Todas las camas --</option>
+                {uniqueBeds.map(b => <option key={b} value={b}>Cama {b}</option>)}
+              </select>
+            </div>
+          </div>
+
           <div ref={reportRef} className="min-w-[800px] text-black">
             
             <h2 className="text-center font-black text-xl mb-6 tracking-wide">
