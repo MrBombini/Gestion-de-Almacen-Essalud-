@@ -331,7 +331,7 @@ const PeripheryExchange = () => {
           <button 
             type="submit" 
             disabled={actionLoading}
-            className="group relative px-20 py-5 bg-indigo-900 text-white rounded-2xl font-black text-xl shadow-2xl hover:bg-indigo-950 transition-all hover:scale-105 active:scale-95 disabled:bg-slate-400 disabled:scale-100 overflow-hidden"
+            className="group relative w-full sm:w-auto px-6 sm:px-20 py-5 bg-indigo-900 text-white rounded-2xl font-black text-xl shadow-2xl hover:bg-indigo-950 transition-all hover:scale-105 active:scale-95 disabled:bg-slate-400 disabled:scale-100 overflow-hidden"
           >
             <div className="relative z-10 flex items-center gap-3">
               {actionLoading ? 'Procesando...' : (

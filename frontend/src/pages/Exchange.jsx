@@ -458,10 +458,10 @@ const Exchange = () => {
               <MdPerson className="text-indigo-500" /> 1. Destino y Validación
             </h3>
 
-            <div className="flex p-1 bg-slate-100 rounded-xl w-fit">
-              <button type="button" onClick={() => setDestinationType('service')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${destinationType === 'service' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>Área / Hospital</button>
-              <button type="button" onClick={() => setDestinationType('patient')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${destinationType === 'patient' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>Paciente</button>
-              <button type="button" onClick={() => setDestinationType('manifold')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${destinationType === 'manifold' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>Manifold / Planta</button>
+            <div className="flex flex-col sm:flex-row p-1 bg-slate-100 rounded-xl w-full sm:w-fit gap-1">
+              <button type="button" onClick={() => setDestinationType('service')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all text-center ${destinationType === 'service' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200'}`}>Área / Hospital</button>
+              <button type="button" onClick={() => setDestinationType('patient')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all text-center ${destinationType === 'patient' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200'}`}>Paciente</button>
+              <button type="button" onClick={() => setDestinationType('manifold')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all text-center ${destinationType === 'manifold' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200'}`}>Manifold / Planta</button>
             </div>
 
             {destinationType === 'patient' && (
