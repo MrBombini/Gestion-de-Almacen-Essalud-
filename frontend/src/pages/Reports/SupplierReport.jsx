@@ -77,12 +77,21 @@ const SupplierReport = () => {
         <head>
           <title>Reporte Ingreso y Salida</title>
           <style>
-            @page { size: A4 landscape; margin: 8mm; }
-            body { font-family: Arial, sans-serif; font-size: 11px; margin: 0; color: #000; }
-            .report-title { text-align: center; color: #2e7d32; font-weight: bold; font-size: 18px; margin: 0; }
-            .report-subtitle { text-align: center; color: #43a047; font-weight: bold; font-size: 16px; margin-bottom: 15px; }
-            table { width: 100%; border-collapse: collapse; text-align: left; font-size: 10px; }
-            th, td { border: 1px solid #000; padding: 3px 4px; }
+            @page { 
+              size: A4 landscape; 
+              margin: 8mm; 
+            }
+            body { 
+              font-family: Arial, sans-serif; 
+              margin: 0; 
+              padding: 0;
+              color: #000;
+              font-size: 11px;
+            }
+            .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+            .report-subtitle { text-align: center; color: #43a047; font-weight: bold; font-size: 18px; margin-bottom: 20px; }
+            table { width: 100%; border-collapse: collapse; text-align: left; }
+            th, td { border: 1px solid #000; padding: 4px 6px; }
             .bold { font-weight: bold; }
             .no-border-bottom { border-bottom: none; }
             .signatures { margin-top: 50px; width: 100%; text-align: center; }
