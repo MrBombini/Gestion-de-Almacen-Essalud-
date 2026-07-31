@@ -62,7 +62,7 @@ const LiquidRefill = () => {
       setCalculatedWeight(0);
     }
   }, [formData.weight_before, formData.weight_after]);
-  
+
   // Automatización de Cantidad Facturada (Peso Neto * 0.754)
   useEffect(() => {
     if (calculatedWeight > 0) {
@@ -285,7 +285,7 @@ const LiquidRefill = () => {
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">m³ / L</span>
               </div>
               <p className="text-xs text-slate-500 mt-2">
-                Ingresa exactamente lo que marca el flujómetro del camión para futuras auditorías.
+                Ingresa exactamente lo que marca el Contometro del camión para futuras auditorías.
               </p>
             </div>
           </div>

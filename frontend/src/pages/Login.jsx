@@ -4,16 +4,16 @@ import { MdVisibility, MdVisibilityOff } from 'react-icons/md';
 import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
-  const { login, isAuthenticated, loading } = useAuth(); 
+  const { login, isAuthenticated, loading } = useAuth();
   const navigate = useNavigate();
-  
+
   // Estado para capturar los datos del formulario
   const [formData, setFormData] = useState({
     operator_code: '',
     password: '',
     shift: 'Morning' // Valor por defecto según la API
   });
-  
+
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -46,8 +46,8 @@ const Login = () => {
     setIsLoading(true);
 
     const result = await login(
-      formData.operator_code, 
-      formData.password, 
+      formData.operator_code,
+      formData.password,
       formData.shift
     );
 
@@ -62,7 +62,7 @@ const Login = () => {
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border border-slate-200">
-        
+
         {/* Cabecera */}
         <div className="text-center mb-8">
           <div className="mx-auto bg-blue-600 w-16 h-16 rounded-full flex items-center justify-center mb-4 shadow-lg">
@@ -145,11 +145,10 @@ const Login = () => {
           <button
             type="submit"
             disabled={isLoading}
-            className={`w-full py-3 px-4 text-white rounded-lg font-bold shadow-md transition-all ${
-              isLoading 
-                ? 'bg-blue-400 cursor-not-allowed' 
+            className={`w-full py-3 px-4 text-white rounded-lg font-bold shadow-md transition-all ${isLoading
+                ? 'bg-blue-400 cursor-not-allowed'
                 : 'bg-blue-600 hover:bg-blue-700 hover:shadow-lg active:scale-95'
-            }`}
+              }`}
           >
             {isLoading ? (
               <span className="flex items-center justify-center">
