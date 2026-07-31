@@ -132,23 +132,45 @@ const KardexResume = () => {
   };
 
   // Lógica en Cascada de Saldos
+  const getPhysicalReserve = (llenos) => {
+    return (getStock(llenos, 'CENTRAL', 6, 'ESSALUD') * 6) +
+      (getStock(llenos, 'CENTRAL', 10, 'OXICUSCO') * 10) +
+      (getStock(llenos, 'CENTRAL', 10, 'ESSALUD') * 10) +
+      (getStock(llenos, 'CENTRAL', 10, 'PRAXAIR') * 10) +
+      (getStock(llenos, 'CENTRAL', 8, 'ESSALUD') * 8) +
+      (getStock(llenos, 'CENTRAL', 10, 'PROPIO') * 10) +
+      (getStock(llenos, 'CENTRAL', 6, 'PROPIO') * 6) +
+      (getStock(llenos, 'CENTRAL', 10, 'PERIFERIE') * 10) +
+      (getStock(llenos, 'PLANTA', 6, 'ESSALUD') * 6) +
+      (getStock(llenos, 'PLANTA', 10, 'ESSALUD') * 10) +
+      (getStock(llenos, 'PLANTA', 8, 'ESSALUD') * 8);
+  };
+
+  const llenos_global = shiftsData['MAÑANA']?.reserva_llenos || [];
+  const current_physical_reserva = getPhysicalReserve(llenos_global);
+
   const m_consumo = shiftsData['MAÑANA']?.total || 0;
   const m_ingreso = shiftsData['MAÑANA']?.total_ingreso || 0;
-  const m_saldo_anterior = payload.initial_balance || 0; 
-  const m_reserva = m_saldo_anterior + m_ingreso - m_consumo;
-
   const t_consumo = shiftsData['TARDE']?.total || 0;
   const t_ingreso = shiftsData['TARDE']?.total_ingreso || 0;
+  const n_consumo = shiftsData['NOCHE']?.total || 0;
+  const n_ingreso = shiftsData['NOCHE']?.total_ingreso || 0;
+
+  const gran_total_consumo = m_consumo + t_consumo + n_consumo;
+  const gran_total_ingreso = m_ingreso + t_ingreso + n_ingreso;
+
+  // Saldo Inicial Exacto = Reserva Actual - Total Ingresos + Total Consumos
+  const calculated_initial_balance = current_physical_reserva - gran_total_ingreso + gran_total_consumo;
+
+  const m_saldo_anterior = calculated_initial_balance; 
+  const m_reserva = m_saldo_anterior + m_ingreso - m_consumo;
+
   const t_saldo_anterior = m_reserva; 
   const t_reserva = t_saldo_anterior + t_ingreso - t_consumo;
 
-  const n_consumo = shiftsData['NOCHE']?.total || 0;
-  const n_ingreso = shiftsData['NOCHE']?.total_ingreso || 0;
   const n_saldo_anterior = t_reserva; 
   const n_reserva = n_saldo_anterior + n_ingreso - n_consumo;
   
-  const gran_total_consumo = m_consumo + t_consumo + n_consumo;
-  const gran_total_ingreso = m_ingreso + t_ingreso + n_ingreso;
   const cuadreMatematico = m_saldo_anterior + gran_total_ingreso - gran_total_consumo;
   const isCuadreOk = cuadreMatematico === n_reserva;
 
@@ -214,19 +236,6 @@ const KardexResume = () => {
         }
       });
     });
-
-    const sumReserva = 
-      (getStock(llenos, 'CENTRAL', 6, 'ESSALUD') * 6) +
-      (getStock(llenos, 'CENTRAL', 10, 'OXICUSCO') * 10) +
-      (getStock(llenos, 'CENTRAL', 10, 'ESSALUD') * 10) +
-      (getStock(llenos, 'CENTRAL', 10, 'PRAXAIR') * 10) +
-      (getStock(llenos, 'CENTRAL', 8, 'ESSALUD') * 8) +
-      (getStock(llenos, 'CENTRAL', 10, 'PROPIO') * 10) +
-      (getStock(llenos, 'CENTRAL', 6, 'PROPIO') * 6) +
-      (getStock(llenos, 'CENTRAL', 10, 'PERIFERIE') * 10) +
-      (getStock(llenos, 'PLANTA', 6, 'ESSALUD') * 6) +
-      (getStock(llenos, 'PLANTA', 10, 'ESSALUD') * 10) +
-      (getStock(llenos, 'PLANTA', 8, 'ESSALUD') * 8);
 
     return (
       <div key={shiftName} className="mb-6">
@@ -329,9 +338,10 @@ const KardexResume = () => {
         <table className="w-full text-xs border-collapse border border-black mb-2">
           <thead>
             <tr className="bg-slate-200">
-              <th colSpan="8" className="border border-black text-left px-2 font-bold">RESERVA OXÍGENO GASEOSO (BALONES LLENOS)</th>
-              <th colSpan="3" className="border border-black font-bold">ALMACÉN</th>
+              <th colSpan="2" className="border border-black text-left px-2 font-bold">RESERVA OXÍGENO GASEOSO (BALONES LLENOS)</th>
+              <th colSpan="7" className="border border-black font-bold">ALMACÉN</th>
               <th colSpan="4" className="border border-black font-bold">PLANTA</th>
+              <th colSpan="2" className="border border-black font-bold"></th>
             </tr>
             <tr className="bg-slate-200">
               <th className="border border-black w-6">N°</th>
@@ -367,16 +377,16 @@ const KardexResume = () => {
               <td className="border border-black text-center font-bold text-sm">{getStock(llenos, 'PLANTA', 10, 'ESSALUD')}</td>
               <td className="border border-black text-center font-bold text-sm">{getStock(llenos, 'PLANTA', 8, 'ESSALUD')}</td>
               <td className="border border-black text-center font-bold text-sm bg-slate-100">{saldoAnterior}</td>
-              <td className="border border-black text-center font-black text-sm bg-slate-200">{sumReserva}</td>
+              <td className="border border-black text-center font-black text-sm bg-slate-200">{reservaActual}</td>
             </tr>
           </tbody>
           
           {/* TABLA 3: BALONES VACIOS */}
           <thead>
             <tr className="bg-slate-200">
-              <th colSpan="8" className="border border-black text-left px-2 font-bold border-t-2">BALONES VACÍOS OXÍGENO GASEOSO</th>
-              <th colSpan="3" className="border border-black font-bold border-t-2">ALMACÉN</th>
-              <th colSpan="2" className="border border-black font-bold border-t-2">PLANTA</th>
+              <th colSpan="2" className="border border-black text-left px-2 font-bold border-t-2">BALONES VACÍOS OXÍGENO GASEOSO</th>
+              <th colSpan="7" className="border border-black font-bold border-t-2">ALMACÉN</th>
+              <th colSpan="4" className="border border-black font-bold border-t-2">PLANTA</th>
               <th colSpan="2" className="border border-black font-bold border-t-2">TALLER O2</th>
             </tr>
             <tr className="bg-slate-200">
@@ -474,6 +484,31 @@ const KardexResume = () => {
             {renderShiftBlock('TARDE', shiftsData['TARDE'], t_saldo_anterior, t_reserva)}
             {renderShiftBlock('NOCHE', shiftsData['NOCHE'], n_saldo_anterior, n_reserva)}
             
+            <table className="w-full text-sm border-collapse border-2 border-black mb-4">
+              <thead>
+                <tr>
+                  <th className="border border-black p-2 bg-slate-100 font-bold w-1/4">DETALLADO CONSUMO<br/>OXÍGENO GASEOSO</th>
+                  <th className="border border-black p-2 bg-slate-100 w-1/4">PADOMI (M3)</th>
+                  <th className="border border-black p-2 bg-slate-100 w-1/4">HNAGV (M3)</th>
+                  <th className="border border-black p-2 bg-slate-100 w-1/4">CCAA PERIFÉRICOS (M3)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="border border-black p-2 bg-slate-100 font-bold text-center"></td>
+                  <td className="border border-black p-2 text-center font-bold text-lg">
+                    { (shiftsData['MAÑANA']?.padomi || 0) + (shiftsData['TARDE']?.padomi || 0) + (shiftsData['NOCHE']?.padomi || 0) }
+                  </td>
+                  <td className="border border-black p-2 text-center font-bold text-lg">
+                    { (shiftsData['MAÑANA']?.hnagv || 0) + (shiftsData['TARDE']?.hnagv || 0) + (shiftsData['NOCHE']?.hnagv || 0) }
+                  </td>
+                  <td className="border border-black p-2 text-center font-bold text-lg">
+                    { (shiftsData['MAÑANA']?.perifericos || 0) + (shiftsData['TARDE']?.perifericos || 0) + (shiftsData['NOCHE']?.perifericos || 0) }
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
             <table className="w-full text-sm border-collapse border-2 border-black mb-12">
               <thead>
                 <tr>

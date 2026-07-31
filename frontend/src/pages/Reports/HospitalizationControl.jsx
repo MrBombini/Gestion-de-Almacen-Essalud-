@@ -30,6 +30,7 @@ const HospitalizationControl = () => {
 
   const [selectedService, setSelectedService] = useState('');
   const [selectedBed, setSelectedBed] = useState('');
+  const [searchCylinder, setSearchCylinder] = useState('');
 
   // Cálculos de fórmula: Tiempo = (Volumen_Litros * Presion_Bar) / Flujo
   // 10m3 = 50L, 8m3 = 40L, 6m3 = 30L
@@ -106,7 +107,8 @@ const HospitalizationControl = () => {
   const filteredData = localData.filter(cyl => {
     const matchService = !selectedService || cyl.current_service?.name === selectedService;
     const matchBed = !selectedBed || cyl.current_bed?.bed_number === selectedBed;
-    return matchService && matchBed;
+    const matchCylinder = !searchCylinder || (cyl.serial_number && cyl.serial_number.toLowerCase().includes(searchCylinder.toLowerCase()));
+    return matchService && matchBed && matchCylinder;
   });
 
   // Dividimos en dos columnas para emular el reporte original si hay muchos datos
@@ -156,7 +158,7 @@ const HospitalizationControl = () => {
                   placeholder="L/min"
                 />
               </td>
-              <td className="border border-black p-1 font-bold text-slate-700 bg-slate-50">
+              <td className={`border border-black p-1 font-bold bg-slate-50 ${cyl.tiempo_horas !== '' && cyl.tiempo_horas <= 2 ? 'text-red-600' : 'text-slate-700'}`}>
                 {cyl.tiempo_horas}
               </td>
             </tr>
@@ -226,6 +228,16 @@ const HospitalizationControl = () => {
                 <option value="">-- Todas las camas --</option>
                 {uniqueBeds.map(b => <option key={b} value={b}>Cama {b}</option>)}
               </select>
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs font-bold text-slate-600 mb-1">Buscar Cilindro:</label>
+              <input 
+                type="text"
+                placeholder="Ej. SN-1234"
+                className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-blue-500 uppercase"
+                value={searchCylinder}
+                onChange={(e) => setSearchCylinder(e.target.value)}
+              />
             </div>
           </div>
 
