@@ -30,8 +30,8 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       : 'text-slate-300 hover:bg-slate-700 hover:text-white'
     }`;
 
-  // Verificar si es admin o ingeniero
-  const isAdminOrEngineer = user?.role === 'Administrator' || user?.role === 'Engineer';
+  // Verificar si es superadmin (solo Administrator)
+  const isSuperAdmin = user?.role === 'Administrator';
 
   // Función para cerrar el sidebar en móviles al hacer clic en un link
   const closeSidebarMobile = () => {
@@ -195,7 +195,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           </div>
 
           {/* SECCIÓN: ADMINISTRACIÓN (Condicional) */}
-          {isAdminOrEngineer && (
+          {isSuperAdmin && (
             <div>
               <p className="px-4 text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Administración</p>
               <NavLink to="/admin/users" className={navLinkClass} onClick={closeSidebarMobile}>

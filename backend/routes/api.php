@@ -79,17 +79,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::post('/supplier-entry', [InventoryMovementController::class, 'createSupplierEntry']);
         });
         
-    });
-
-    // 4. Administrator / Engineer Routes
-    Route::middleware(['role:Administrator,Engineer'])->group(function () {
-        
-        // Users Management
-        Route::apiResource('users', UserController::class);
-        Route::patch('/users/{id}/deactivate', [UserController::class, 'deactivate']);
-        Route::patch('/users/{id}/activate', [UserController::class, 'activate']);
-        Route::patch('/users/{id}/toggle-status', [UserController::class, 'toggleStatus']);
-
         // Reports
         Route::prefix('reports')->group(function () {
             Route::get('/movements-search', [ReportController::class, 'movementsSearch']);
@@ -104,6 +93,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::get('/patient-alerts', [ReportController::class, 'patientAlerts']);
             Route::get('/hospitalization-control', [ReportController::class, 'hospitalizationControl']);
         });
+        
+    });
+
+    // 4. Superadmin Routes
+    Route::middleware(['role:Administrator'])->group(function () {
+        
+        // Users Management
+        Route::apiResource('users', UserController::class);
+        Route::patch('/users/{id}/deactivate', [UserController::class, 'deactivate']);
+        Route::patch('/users/{id}/activate', [UserController::class, 'activate']);
+        Route::patch('/users/{id}/toggle-status', [UserController::class, 'toggleStatus']);
         
     });
 });
