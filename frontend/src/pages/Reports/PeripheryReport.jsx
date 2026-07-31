@@ -80,10 +80,10 @@ const PeripheryReport = () => {
         <head>
           <title>Reporte Periferia UPS</title>
           <style>
-            @page { size: landscape; margin: 10mm; }
-            body { font-family: Arial, sans-serif; font-size: 12px; margin: 0; color: #000; }
-            table { width: 100%; border-collapse: collapse; text-align: left; }
-            th, td { border: 1px solid #000; padding: 4px 6px; }
+            @page { size: A4 landscape; margin: 8mm; }
+            body { font-family: Arial, sans-serif; font-size: 11px; margin: 0; color: #000; }
+            table { width: 100%; border-collapse: collapse; text-align: left; font-size: 10px; }
+            th, td { border: 1px solid #000; padding: 3px 4px; }
             .no-border { border: none !important; }
             .border-bottom { border-bottom: 1px solid #000; }
           </style>
