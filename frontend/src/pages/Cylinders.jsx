@@ -124,7 +124,7 @@ const Cylinders = () => {
     serial_number: '', barcode: '', supplier_id: '', ownership_type_id: '',
     patient_id: '', service_id: '', gas_type: 'OXÍGENO MEDICINAL', capacity: '',
     status: 'empty', location: 'CENTRAL', hydrostatic_test_date: '', physical_condition: 'Good',
-    current_service_id: ''
+    current_service_id: '', current_patient_id: ''
   };
   const [formData, setFormData] = useState(emptyForm);
   const [ownerType, setOwnerType] = useState('patient'); // 'patient' o 'service'
@@ -201,7 +201,7 @@ const Cylinders = () => {
       patient_id: c.patient_id || '', service_id: c.service_id || '', gas_type: c.gas_type || 'OXÍGENO MEDICINAL',
       capacity: c.capacity, status: c.status, location: c.location || 'CENTRAL',
       hydrostatic_test_date: c.hydrostatic_test_date || '', physical_condition: c.physical_condition || 'Good',
-      current_service_id: c.current_service_id || ''
+      current_service_id: c.current_service_id || '', current_patient_id: c.current_patient_id || ''
     });
     setEditingId(c.id);
     setIsModalOpen(true);
@@ -759,6 +759,25 @@ const Cylinders = () => {
                 isClearable
                 value={filteredCurrentServices.find(o => o.value === formData.current_service_id) || null}
                 onChange={(s) => setFormData({ ...formData, current_service_id: s?.value || '' })}
+                menuPortalTarget={document.body}
+                menuPosition="fixed"
+              />
+            </div>
+          )}
+
+          {/* Selector de paciente actual condicional a la ubicación (Solo PADOMI) */}
+          {formData.location === 'PADOMI' && (
+            <div className="p-4 bg-purple-50 rounded-xl border border-purple-100 mt-2">
+              <label className="block text-sm font-semibold text-purple-800 mb-2 flex items-center gap-2">
+                <MdPerson /> Paciente Asignado (PADOMI)
+              </label>
+              <Select
+                options={patientOptions}
+                styles={selectStyles}
+                placeholder="Seleccione paciente asignado..."
+                isClearable
+                value={patientOptions.find(o => o.value === formData.current_patient_id) || null}
+                onChange={(s) => setFormData({ ...formData, current_patient_id: s?.value || '' })}
                 menuPortalTarget={document.body}
                 menuPosition="fixed"
               />

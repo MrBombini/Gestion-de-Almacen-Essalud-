@@ -98,6 +98,7 @@ class CylinderController extends Controller
             'physical_condition'    => 'nullable|string',
             'current_service_id'    => 'nullable|exists:services,id',
             'current_bed_id'        => 'nullable|exists:beds,id',
+            'current_patient_id'    => 'nullable|exists:patients,id',
         ]);
 
         $cylinder = Cylinder::create($validated);
@@ -130,6 +131,7 @@ class CylinderController extends Controller
             'physical_condition'    => 'nullable|string',
             'current_service_id'    => 'nullable|exists:services,id',
             'current_bed_id'        => 'nullable|exists:beds,id',
+            'current_patient_id'    => 'nullable|exists:patients,id',
         ]);
 
         $cylinder->update($validated);
