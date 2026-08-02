@@ -38,11 +38,32 @@ class ReportController extends Controller
         });
 
         // 2. Saldo Inicial Detallado (Para lógica de celdas)
-        $initialBalance = Cylinder::where('location', 'CENTRAL')
-            ->select('capacity', 'status', 'ownership_type_id', 'supplier_id', DB::raw('count(*) as total'))
-            ->groupBy('capacity', 'status', 'ownership_type_id', 'supplier_id')
-            ->with(['ownershipType', 'supplier'])
-            ->get();
+        $isToday = Carbon::parse($date)->isToday();
+        
+        if ($isToday) {
+            $initialBalance = Cylinder::where('location', 'CENTRAL')
+                ->select('capacity', 'status', 'ownership_type_id', 'supplier_id', DB::raw('count(*) as total'))
+                ->groupBy('capacity', 'status', 'ownership_type_id', 'supplier_id')
+                ->with(['ownershipType', 'supplier'])
+                ->get();
+        } else {
+            $previousDate = Carbon::parse($date)->subDay()->toDateString();
+            $snapshot = \App\Models\DailySnapshot::where('date', $previousDate)->first();
+            
+            if ($snapshot) {
+                $full = collect($snapshot->snapshot_data['full'] ?? [])->where('location', 'CENTRAL')->map(function($item) {
+                    $item['status'] = 'full';
+                    return $item;
+                });
+                $empty = collect($snapshot->snapshot_data['empty'] ?? [])->where('location', 'CENTRAL')->map(function($item) {
+                    $item['status'] = 'empty';
+                    return $item;
+                });
+                $initialBalance = $full->concat($empty)->values();
+            } else {
+                $initialBalance = collect([]);
+            }
+        }
             
         $startDateTime = Carbon::parse($date)->setTime(7, 0, 0);
         $endDateTime = Carbon::parse($date)->addDay()->setTime(7, 0, 0);
@@ -162,19 +183,38 @@ class ReportController extends Controller
 
         // Calcular Saldo Inicial Dinámico
         // Saldo Inicial = Stock Actual Físico Lleno (m3) - Total Ingresos del Día + Total Consumos del Día
-        $currentFullM3 = 0;
-        foreach ($fullStock as $stock) {
-            $currentFullM3 += ((float) $stock->capacity * (int) $stock->total);
-        }
+        $isToday = Carbon::parse($date)->isToday();
+        
+        if ($isToday) {
+            $currentFullM3 = 0;
+            foreach ($fullStock as $stock) {
+                $currentFullM3 += ((float) $stock->capacity * (int) $stock->total);
+            }
 
-        $totalIngresoDay = 0;
-        $totalConsumoDay = 0;
-        foreach ($shiftData as $shift) {
-            $totalIngresoDay += $shift['total_ingreso'];
-            $totalConsumoDay += $shift['total'];
-        }
+            $totalIngresoDay = 0;
+            $totalConsumoDay = 0;
+            foreach ($shiftData as $shift) {
+                $totalIngresoDay += $shift['total_ingreso'];
+                $totalConsumoDay += $shift['total'];
+            }
 
-        $initialBalance = $currentFullM3 - $totalIngresoDay + $totalConsumoDay;
+            $initialBalance = $currentFullM3 - $totalIngresoDay + $totalConsumoDay;
+        } else {
+            $previousDate = Carbon::parse($date)->subDay()->toDateString();
+            $snapshot = \App\Models\DailySnapshot::where('date', $previousDate)->first();
+            
+            if ($snapshot && isset($snapshot->snapshot_data['full'])) {
+                $snapshotFullStock = $snapshot->snapshot_data['full'];
+                $initialBalance = 0;
+                foreach ($snapshotFullStock as $stock) {
+                    if (($stock['location'] ?? '') === 'CENTRAL') {
+                        $initialBalance += ((float) ($stock['capacity'] ?? 0) * (int) ($stock['total'] ?? 0));
+                    }
+                }
+            } else {
+                $initialBalance = 0; // Sin registro = 0
+            }
+        }
         return response()->json([
             'date' => $date,
             'shifts' => $shiftData,
