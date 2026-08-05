@@ -193,11 +193,6 @@ const Decanting = () => {
     setSuccessMessage(null);
     setErrorMessage(null);
 
-    // Confirmación de seguridad (Evita envíos accidentales por escáner de código de barras)
-    if (!window.confirm('¿Está seguro de registrar este trasiego/recarga con los datos ingresados?')) {
-      return;
-    }
-
     if (destinationType === 'service' && !formData.service_id) {
       return setErrorMessage('Selecciona un servicio válido de EsSalud.');
     }
@@ -260,7 +255,7 @@ const Decanting = () => {
       {errorMessage && <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md text-red-700 font-medium text-sm sm:text-base">{errorMessage}</div>}
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <form onSubmit={handleSubmit} className="divide-y divide-slate-100">
+        <form onSubmit={handleSubmit} onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }} className="divide-y divide-slate-100">
 
           {/* SECCIÓN 1: DESTINO */}
           <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 bg-slate-50">
