@@ -199,7 +199,7 @@ const SupplierMovement = () => {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }} className="space-y-6">
         
         {/* INFO GENERAL */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">

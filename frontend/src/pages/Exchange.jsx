@@ -450,7 +450,7 @@ const Exchange = () => {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }} className="space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-5">

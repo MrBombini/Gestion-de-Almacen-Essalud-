@@ -192,14 +192,14 @@ const KardexResume = () => {
       PERIFERICOS: { '8_ESSALUD': 0, '6_ESSALUD': 0, '10_ESSALUD': 0, '10_PRAXAIR': 0 }
     };
 
-    const ingresoCounts = {
-      PADOMI: { '6_ESSALUD': 0, '10_PERIFERIE': 0, '10_ESSALUD': 0, '10_PRAXAIR': 0 },
-      HNAGV: { '6_ESSALUD': 0, '10_PERIFERIE': 0, '10_ESSALUD': 0, '10_PRAXAIR': 0 },
-      PERIFERICOS: { '6_ESSALUD': 0, '10_PERIFERIE': 0, '10_ESSALUD': 0, '10_PRAXAIR': 0 }
-    };
+    const supplierEntries = { '6_ESSALUD': 0, '10_PERIFERIE': 0, '10_ESSALUD': 0, '10_PRAXAIR': 0 };
+    const supplierExits = { '6_ESSALUD': 0, '10_PERIFERIE': 0, '10_ESSALUD': 0, '10_PRAXAIR': 0 };
 
     movements.forEach(mov => {
       if (!mov) return;
+      const movType = String(mov.type || '').toLowerCase().trim();
+      const isSupplier = movType === 'supplierentry' || movType === 'suppliermovement';
+
       let rowKey = 'HNAGV';
       if (mov.patient_id) rowKey = 'PADOMI';
       else if (checkIsPeriferie(mov)) rowKey = 'PERIFERICOS';
@@ -217,21 +217,30 @@ const KardexResume = () => {
         let brandKey = 'ESSALUD';
         if (supName.includes('PRAXAIR') || supName.includes('LINDE') || sBrand.includes('PRAXAIR') || sBrand === 'PX') brandKey = 'PRAXAIR';
 
-        // Salidas (Consumo Físico)
-        if (act === 'exit' || act === 'salida') {
-          const colKey = `${cap}_${brandKey}`;
-          if (consumptionCounts[rowKey] && consumptionCounts[rowKey].hasOwnProperty(colKey)) {
-            consumptionCounts[rowKey][colKey] += 1;
-          }
-        }
-        // Entradas (Ingreso Físico)
-        if (act === 'entry' || act === 'ingreso') {
-          if (sBrand.includes('PERIFERIE')) ingresoCounts[rowKey]['10_PERIFERIE'] += 1;
+        if (isSupplier) {
+          let supKey = null;
+          if (sBrand.includes('PERIFERIE')) supKey = '10_PERIFERIE';
           else if (brandKey === 'ESSALUD') {
-            if (cap === 6) ingresoCounts[rowKey]['6_ESSALUD'] += 1;
-            else ingresoCounts[rowKey]['10_ESSALUD'] += 1;
+            if (cap === 6) supKey = '6_ESSALUD';
+            else supKey = '10_ESSALUD';
           } else if (brandKey === 'PRAXAIR') {
-            ingresoCounts[rowKey]['10_PRAXAIR'] += 1;
+            supKey = '10_PRAXAIR';
+          }
+
+          if (supKey) {
+            if (act === 'entry' || act === 'ingreso') {
+              supplierEntries[supKey] += 1;
+            } else if (act === 'exit' || act === 'salida') {
+              supplierExits[supKey] += 1;
+            }
+          }
+        } else {
+          // Salidas (Consumo Físico)
+          if (act === 'exit' || act === 'salida') {
+            const colKey = `${cap}_${brandKey}`;
+            if (consumptionCounts[rowKey] && consumptionCounts[rowKey].hasOwnProperty(colKey)) {
+              consumptionCounts[rowKey][colKey] += 1;
+            }
           }
         }
       });
@@ -286,11 +295,11 @@ const KardexResume = () => {
               <td className="border border-black"></td><td className="border border-black"></td>
               <td className="border border-black text-center font-bold text-sm bg-slate-50">{d.padomi || 0}</td>
               <td className="border border-black"></td>
-              <td className="border border-black text-center font-bold text-green-600">{ingresoCounts.PADOMI['6_ESSALUD'] || ''}</td>
-              <td className="border border-black text-center font-bold text-green-600">{ingresoCounts.PADOMI['10_PERIFERIE'] || ''}</td>
-              <td className="border border-black text-center font-bold text-green-600">{ingresoCounts.PADOMI['10_ESSALUD'] || ''}</td>
-              <td className="border border-black text-center font-bold text-green-600">{ingresoCounts.PADOMI['10_PRAXAIR'] || ''}</td>
-              <td colSpan="2" className="border border-black text-center font-bold">{d.padomi || 0}</td>
+              <td className="border border-black text-center font-bold text-green-600">{supplierEntries['6_ESSALUD'] || ''}</td>
+              <td className="border border-black text-center font-bold text-green-600">{supplierEntries['10_PERIFERIE'] || ''}</td>
+              <td className="border border-black text-center font-bold text-green-600">{supplierEntries['10_ESSALUD'] || ''}</td>
+              <td className="border border-black text-center font-bold text-green-600">{supplierEntries['10_PRAXAIR'] || ''}</td>
+              <td colSpan="2" className="border border-black text-center font-bold">{(supplierEntries['6_ESSALUD']*6 + supplierEntries['10_PERIFERIE']*10 + supplierEntries['10_ESSALUD']*10 + supplierEntries['10_PRAXAIR']*10) || ''}</td>
             </tr>
             {/* HNAGV */}
             <tr>
@@ -303,10 +312,8 @@ const KardexResume = () => {
               <td className="border border-black"></td><td className="border border-black"></td>
               <td className="border border-black text-center font-bold text-sm bg-slate-50">{d.hnagv || 0}</td>
               <td className="border border-black"></td>
-              <td className="border border-black text-center font-bold text-green-600">{ingresoCounts.HNAGV['6_ESSALUD'] || ''}</td>
-              <td className="border border-black text-center font-bold text-green-600">{ingresoCounts.HNAGV['10_PERIFERIE'] || ''}</td>
-              <td className="border border-black text-center font-bold text-green-600">{ingresoCounts.HNAGV['10_ESSALUD'] || ''}</td>
-              <td className="border border-black text-center font-bold text-green-600">{ingresoCounts.HNAGV['10_PRAXAIR'] || ''}</td>
+              <td colSpan="3" className="border border-black text-center font-bold text-slate-700">SALIDA TOTAL</td>
+              <td className="border border-black"></td>
               <td colSpan="2" className="border border-black text-center bg-slate-50 font-bold text-slate-700">CILINDROS</td>
             </tr>
             {/* PERIFERICOS */}
@@ -320,11 +327,11 @@ const KardexResume = () => {
               <td className="border border-black"></td><td className="border border-black"></td>
               <td className="border border-black text-center font-bold text-sm bg-slate-50">{d.perifericos || 0}</td>
               <td className="border border-black"></td>
-              <td className="border border-black text-center font-bold text-green-600">{ingresoCounts.PERIFERICOS['6_ESSALUD'] || ''}</td>
-              <td className="border border-black text-center font-bold text-green-600">{ingresoCounts.PERIFERICOS['10_PERIFERIE'] || ''}</td>
-              <td className="border border-black text-center font-bold text-green-600">{ingresoCounts.PERIFERICOS['10_ESSALUD'] || ''}</td>
-              <td className="border border-black text-center font-bold text-green-600">{ingresoCounts.PERIFERICOS['10_PRAXAIR'] || ''}</td>
-              <td colSpan="2" className="border border-black text-center font-bold">{d.perifericos || 0}</td>
+              <td className="border border-black text-center font-bold text-red-600">{supplierExits['6_ESSALUD'] || ''}</td>
+              <td className="border border-black text-center font-bold text-red-600">{supplierExits['10_PERIFERIE'] || ''}</td>
+              <td className="border border-black text-center font-bold text-red-600">{supplierExits['10_ESSALUD'] || ''}</td>
+              <td className="border border-black text-center font-bold text-red-600">{supplierExits['10_PRAXAIR'] || ''}</td>
+              <td colSpan="2" className="border border-black text-center font-bold">{(supplierExits['6_ESSALUD'] + supplierExits['10_PERIFERIE'] + supplierExits['10_ESSALUD'] + supplierExits['10_PRAXAIR']) || ''}</td>
             </tr>
             <tr>
               <td colSpan="8" className="border border-black text-right pr-2 font-bold bg-slate-100">TOTAL M3</td>

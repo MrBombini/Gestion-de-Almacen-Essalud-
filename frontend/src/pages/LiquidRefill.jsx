@@ -10,6 +10,9 @@ const LiquidRefill = () => {
   const { data: suppliers, loading: loadingS } = useFetch('/suppliers');
   const suppliersList = Array.isArray(suppliers) ? suppliers : (suppliers?.data || []);
 
+  const { data: refillsData, execute: fetchRefills, loading: loadingR } = useFetch('/liquid/refills');
+  const refillsList = Array.isArray(refillsData) ? refillsData : (refillsData?.data || []);
+
   // 2. Hook para el POST
   const { execute, loading: actionLoading } = useFetch('/liquid/refill', 'POST', null, false);
 
@@ -99,12 +102,13 @@ const LiquidRefill = () => {
         weight_after: '',
         ticket_amount: ''
       });
+      fetchRefills(); // Actualizar tabla
     } catch (err) {
       setErrorMessage(err.response?.data?.message || 'Error al registrar la recarga. Revisa los datos.');
     }
   };
 
-  if (loadingS) {
+  if (loadingS || loadingR) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -113,7 +117,7 @@ const LiquidRefill = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6 pb-10">
 
       {/* Cabecera */}
       <div className="flex items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
@@ -123,7 +127,7 @@ const LiquidRefill = () => {
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Recarga de Tanque Criogénico</h2>
           <p className="text-slate-500 text-sm mt-1">
-            Registro de abastecimiento de oxígeno líquido por camión cisterna. Turno: <span className="font-bold text-blue-600">{shift}</span>
+            Registro y control de abastecimiento de oxígeno líquido por camión cisterna. Turno: <span className="font-bold text-blue-600">{shift}</span>
           </p>
         </div>
       </div>
@@ -141,7 +145,7 @@ const LiquidRefill = () => {
       )}
 
       {/* Formulario */}
-      <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <form onSubmit={handleSubmit} onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
 
         <div className="p-6 bg-slate-50 border-b border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-6">
           <div>
@@ -302,8 +306,65 @@ const LiquidRefill = () => {
             {actionLoading ? 'Procesando...' : 'Guardar Recarga'}
           </button>
         </div>
-
       </form>
+
+      {/* Historial de Recargas (Módulo de vistas) */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mt-8">
+        <div className="p-6 border-b border-slate-200">
+          <h3 className="text-xl font-bold text-slate-800">Historial de Guías y Recargas</h3>
+          <p className="text-sm text-slate-500">Registro histórico de las descargas de oxígeno líquido al tanque criogénico.</p>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600">
+                <th className="p-4 font-bold">Fecha / Hora</th>
+                <th className="p-4 font-bold">Proveedor</th>
+                <th className="p-4 font-bold">N° Guía/Ticket</th>
+                <th className="p-4 font-bold">Nivel (% / L)</th>
+                <th className="p-4 font-bold">Peso (Kg)</th>
+                <th className="p-4 font-bold">Facturado (m³)</th>
+                <th className="p-4 font-bold">Operador</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {refillsList.length > 0 ? refillsList.map((refill) => (
+                <tr key={refill.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="p-4 whitespace-nowrap">
+                    <span className="font-semibold text-slate-800">{new Date(refill.refilled_at).toLocaleDateString()}</span>
+                    <br />
+                    <span className="text-xs text-slate-500">{new Date(refill.refilled_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                  </td>
+                  <td className="p-4 font-medium text-slate-700">{refill.supplier?.name || 'S/D'}</td>
+                  <td className="p-4">
+                    <span className="px-3 py-1 bg-blue-50 text-blue-700 font-bold rounded-lg">{refill.reference_document || '-'}</span>
+                  </td>
+                  <td className="p-4 text-slate-600">
+                    <div className="flex flex-col gap-1 text-xs">
+                      <span className="text-slate-400">Antes: {refill.level_before}</span>
+                      <span className="font-bold text-emerald-600">Desp: {refill.level_after}</span>
+                    </div>
+                  </td>
+                  <td className="p-4 text-slate-600">
+                    <div className="flex flex-col gap-1 text-xs">
+                      <span className="text-slate-400">Lleno: {refill.weight_before}</span>
+                      <span className="font-bold text-emerald-600">Vacío: {refill.weight_after}</span>
+                    </div>
+                  </td>
+                  <td className="p-4 font-bold text-slate-800">{refill.ticket_amount || '-'}</td>
+                  <td className="p-4 text-slate-600">{refill.user?.name || 'S/D'}</td>
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan="7" className="p-8 text-center text-slate-400 font-medium">No hay recargas registradas aún.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </div>
   );
 };
