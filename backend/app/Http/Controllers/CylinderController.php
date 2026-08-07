@@ -141,6 +141,13 @@ class CylinderController extends Controller
     public function destroy($id)
     {
         $cylinder = Cylinder::findOrFail($id);
+        
+        // Remove from active stock locations by changing status and location
+        $cylinder->update([
+            'status' => 'lost',
+            'location' => 'DELETED'
+        ]);
+
         $cylinder->delete();
         return response()->json(['message' => 'Cylinder deleted successfully.']);
     }

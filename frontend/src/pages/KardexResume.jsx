@@ -83,8 +83,15 @@ const KardexResume = () => {
     if (String(mov.type).toLowerCase() === 'servicebulkexchange') return true;
     if (mov.service && !mov.patient) {
         const sName = String(mov.service.name || '').toUpperCase();
-        if (sName.includes('MANIFOLD') || sName.includes('EMERGENCIA')) return false;
-        return true;
+        const sType = String(mov.service.type || '').toUpperCase();
+        
+        if (sName.includes('MANIFOLD') || sType.includes('MANIFOLD') || sName.includes('EMERGENCIA') || sName.includes('PEDIATR')) return false;
+
+        if (sName.includes('AMBULANCIA') || sName.includes('CM ') || sName.includes('CENTRO MEDICO') || 
+            sName.includes('PERIFERI') || sName.includes('POSTA') || 
+            (sName.includes('HOSPITAL') && !sName.includes('HOSPITALIZACION'))) {
+            return true;
+        }
     }
     return false;
   };
@@ -112,7 +119,9 @@ const KardexResume = () => {
 
         let locMatch = false;
         if (location.toUpperCase() === 'CENTRAL') {
-            if (sLoc.includes('CENTRAL') || sLoc.includes('ALMACEN')) locMatch = true;
+            if (sLoc === 'CENTRAL') locMatch = true;
+        } else if (location.toUpperCase() === 'ALMACEN') {
+            if (sLoc === 'ALMACEN' || sLoc.includes('ALMACEN')) locMatch = true;
         } else {
             if (sLoc.includes(location.toUpperCase())) locMatch = true;
         }
@@ -141,9 +150,9 @@ const KardexResume = () => {
       (getStock(llenos, 'CENTRAL', 10, 'PROPIO') * 10) +
       (getStock(llenos, 'CENTRAL', 6, 'PROPIO') * 6) +
       (getStock(llenos, 'CENTRAL', 10, 'PERIFERIE') * 10) +
-      (getStock(llenos, 'PLANTA', 6, 'ESSALUD') * 6) +
-      (getStock(llenos, 'PLANTA', 10, 'ESSALUD') * 10) +
-      (getStock(llenos, 'PLANTA', 8, 'ESSALUD') * 8);
+      (getStock(llenos, 'ALMACEN', 6, 'ESSALUD') * 6) +
+      (getStock(llenos, 'ALMACEN', 10, 'ESSALUD') * 10) +
+      (getStock(llenos, 'ALMACEN', 8, 'ESSALUD') * 8);
   };
 
   const llenos_global = shiftsData['MAÑANA']?.reserva_llenos || [];
@@ -346,8 +355,8 @@ const KardexResume = () => {
           <thead>
             <tr className="bg-slate-200">
               <th colSpan="2" className="border border-black text-left px-2 font-bold">RESERVA OXÍGENO GASEOSO (BALONES LLENOS)</th>
-              <th colSpan="7" className="border border-black font-bold">ALMACÉN</th>
-              <th colSpan="4" className="border border-black font-bold">PLANTA</th>
+              <th colSpan="7" className="border border-black font-bold">CENTRAL</th>
+              <th colSpan="4" className="border border-black font-bold">ALMACÉN</th>
               <th colSpan="2" className="border border-black font-bold"></th>
             </tr>
             <tr className="bg-slate-200">
@@ -380,9 +389,9 @@ const KardexResume = () => {
               <td className="border border-black text-center font-bold text-sm">{getStock(llenos, 'CENTRAL', 10, 'PROPIO')}</td>
               <td className="border border-black text-center font-bold text-sm">{getStock(llenos, 'CENTRAL', 6, 'PROPIO')}</td>
               <td className="border border-black text-center font-bold text-sm">{getStock(llenos, 'CENTRAL', 10, 'PERIFERIE')}</td>
-              <td className="border border-black text-center font-bold text-sm">{getStock(llenos, 'PLANTA', 6, 'ESSALUD')}</td>
-              <td className="border border-black text-center font-bold text-sm">{getStock(llenos, 'PLANTA', 10, 'ESSALUD')}</td>
-              <td className="border border-black text-center font-bold text-sm">{getStock(llenos, 'PLANTA', 8, 'ESSALUD')}</td>
+              <td className="border border-black text-center font-bold text-sm">{getStock(llenos, 'ALMACEN', 6, 'ESSALUD')}</td>
+              <td className="border border-black text-center font-bold text-sm">{getStock(llenos, 'ALMACEN', 10, 'ESSALUD')}</td>
+              <td className="border border-black text-center font-bold text-sm">{getStock(llenos, 'ALMACEN', 8, 'ESSALUD')}</td>
               <td className="border border-black text-center font-bold text-sm bg-slate-100">{saldoAnterior}</td>
               <td className="border border-black text-center font-black text-sm bg-slate-200">{reservaActual}</td>
             </tr>
@@ -392,8 +401,8 @@ const KardexResume = () => {
           <thead>
             <tr className="bg-slate-200">
               <th colSpan="2" className="border border-black text-left px-2 font-bold border-t-2">BALONES VACÍOS OXÍGENO GASEOSO</th>
-              <th colSpan="7" className="border border-black font-bold border-t-2">ALMACÉN</th>
-              <th colSpan="4" className="border border-black font-bold border-t-2">PLANTA</th>
+              <th colSpan="7" className="border border-black font-bold border-t-2">CENTRAL</th>
+              <th colSpan="4" className="border border-black font-bold border-t-2">ALMACÉN</th>
               <th colSpan="2" className="border border-black font-bold border-t-2">TALLER O2</th>
             </tr>
             <tr className="bg-slate-200">
@@ -426,8 +435,8 @@ const KardexResume = () => {
               <td className="border border-black text-center font-bold text-sm">{getStock(vacios, 'CENTRAL', 10, 'PROPIO')}</td>
               <td className="border border-black text-center font-bold text-sm">{getStock(vacios, 'CENTRAL', 6, 'PROPIO')}</td>
               <td className="border border-black text-center font-bold text-sm">{getStock(vacios, 'CENTRAL', 10, 'PERIFERIE')}</td>
-              <td className="border border-black text-center font-bold text-sm">{getStock(vacios, 'PLANTA', 10, 'ESSALUD')}</td>
-              <td className="border border-black text-center font-bold text-sm">{getStock(vacios, 'PLANTA', 8, 'ESSALUD')}</td>
+              <td className="border border-black text-center font-bold text-sm">{getStock(vacios, 'ALMACEN', 10, 'ESSALUD')}</td>
+              <td className="border border-black text-center font-bold text-sm">{getStock(vacios, 'ALMACEN', 8, 'ESSALUD')}</td>
               <td className="border border-black text-center font-bold text-sm text-slate-400">0</td>
               <td className="border border-black text-center font-bold text-sm text-slate-400">0</td>
               <td className="border border-black text-center font-bold text-sm text-slate-400">0</td>

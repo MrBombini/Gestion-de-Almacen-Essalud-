@@ -1,9 +1,20 @@
-import { useState, useMemo } from 'react';
-import { MdInsertChartOutlined, MdSearch, MdFilterList, MdDownload } from 'react-icons/md';
+import { useState, useMemo, useEffect } from 'react';
+import { MdInsertChartOutlined, MdSearch, MdFilterList, MdDownload, MdDateRange } from 'react-icons/md';
 import useFetch from '../hooks/useFetch';
 
+const getLocalYYYYMMDD = () => {
+  const tzOffset = (new Date()).getTimezoneOffset() * 60000;
+  return (new Date(Date.now() - tzOffset)).toISOString().split('T')[0];
+};
+
 const Kardex = () => {
-  const { data: kardexData, loading, error } = useFetch('/reports/kardex');
+  const [selectedDate, setSelectedDate] = useState(getLocalYYYYMMDD());
+
+  const { data: kardexData, loading, error, execute } = useFetch(`/reports/kardex?start_date=${selectedDate}&end_date=${selectedDate}&per_page=500`, 'GET', null, false);
+  
+  useEffect(() => {
+    execute({ url: `/reports/kardex?start_date=${selectedDate}&end_date=${selectedDate}&per_page=500` });
+  }, [selectedDate]);
   
   // Extraemos el array principal (por si Laravel usa paginación)
   const rawData = Array.isArray(kardexData) ? kardexData : (kardexData?.data || []);
@@ -81,13 +92,24 @@ const Kardex = () => {
           </div>
         </div>
         
-        <button 
-          className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 px-5 py-2.5 rounded-lg font-bold transition-colors shadow-sm"
-          onClick={() => alert('La exportación a Excel se conectará con el endpoint del backend.')}
-        >
-          <MdDownload className="text-xl" />
-          Exportar Excel
-        </button>
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+          <div className="flex items-center justify-center gap-2 bg-slate-50 px-4 py-2.5 rounded-lg border border-slate-200 w-full sm:w-auto">
+            <MdDateRange className="text-slate-400 text-xl shrink-0" />
+            <input 
+              type="date" 
+              value={selectedDate} 
+              onChange={(e) => setSelectedDate(e.target.value)} 
+              className="bg-transparent border-none outline-none text-sm font-bold text-slate-700 w-full sm:w-auto text-center sm:text-left" 
+            />
+          </div>
+          <button 
+            className="flex justify-center items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 px-5 py-2.5 rounded-lg font-bold transition-colors shadow-sm w-full sm:w-auto shrink-0"
+            onClick={() => alert('La exportación a Excel se conectará con el endpoint del backend.')}
+          >
+            <MdDownload className="text-xl" />
+            Exportar Excel
+          </button>
+        </div>
       </div>
 
       {/* Contenedor Principal */}
