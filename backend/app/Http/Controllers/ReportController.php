@@ -26,6 +26,7 @@ class ReportController extends Controller
         $counts = DB::table('cylinders')
             ->select('ownership_type_id', 'status', DB::raw('count(*) as total'))
             ->where('location', 'CENTRAL')
+            ->whereNull('deleted_at')
             ->groupBy('ownership_type_id', 'status')
             ->get();
 
