@@ -96,6 +96,17 @@ const KardexResume = () => {
     return false;
   };
 
+  const getBrandCategory = (sBrand, sSupplier) => {
+    sBrand = String(sBrand || '').toUpperCase();
+    sSupplier = String(sSupplier || '').toUpperCase();
+    if (sBrand.includes('PERIFERIE')) return 'PERIFERIE';
+    if (sBrand.includes('ESSALUD') || sBrand === 'MAT' || sBrand.includes('YA') || sBrand.includes('JD') || sBrand.includes('KIOSHI')) return 'ESSALUD';
+    if (sBrand.includes('PACIENT') || sBrand.includes('PROPIO')) return 'PROPIO';
+    if (sBrand.includes('OXICUSCO')) return 'OXICUSCO';
+    if (sBrand.includes('PRAXAIR') || sBrand === 'PX' || sSupplier.includes('PRAXAIR') || sSupplier.includes('LINDE')) return 'PRAXAIR';
+    return 'UNKNOWN';
+  };
+
   // Función Stock Dinámico para Cuadros Inferiores
   const getStock = (stockArray, location, capacity, brandKeyword) => {
     const array = ensureArray(stockArray);
@@ -112,11 +123,6 @@ const KardexResume = () => {
         const sBrand = String(s.ownership_type?.name || s.ownership_name || s.ownership_type_name || '').toUpperCase();
         const sSupplier = String(s.supplier?.name || s.supplier_name || '').toUpperCase();
 
-        let resolvedBrand = sBrand;
-        if (sSupplier.includes('PRAXAIR') || sSupplier.includes('LINDE') || sBrand.includes('PRAXAIR') || sBrand === 'PX') {
-            resolvedBrand = 'PRAXAIR';
-        }
-
         let locMatch = false;
         if (location.toUpperCase() === 'CENTRAL') {
             if (sLoc === 'CENTRAL') locMatch = true;
@@ -127,14 +133,10 @@ const KardexResume = () => {
         }
 
         if (locMatch && sCap === capacity) {
-            let matched = false;
-            if (brandKeyword === 'ESSALUD' && (resolvedBrand.includes('ESSALUD') || resolvedBrand === 'MAT' || resolvedBrand === 'YA' || resolvedBrand === 'JD' || resolvedBrand.includes('KIOSHI'))) matched = true;
-            else if (brandKeyword === 'PROPIO' && (resolvedBrand.includes('PACIENT') || resolvedBrand.includes('PROPIO'))) matched = true;
-            else if (brandKeyword === 'PRAXAIR' && (resolvedBrand === 'PRAXAIR')) matched = true;
-            else if (brandKeyword === 'OXICUSCO' && resolvedBrand.includes('OXICUSCO')) matched = true;
-            else if (brandKeyword === 'PERIFERIE' && resolvedBrand.includes('PERIFERIE')) matched = true;
-
-            if (matched) total += (parseInt(s.total, 10) || 0);
+            const category = getBrandCategory(sBrand, sSupplier);
+            if (category === brandKeyword) {
+                total += (parseInt(s.total, 10) || 0);
+            }
         }
     });
     return total;

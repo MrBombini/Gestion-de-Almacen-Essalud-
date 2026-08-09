@@ -81,15 +81,21 @@ const DailyKardexReport = () => {
     const brandName = String(cylMov.cylinder.ownership_type_name || cylMov.cylinder.ownership_type?.name || cylMov.cylinder.ownershipType?.name || 'ESSALUD').toUpperCase();
     const supName = String(cylMov.cylinder.supplier_name || cylMov.cylinder.supplier?.name || '').toUpperCase();
 
+    const category = (() => {
+      if (brandName.includes('PERIFERIE')) return 'PERIFERIE';
+      if (brandName.includes('ESSALUD') || brandName === 'MAT' || brandName.includes('YA') || brandName.includes('JD') || brandName.includes('KIOSHI')) return 'ESSALUD';
+      if (brandName.includes('PACIENT') || brandName.includes('PROPIO')) return 'PACIENTE';
+      if (brandName.includes('OXICUSCO')) return 'OXICUSCO';
+      if (brandName.includes('PRAXAIR') || brandName === 'PX' || supName.includes('PRAXAIR') || supName.includes('LINDE')) return 'PRAXAIR';
+      return 'UNKNOWN';
+    })();
+
     for (let i = 0; i < matrixColumns.length; i++) {
       const col = matrixColumns[i];
-      if (col.isPeriferie && brandName.includes('PERIFERIE')) {
+      if (col.isPeriferie && category === 'PERIFERIE') {
         return i; 
-      } else if (!col.isPeriferie && cap === col.cap) {
-        if (col.brand === 'ESSALUD' && (supName.includes('ESSALUD') || (!supName.includes('LINDE') && !supName.includes('PRAXAIR') && (brandName.includes('ESSALUD') || brandName === 'MAT' || brandName === 'YA' || brandName === 'JD' || brandName.includes('KIOSHI'))))) return i;
-        if (col.brand === 'PACIENTE' && (brandName.includes('PACIENT') || brandName.includes('PROPIO'))) return i;
-        if (col.brand === 'PRAXAIR' && (supName.includes('LINDE') || supName.includes('PRAXAIR') || brandName.includes('PRAXAIR') || brandName === 'PX')) return i;
-        if (col.brand === 'OXICUSCO' && brandName.includes('OXICUSCO')) return i;
+      } else if (!col.isPeriferie && cap === col.cap && col.brand === category) {
+        return i;
       }
     }
     return -1;
@@ -111,32 +117,33 @@ const DailyKardexReport = () => {
       else if (rawCap <= 8) cap = 8;
 
       const status = String(item.status || '').toLowerCase();
-      const isFull = status === 'full' || status === 'lleno' || status === 'in_use';
+      const isFull = status === 'full' || status === 'lleno';
       const isEmpty = status === 'empty' || status === 'vacio' || status === 'vacío' || status === 'in_transit';
       
       const brandName = String(item.ownership_type_name || item.ownership_type?.name || item.ownershipType?.name || '').toUpperCase();
       const supName = String(item.supplier_name || item.supplier?.name || '').toUpperCase();
       const count = parseInt(item.total, 10) || 0;
 
+      const category = (() => {
+        if (brandName.includes('PERIFERIE')) return 'PERIFERIE';
+        if (brandName.includes('ESSALUD') || brandName === 'MAT' || brandName.includes('YA') || brandName.includes('JD') || brandName.includes('KIOSHI')) return 'ESSALUD';
+        if (brandName.includes('PACIENT') || brandName.includes('PROPIO')) return 'PACIENTE';
+        if (brandName.includes('OXICUSCO')) return 'OXICUSCO';
+        if (brandName.includes('PRAXAIR') || brandName === 'PX' || supName.includes('PRAXAIR') || supName.includes('LINDE')) return 'PRAXAIR';
+        return 'UNKNOWN';
+      })();
+
       for (let i = 0; i < matrixColumns.length; i++) {
         const col = matrixColumns[i];
         
-        if (col.isPeriferie && brandName.includes('PERIFERIE')) {
+        if (col.isPeriferie && category === 'PERIFERIE') {
             if (isFull) currentBals[i].LLENO += count;
             if (isEmpty) currentBals[i].VACIO += count;
             break;
-        } else if (!col.isPeriferie && col.cap === cap) {
-          let matched = false;
-          if (col.brand === 'ESSALUD' && (supName.includes('ESSALUD') || (!supName.includes('LINDE') && !supName.includes('PRAXAIR') && (brandName.includes('ESSALUD') || brandName === 'MAT' || brandName === 'YA' || brandName === 'JD' || brandName.includes('KIOSHI'))))) matched = true;
-          else if (col.brand === 'PACIENTE' && (brandName.includes('PACIENT') || brandName.includes('PROPIO'))) matched = true;
-          else if (col.brand === 'PRAXAIR' && (supName.includes('LINDE') || supName.includes('PRAXAIR') || brandName.includes('PRAXAIR') || brandName === 'PX')) matched = true;
-          else if (col.brand === 'OXICUSCO' && brandName.includes('OXICUSCO')) matched = true;
-
-          if (matched) {
+        } else if (!col.isPeriferie && col.cap === cap && col.brand === category) {
             if (isFull) currentBals[i].LLENO += count;
             if (isEmpty) currentBals[i].VACIO += count;
             break;
-          }
         }
       }
     });
