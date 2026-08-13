@@ -29,6 +29,7 @@ import PatientAlertsReport from './pages/Reports/PatientAlertsReport';
 import KardexResume from './pages/KardexResume';
 import HospitalizationControl from './pages/Reports/HospitalizationControl';
 import TrasiegosReport from './pages/TrasiegosReport';
+import ExecutiveConsumptionReport from './pages/ExecutiveConsumptionReport';
 
 
 function App() {
@@ -68,6 +69,7 @@ function App() {
             <Route path="/reports/cylinder-tracking" element={<CylinderTracking />} />
             <Route path="/reports/movements-report" element={<MovementsReport />} />
             <Route path="/reports/trasiegos" element={<TrasiegosReport />} />
+            <Route path="/reports/executive" element={<ExecutiveConsumptionReport />} />
 
             <Route path="/admin/reports" element={<Reports />} />
             <Route path="/admin/users" element={<Users />} />
