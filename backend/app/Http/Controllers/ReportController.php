@@ -41,17 +41,19 @@ class ReportController extends Controller
         // 2. Saldo Inicial Detallado (Para lógica de celdas)
         $isToday = Carbon::parse($date)->isToday();
         
+        $usedLiveStock = false;
         if ($isToday) {
             $initialBalance = Cylinder::where('location', 'CENTRAL')
                 ->select('capacity', 'status', 'ownership_type_id', 'supplier_id', DB::raw('count(*) as total'))
                 ->groupBy('capacity', 'status', 'ownership_type_id', 'supplier_id')
                 ->with(['ownershipType', 'supplier'])
                 ->get();
+            $usedLiveStock = true;
         } else {
             $previousDate = Carbon::parse($date)->subDay()->toDateString();
             $snapshot = \App\Models\DailySnapshot::where('date', $previousDate)->first();
             
-            if ($snapshot) {
+            if ($snapshot && (isset($snapshot->snapshot_data['full']) || isset($snapshot->snapshot_data['empty']))) {
                 $full = collect($snapshot->snapshot_data['full'] ?? [])->where('location', 'CENTRAL')->map(function($item) {
                     $item['status'] = 'full';
                     return $item;
@@ -62,7 +64,13 @@ class ReportController extends Controller
                 });
                 $initialBalance = $full->concat($empty)->values();
             } else {
-                $initialBalance = collect([]);
+                // Fallback to live stock if snapshot is missing
+                $initialBalance = Cylinder::where('location', 'CENTRAL')
+                    ->select('capacity', 'status', 'ownership_type_id', 'supplier_id', DB::raw('count(*) as total'))
+                    ->groupBy('capacity', 'status', 'ownership_type_id', 'supplier_id')
+                    ->with(['ownershipType', 'supplier'])
+                    ->get();
+                $usedLiveStock = true;
             }
         }
             
@@ -99,6 +107,7 @@ class ReportController extends Controller
 
         return response()->json([
             'date' => $date,
+            'used_live_stock' => $usedLiveStock,
             'stock_summary' => $stockSummary,
             'initial_balance' => $initialBalance,
             'shifts' => $formattedShifts,
@@ -852,5 +861,312 @@ class ReportController extends Controller
         ])->values();
 
         return response()->json($sorted);
+    }
+
+    /**
+     * REPORTE GERENCIAL: Consumo Ejecutivo (Gaseoso y Líquido Consolidado)
+     */
+    public function executiveConsumption(Request $request)
+    {
+        $date = $request->query('date', Carbon::today()->toDateString());
+        $isToday = Carbon::parse($date)->isToday();
+        
+        $startDateTime = Carbon::parse($date)->setTime(7, 0, 0);
+        $endDateTime = Carbon::parse($date)->addDay()->setTime(7, 0, 0);
+
+        // ==========================================
+        // 1. GASEOSO - SALDO INICIAL (Snapshots o Vivo)
+        // ==========================================
+        $gaseosoSaldoInicial = collect();
+        if ($isToday) {
+            $gaseosoSaldoInicial = Cylinder::where('location', 'CENTRAL')
+                ->select('capacity', DB::raw('count(*) as total'))
+                ->groupBy('capacity')
+                ->get();
+        } else {
+            $previousDate = Carbon::parse($date)->subDay()->toDateString();
+            $snapshot = \App\Models\DailySnapshot::where('date', $previousDate)->first();
+            
+            if ($snapshot && (isset($snapshot->snapshot_data['full']) || isset($snapshot->snapshot_data['empty']))) {
+                $full = collect($snapshot->snapshot_data['full'] ?? [])->where('location', 'CENTRAL');
+                $empty = collect($snapshot->snapshot_data['empty'] ?? [])->where('location', 'CENTRAL');
+                $gaseosoSaldoInicial = $full->concat($empty)->groupBy('capacity')->map(function ($group, $capacity) {
+                    return [
+                        'capacity' => $capacity,
+                        'total' => $group->sum('total')
+                    ];
+                })->values();
+            } else {
+                $gaseosoSaldoInicial = Cylinder::where('location', 'CENTRAL')
+                    ->select('capacity', DB::raw('count(*) as total'))
+                    ->groupBy('capacity')
+                    ->get();
+            }
+        }
+
+        // Formatear Saldo Inicial Gaseoso (10, 8, 6)
+        $saldoInicialGas = [
+            '10' => 0, '8' => 0, '6' => 0, 'total_und' => 0, 'total_m3' => 0
+        ];
+        foreach ($gaseosoSaldoInicial as $item) {
+            $cap = (int) $item['capacity'];
+            $tot = (int) $item['total'];
+            if (in_array($cap, [10, 8, 6])) {
+                $saldoInicialGas[$cap] += $tot;
+                $saldoInicialGas['total_und'] += $tot;
+                $saldoInicialGas['total_m3'] += ($cap * $tot);
+            }
+        }
+
+        // ==========================================
+        // 2. GASEOSO - CONSUMO DEL DIA
+        // ==========================================
+        $movements = InventoryMovement::whereBetween('movement_at', [$startDateTime, $endDateTime])
+            ->with(['cylinderMovements.cylinder', 'service', 'patient'])
+            ->get();
+
+        $consumoGas = [
+            'padomi' => ['10' => 0, '8' => 0, '6' => 0],
+            'hnagv' => ['10' => 0, '8' => 0, '6' => 0],
+            'perifericos' => ['10' => 0, '8' => 0, '6' => 0],
+            'total_und' => ['10' => 0, '8' => 0, '6' => 0, 'all' => 0],
+            'total_m3' => 0
+        ];
+
+        foreach ($movements as $mov) {
+            $exits = $mov->cylinderMovements->where('action', 'Exit');
+            foreach ($exits as $exit) {
+                $cap = (int) ($exit->cylinder->capacity ?? 0);
+                if (!in_array($cap, [10, 8, 6])) continue;
+
+                if ($mov->patient_id) {
+                    $consumoGas['padomi'][$cap] += 1;
+                    $consumoGas['total_und'][$cap] += 1;
+                    $consumoGas['total_und']['all'] += 1;
+                    $consumoGas['total_m3'] += $cap;
+                } elseif ($mov->service_id && $mov->type !== 'ServiceBulkExchange') {
+                    $consumoGas['hnagv'][$cap] += 1;
+                    $consumoGas['total_und'][$cap] += 1;
+                    $consumoGas['total_und']['all'] += 1;
+                    $consumoGas['total_m3'] += $cap;
+                } elseif ($mov->type === 'ServiceBulkExchange') {
+                    $consumoGas['perifericos'][$cap] += 1;
+                    $consumoGas['total_und'][$cap] += 1;
+                    $consumoGas['total_und']['all'] += 1;
+                    $consumoGas['total_m3'] += $cap;
+                }
+            }
+        }
+
+        // ==========================================
+        // 3. GASEOSO - INGRESO DEL DÍA
+        // ==========================================
+        $ingresoGas = ['10' => 0, '8' => 0, '6' => 0, 'total_und' => 0, 'total_m3' => 0];
+        foreach ($movements as $mov) {
+            if (in_array($mov->type, ['SupplierEntry', 'SupplierMovement'])) {
+                $entries = $mov->cylinderMovements->where('action', 'Entry');
+                foreach ($entries as $entry) {
+                    $cap = (int) ($entry->cylinder->capacity ?? 0);
+                    if (in_array($cap, [10, 8, 6])) {
+                        $ingresoGas[$cap] += 1;
+                        $ingresoGas['total_und'] += 1;
+                        $ingresoGas['total_m3'] += $cap;
+                    }
+                }
+            }
+        }
+
+        // Considerar trasiegos como ingreso a la planta (llenos)
+        $decantings = Decanting::with('cylinder')
+            ->whereBetween('decanted_at', [$startDateTime, $endDateTime])
+            ->get();
+        
+        foreach ($decantings as $dec) {
+            $cap = (int) ($dec->cylinder->capacity ?? 0);
+            if (in_array($cap, [10, 8, 6])) {
+                $ingresoGas[$cap] += 1;
+                $ingresoGas['total_und'] += 1;
+                $ingresoGas['total_m3'] += $cap;
+            }
+        }
+
+        // ==========================================
+        // 4. GASEOSO - RESERVA (LLENOS ACTUALES)
+        // ==========================================
+        $llenosFisico = [];
+        if (!$isToday && isset($snapshot) && $snapshot && isset($snapshot->snapshot_data['full'])) {
+            $llenosFisico = $snapshot->snapshot_data['full'];
+        } else {
+            $llenosFisico = Cylinder::where('status', 'full')
+                ->select('location', 'capacity', DB::raw('count(*) as total'))
+                ->groupBy('location', 'capacity')
+                ->get()
+                ->toArray();
+        }
+
+        $reservaLlenos = [
+            'central' => ['10' => 0, '8' => 0, '6' => 0],
+            'planta' => ['10' => 0, '8' => 0, '6' => 0], // En backend no hay location PLANTA per se, pero podría estar en ALMACEN o TRASIEGO
+            'almacen' => ['10' => 0, '8' => 0, '6' => 0],
+            'total_und' => ['10' => 0, '8' => 0, '6' => 0, 'all' => 0],
+            'total_m3' => 0
+        ];
+
+        foreach ($llenosFisico as $lleno) {
+            $cap = (int) $lleno['capacity'];
+            $tot = (int) $lleno['total'];
+            if (!in_array($cap, [10, 8, 6])) continue;
+
+            $loc = strtolower($lleno['location']);
+            if ($loc === 'central') $reservaLlenos['central'][$cap] += $tot;
+            elseif ($loc === 'almacen') $reservaLlenos['almacen'][$cap] += $tot;
+            else $reservaLlenos['planta'][$cap] += $tot; // Agrupar los demás como planta/otros por ahora para matchear Excel
+
+            $reservaLlenos['total_und'][$cap] += $tot;
+            $reservaLlenos['total_und']['all'] += $tot;
+            $reservaLlenos['total_m3'] += ($cap * $tot);
+        }
+
+        // ==========================================
+        // 5. GASEOSO - RESERVA VACIOS
+        // ==========================================
+        $vaciosFisico = [];
+        if (!$isToday && isset($snapshot) && $snapshot && isset($snapshot->snapshot_data['empty'])) {
+            $vaciosFisico = $snapshot->snapshot_data['empty'];
+        } else {
+            $vaciosFisico = Cylinder::where('status', 'empty')
+                ->select('location', 'capacity', 'ownership_type_id', 'supplier_id', 'physical_condition', DB::raw('count(*) as total'))
+                ->groupBy('location', 'capacity', 'ownership_type_id', 'supplier_id', 'physical_condition')
+                ->with(['ownershipType', 'supplier'])
+                ->get()
+                ->toArray();
+        }
+
+        $reservaVacios = [
+            'linde' => ['10' => 0, '8' => 0, '6' => 0],
+            'essalud' => ['10' => 0, '8' => 0, '6' => 0],
+            'periferia' => ['10' => 0, '8' => 0, '6' => 0],
+            'mantenimiento' => ['10' => 0, '8' => 0, '6' => 0],
+            'desconocidos' => ['10' => 0, '8' => 0, '6' => 0],
+            'total_und' => ['10' => 0, '8' => 0, '6' => 0, 'all' => 0]
+        ];
+
+        foreach ($vaciosFisico as $vacio) {
+            $cap = (int) $vacio['capacity'];
+            if (!in_array($cap, [10, 8, 6])) continue;
+
+            $cond = strtolower(trim($vacio['physical_condition'] ?? ''));
+            $own = strtolower(trim($vacio['ownership_type']['name'] ?? $vacio['ownership_type_name'] ?? ''));
+            $sup = strtolower(trim($vacio['supplier']['name'] ?? $vacio['supplier_name'] ?? ''));
+            $tot = (int) ($vacio['total'] ?? 1);
+
+            $mappedGroup = null;
+
+            if ($cond === 'mala' || $cond === 'bad' || str_contains($own, 'mantenimiento')) {
+                $mappedGroup = 'mantenimiento';
+            } elseif (str_contains($own, 'desconocido') || str_contains($own, 'produccion') || $own === '') {
+                $mappedGroup = 'desconocidos';
+            } elseif (str_contains($own, 'linde') || str_contains($sup, 'linde')) {
+                $mappedGroup = 'linde';
+            } elseif (str_contains($own, 'essalud')) {
+                $mappedGroup = 'essalud';
+            } elseif (str_contains($own, 'periferi') || str_contains($sup, 'periferi')) {
+                $mappedGroup = 'periferia';
+            } else {
+                // Fallback
+                $mappedGroup = 'desconocidos';
+            }
+
+            if ($mappedGroup) {
+                $reservaVacios[$mappedGroup][$cap] += $tot;
+                $reservaVacios['total_und'][$cap] += $tot;
+                $reservaVacios['total_und']['all'] += $tot;
+            }
+        }
+
+        // ==========================================
+        // 6. LÍQUIDO - TANQUE CRIO
+        // ==========================================
+        $readings = \App\Models\DailyReading::whereBetween('reading_date', [$startDateTime, $endDateTime])
+            ->orderBy('reading_date', 'asc')
+            ->orderBy('id', 'asc')
+            ->get();
+        
+        $refills = \App\Models\LiquidRefill::whereBetween('refilled_at', [$startDateTime, $endDateTime])
+            ->get();
+
+        $firstReading = $readings->first();
+        $lastReading = $readings->last();
+        $previousReading = \App\Models\DailyReading::where('reading_date', '<', $startDateTime)
+            ->orderBy('reading_date', 'desc')
+            ->orderBy('id', 'desc')
+            ->first();
+
+        // Saldo Inicial
+        $liquidoSaldoInicial = [
+            'lectura_anterior' => $previousReading ? (float) $previousReading->tank_level : 0,
+            'lectura_actual' => $firstReading ? (float) $firstReading->tank_level : ($previousReading ? (float) $previousReading->tank_level : 0),
+            'saldo_inicial_m3' => 0
+        ];
+        // Factor de conversión M3 (usualmente depende del tanque, ej: 1 mmH2O = 26.04 m3, o directamente M3)
+        // Usaremos el cálculo asumiendo que tank_level viene en mmH2O y tiene factor 26.27 (promedio).
+        // Sin embargo, si tank_level es directo M3, no multiplicamos. Usaré un factor basado en lo que había en tu dashboard.
+        $factor = 26.27; 
+        $liquidoSaldoInicial['saldo_inicial_m3'] = $liquidoSaldoInicial['lectura_actual'] * $factor;
+
+        // Consumo
+        // Diferencia de metros * factor, o sumatoria directa si el usuario ingresa consumo
+        $liquidoConsumo = [
+            'lectura_anterior' => $firstReading ? (float) $firstReading->evaporator_level : 0,
+            'lectura_actual' => $lastReading ? (float) $lastReading->evaporator_level : 0,
+            'consumo_m3' => 0,
+            'consumo_hora' => 0
+        ];
+        
+        // Calcular consumo real (restas de lecturas de tanque sumando ingresos)
+        $totalRefilled = $refills->sum('refilled_amount');
+        if ($firstReading && $lastReading) {
+            $consumidoNiveles = $firstReading->tank_level - $lastReading->tank_level + ($totalRefilled / $factor);
+            $liquidoConsumo['consumo_m3'] = round($consumidoNiveles * $factor, 2);
+        }
+        $liquidoConsumo['consumo_hora'] = round($liquidoConsumo['consumo_m3'] / 24, 2);
+
+        // Ingreso
+        $liquidoIngreso = [
+            'inicial' => $refills->first() ? (float) $refills->first()->initial_level : 0,
+            'final' => $refills->last() ? (float) $refills->last()->final_level : 0,
+            'diferencia' => 0,
+            'recargado_m3' => $totalRefilled
+        ];
+        $liquidoIngreso['diferencia'] = $liquidoIngreso['final'] - $liquidoIngreso['inicial'];
+
+        // Reserva
+        $liquidoReserva = [
+            'nivel_anterior' => $previousReading ? (float) $previousReading->tank_level : 0,
+            'nivel_actual' => $lastReading ? (float) $lastReading->tank_level : 0,
+            'reserva_m3' => 0,
+            'proyeccion_dias' => 0
+        ];
+        $liquidoReserva['reserva_m3'] = $liquidoReserva['nivel_actual'] * $factor;
+        if ($liquidoConsumo['consumo_m3'] > 0) {
+            $liquidoReserva['proyeccion_dias'] = round($liquidoReserva['reserva_m3'] / $liquidoConsumo['consumo_m3'], 2);
+        }
+
+        return response()->json([
+            'date' => $date,
+            'gaseoso' => [
+                'saldo_inicial' => $saldoInicialGas,
+                'consumo' => $consumoGas,
+                'ingreso' => $ingresoGas,
+                'reserva_llenos' => $reservaLlenos,
+                'reserva_vacios' => $reservaVacios
+            ],
+            'liquido' => [
+                'saldo_inicial' => $liquidoSaldoInicial,
+                'consumo' => $liquidoConsumo,
+                'ingreso' => $liquidoIngreso,
+                'reserva' => $liquidoReserva
+            ]
+        ]);
     }
 }

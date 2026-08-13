@@ -36,14 +36,14 @@ class TakeDailySnapshot extends Command
         $this->info("Taking inventory snapshot for date: {$targetDate}");
 
         $fullStock = Cylinder::where('status', 'full')
-            ->select('location', 'capacity', 'ownership_type_id', 'supplier_id', DB::raw('count(*) as total'))
-            ->groupBy('location', 'capacity', 'ownership_type_id', 'supplier_id')
+            ->select('location', 'capacity', 'ownership_type_id', 'supplier_id', 'physical_condition', DB::raw('count(*) as total'))
+            ->groupBy('location', 'capacity', 'ownership_type_id', 'supplier_id', 'physical_condition')
             ->with(['ownershipType', 'supplier'])
             ->get();
 
         $emptyStock = Cylinder::where('status', 'empty')
-            ->select('location', 'capacity', 'ownership_type_id', 'supplier_id', DB::raw('count(*) as total'))
-            ->groupBy('location', 'capacity', 'ownership_type_id', 'supplier_id')
+            ->select('location', 'capacity', 'ownership_type_id', 'supplier_id', 'physical_condition', DB::raw('count(*) as total'))
+            ->groupBy('location', 'capacity', 'ownership_type_id', 'supplier_id', 'physical_condition')
             ->with(['ownershipType', 'supplier'])
             ->get();
 

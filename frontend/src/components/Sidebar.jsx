@@ -192,6 +192,10 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
               <MdAssignment className="text-lg" />
               <span>Kardex General</span>
             </NavLink>
+            <NavLink to="/reports/executive" className={navLinkClass} onClick={closeSidebarMobile}>
+              <MdInsertChartOutlined className="text-lg" />
+              <span>Reporte Gerencial</span>
+            </NavLink>
           </div>
 
           {/* SECCIÓN: ADMINISTRACIÓN (Condicional) */}
