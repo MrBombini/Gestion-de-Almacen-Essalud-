@@ -8,7 +8,6 @@ import {
   MdEvent
 } from 'react-icons/md';
 import useFetch from '../hooks/useFetch';
-import { format } from 'date-fns';
 import KardexAttentionTable from '../components/KardexAttentionTable';
 import ConsumptionDashboardTable from '../components/ConsumptionDashboardTable';
 
@@ -22,7 +21,7 @@ const Reports = () => {
 
   const handleRefresh = () => {
     if (activeTab === 'kardex') refreshK();
-    else refreshD();
+    else if (activeTab === 'dashboard') refreshD();
   };
 
   return (
@@ -35,8 +34,8 @@ const Reports = () => {
             <MdInsertChartOutlined className="text-2xl" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-slate-800">Reportes Profesionales</h2>
-            <p className="text-slate-500 text-sm">Información real del sistema sincronizada con formularios físicos</p>
+            <h2 className="text-2xl font-bold text-slate-800">Reportes Profesionales y Exportación</h2>
+            <p className="text-slate-500 text-sm">Información real del sistema y descarga de reportes en Excel</p>
           </div>
         </div>
 
@@ -91,11 +90,11 @@ const Reports = () => {
         </button>
       </div>
 
-      {/* CONTENIDO DEL REPORTE */}
       <div className="animate-fade-in print:mt-0">
-        {activeTab === 'kardex' ? (
+        {activeTab === 'kardex' && (
             loadingK ? <p className="text-center py-20 font-bold text-slate-400 uppercase tracking-widest">Generando Kardex...</p> : <KardexAttentionTable data={kardexData} date={date} />
-        ) : (
+        )}
+        {activeTab === 'dashboard' && (
             loadingD ? <p className="text-center py-20 font-bold text-slate-400 uppercase tracking-widest">Calculando Consumo...</p> : <ConsumptionDashboardTable data={dashboardData} date={date} />
         )}
       </div>

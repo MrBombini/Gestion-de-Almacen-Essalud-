@@ -9,7 +9,7 @@ class CylinderController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Cylinder::with(['supplier', 'ownershipType', 'patient', 'currentPatient', 'currentService', 'currentBed'])
+        $query = Cylinder::with(['supplier', 'ownershipType', 'patient.prescriptions', 'currentPatient.prescriptions', 'currentService', 'currentBed'])
             ->orderBy('created_at', 'desc');
 
         if ($request->has('search') && $request->search != '') {
