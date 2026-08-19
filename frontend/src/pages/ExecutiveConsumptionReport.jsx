@@ -279,12 +279,7 @@ function ExecutiveConsumptionReport() {
                       <td>{reportData.gaseoso.reserva_llenos.central['8']}</td>
                       <td>{reportData.gaseoso.reserva_llenos.central['6']}</td>
                     </tr>
-                    <tr>
-                      <td className="text-left font-bold bg-gray-50">PLANTA</td>
-                      <td>{reportData.gaseoso.reserva_llenos.planta['10']}</td>
-                      <td>{reportData.gaseoso.reserva_llenos.planta['8']}</td>
-                      <td>{reportData.gaseoso.reserva_llenos.planta['6']}</td>
-                    </tr>
+
                     <tr>
                       <td className="text-left font-bold bg-gray-50">ALMACEN</td>
                       <td>{reportData.gaseoso.reserva_llenos.almacen['10']}</td>

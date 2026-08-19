@@ -528,6 +528,8 @@ class ReportController extends Controller
         $shift = $request->query('shift');                // Morning, Afternoon, Night
         $startDate = $request->query('start_date');      // YYYY-MM-DD
         $endDate = $request->query('end_date');          // YYYY-MM-DD
+        $isExport = filter_var($request->query('export', false), FILTER_VALIDATE_BOOLEAN);
+        $limit = $isExport ? 10000 : 1000;
 
         // 1. Query CylinderMovements
         $cmQuery = CylinderMovement::with([
@@ -626,7 +628,7 @@ class ReportController extends Controller
         }
 
         // Limit results to avoid memory crash
-        $cylinderMovements = $cmQuery->orderBy('id', 'desc')->take(1000)->get();
+        $cylinderMovements = $cmQuery->orderBy('id', 'desc')->take($limit)->get();
 
         // 2. Query Decantings (if not searching for supplier)
         $decantings = collect();
@@ -696,7 +698,7 @@ class ReportController extends Controller
                 $decQuery->whereDate('decanted_at', '<=', $endDate);
             }
 
-            $decantings = $decQuery->orderBy('id', 'desc')->take(1000)->get();
+            $decantings = $decQuery->orderBy('id', 'desc')->take($limit)->get();
         }
 
         // 3. Map both results to a unified structure
@@ -879,7 +881,7 @@ class ReportController extends Controller
         // ==========================================
         $gaseosoSaldoInicial = collect();
         if ($isToday) {
-            $gaseosoSaldoInicial = Cylinder::where('location', 'CENTRAL')
+            $gaseosoSaldoInicial = Cylinder::whereIn('location', ['CENTRAL', 'ALMACEN'])
                 ->select('capacity', DB::raw('count(*) as total'))
                 ->groupBy('capacity')
                 ->get();
@@ -888,8 +890,8 @@ class ReportController extends Controller
             $snapshot = \App\Models\DailySnapshot::where('date', $previousDate)->first();
             
             if ($snapshot && (isset($snapshot->snapshot_data['full']) || isset($snapshot->snapshot_data['empty']))) {
-                $full = collect($snapshot->snapshot_data['full'] ?? [])->where('location', 'CENTRAL');
-                $empty = collect($snapshot->snapshot_data['empty'] ?? [])->where('location', 'CENTRAL');
+                $full = collect($snapshot->snapshot_data['full'] ?? [])->whereIn('location', ['CENTRAL', 'ALMACEN']);
+                $empty = collect($snapshot->snapshot_data['empty'] ?? [])->whereIn('location', ['CENTRAL', 'ALMACEN']);
                 $gaseosoSaldoInicial = $full->concat($empty)->groupBy('capacity')->map(function ($group, $capacity) {
                     return [
                         'capacity' => $capacity,
@@ -897,7 +899,7 @@ class ReportController extends Controller
                     ];
                 })->values();
             } else {
-                $gaseosoSaldoInicial = Cylinder::where('location', 'CENTRAL')
+                $gaseosoSaldoInicial = Cylinder::whereIn('location', ['CENTRAL', 'ALMACEN'])
                     ->select('capacity', DB::raw('count(*) as total'))
                     ->groupBy('capacity')
                     ->get();
@@ -976,28 +978,17 @@ class ReportController extends Controller
             }
         }
 
-        // Considerar trasiegos como ingreso a la planta (llenos)
-        $decantings = Decanting::with('cylinder')
-            ->whereBetween('decanted_at', [$startDateTime, $endDateTime])
-            ->get();
-        
-        foreach ($decantings as $dec) {
-            $cap = (int) ($dec->cylinder->capacity ?? 0);
-            if (in_array($cap, [10, 8, 6])) {
-                $ingresoGas[$cap] += 1;
-                $ingresoGas['total_und'] += 1;
-                $ingresoGas['total_m3'] += $cap;
-            }
-        }
+
 
         // ==========================================
         // 4. GASEOSO - RESERVA (LLENOS ACTUALES)
         // ==========================================
         $llenosFisico = [];
         if (!$isToday && isset($snapshot) && $snapshot && isset($snapshot->snapshot_data['full'])) {
-            $llenosFisico = $snapshot->snapshot_data['full'];
+            $llenosFisico = collect($snapshot->snapshot_data['full'])->whereIn('location', ['CENTRAL', 'ALMACEN'])->toArray();
         } else {
             $llenosFisico = Cylinder::where('status', 'full')
+                ->whereIn('location', ['CENTRAL', 'ALMACEN'])
                 ->select('location', 'capacity', DB::raw('count(*) as total'))
                 ->groupBy('location', 'capacity')
                 ->get()
@@ -1006,7 +997,6 @@ class ReportController extends Controller
 
         $reservaLlenos = [
             'central' => ['10' => 0, '8' => 0, '6' => 0],
-            'planta' => ['10' => 0, '8' => 0, '6' => 0], // En backend no hay location PLANTA per se, pero podría estar en ALMACEN o TRASIEGO
             'almacen' => ['10' => 0, '8' => 0, '6' => 0],
             'total_und' => ['10' => 0, '8' => 0, '6' => 0, 'all' => 0],
             'total_m3' => 0
@@ -1020,7 +1010,6 @@ class ReportController extends Controller
             $loc = strtolower($lleno['location']);
             if ($loc === 'central') $reservaLlenos['central'][$cap] += $tot;
             elseif ($loc === 'almacen') $reservaLlenos['almacen'][$cap] += $tot;
-            else $reservaLlenos['planta'][$cap] += $tot; // Agrupar los demás como planta/otros por ahora para matchear Excel
 
             $reservaLlenos['total_und'][$cap] += $tot;
             $reservaLlenos['total_und']['all'] += $tot;
@@ -1032,9 +1021,10 @@ class ReportController extends Controller
         // ==========================================
         $vaciosFisico = [];
         if (!$isToday && isset($snapshot) && $snapshot && isset($snapshot->snapshot_data['empty'])) {
-            $vaciosFisico = $snapshot->snapshot_data['empty'];
+            $vaciosFisico = collect($snapshot->snapshot_data['empty'])->whereIn('location', ['CENTRAL', 'ALMACEN'])->toArray();
         } else {
             $vaciosFisico = Cylinder::where('status', 'empty')
+                ->whereIn('location', ['CENTRAL', 'ALMACEN'])
                 ->select('location', 'capacity', 'ownership_type_id', 'supplier_id', 'physical_condition', DB::raw('count(*) as total'))
                 ->groupBy('location', 'capacity', 'ownership_type_id', 'supplier_id', 'physical_condition')
                 ->with(['ownershipType', 'supplier'])
@@ -1108,48 +1098,48 @@ class ReportController extends Controller
             'lectura_actual' => $firstReading ? (float) $firstReading->tank_level : ($previousReading ? (float) $previousReading->tank_level : 0),
             'saldo_inicial_m3' => 0
         ];
-        // Factor de conversión M3 (usualmente depende del tanque, ej: 1 mmH2O = 26.04 m3, o directamente M3)
-        // Usaremos el cálculo asumiendo que tank_level viene en mmH2O y tiene factor 26.27 (promedio).
-        // Sin embargo, si tank_level es directo M3, no multiplicamos. Usaré un factor basado en lo que había en tu dashboard.
-        $factor = 26.27; 
-        $liquidoSaldoInicial['saldo_inicial_m3'] = $liquidoSaldoInicial['lectura_actual'] * $factor;
+        // Factor de conversión M3 indicado en la imagen
+        $factor = 55.9; 
+        $liquidoSaldoInicial['saldo_inicial_m3'] = round($liquidoSaldoInicial['lectura_actual'] * $factor, 2);
 
         // Consumo
-        // Diferencia de metros * factor, o sumatoria directa si el usuario ingresa consumo
+        // Según imagen: dia actual - dia anterior (del nivel del evaporador)
+        $evapAnterior = $previousReading ? (float) $previousReading->evaporator_level : 0;
+        $evapActual = $lastReading ? (float) $lastReading->evaporator_level : ($firstReading ? (float) $firstReading->evaporator_level : 0);
+        
         $liquidoConsumo = [
-            'lectura_anterior' => $firstReading ? (float) $firstReading->evaporator_level : 0,
-            'lectura_actual' => $lastReading ? (float) $lastReading->evaporator_level : 0,
+            'lectura_anterior' => $evapAnterior,
+            'lectura_actual' => $evapActual,
             'consumo_m3' => 0,
             'consumo_hora' => 0
         ];
         
-        // Calcular consumo real (restas de lecturas de tanque sumando ingresos)
-        $totalRefilled = $refills->sum('refilled_amount');
-        if ($firstReading && $lastReading) {
-            $consumidoNiveles = $firstReading->tank_level - $lastReading->tank_level + ($totalRefilled / $factor);
-            $liquidoConsumo['consumo_m3'] = round($consumidoNiveles * $factor, 2);
-        }
-        $liquidoConsumo['consumo_hora'] = round($liquidoConsumo['consumo_m3'] / 24, 2);
+        $liquidoConsumo['consumo_m3'] = round($evapActual - $evapAnterior, 2);
+        $liquidoConsumo['consumo_hora'] = round($liquidoConsumo['consumo_m3'] / 24, 8); // 8 decimales según imagen
 
         // Ingreso
+        $inicialIngreso = $refills->first() ? (float) $refills->first()->initial_level : 0;
+        $finalIngreso = $refills->last() ? (float) $refills->last()->final_level : 0;
+        
         $liquidoIngreso = [
-            'inicial' => $refills->first() ? (float) $refills->first()->initial_level : 0,
-            'final' => $refills->last() ? (float) $refills->last()->final_level : 0,
+            'inicial' => $inicialIngreso,
+            'final' => $finalIngreso,
             'diferencia' => 0,
-            'recargado_m3' => $totalRefilled
+            'recargado_m3' => 0
         ];
-        $liquidoIngreso['diferencia'] = $liquidoIngreso['final'] - $liquidoIngreso['inicial'];
+        $liquidoIngreso['diferencia'] = abs($finalIngreso - $inicialIngreso);
+        $liquidoIngreso['recargado_m3'] = round($liquidoIngreso['diferencia'] * $factor, 2);
 
         // Reserva
         $liquidoReserva = [
-            'nivel_anterior' => $previousReading ? (float) $previousReading->tank_level : 0,
-            'nivel_actual' => $lastReading ? (float) $lastReading->tank_level : 0,
+            'nivel_anterior' => $liquidoSaldoInicial['lectura_actual'], // "dia actual"
+            'nivel_actual' => $lastReading ? (float) $lastReading->tank_level : 0, // "nuevo registro"
             'reserva_m3' => 0,
             'proyeccion_dias' => 0
         ];
-        $liquidoReserva['reserva_m3'] = $liquidoReserva['nivel_actual'] * $factor;
+        $liquidoReserva['reserva_m3'] = round($liquidoReserva['nivel_actual'] * $factor, 2);
         if ($liquidoConsumo['consumo_m3'] > 0) {
-            $liquidoReserva['proyeccion_dias'] = round($liquidoReserva['reserva_m3'] / $liquidoConsumo['consumo_m3'], 2);
+            $liquidoReserva['proyeccion_dias'] = round($liquidoReserva['reserva_m3'] / $liquidoConsumo['consumo_m3'], 8); // 8 decimales según imagen
         }
 
         return response()->json([

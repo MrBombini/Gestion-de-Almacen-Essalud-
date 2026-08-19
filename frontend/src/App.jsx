@@ -22,13 +22,12 @@ import TicketControl from './pages/Reports/TicketControl';
 import SupplierReport from './pages/Reports/SupplierReport';
 import PeripheryReport from './pages/Reports/PeripheryReport';
 import CylinderTracking from './pages/CylinderTracking';
-import MovementsReport from './pages/MovementsReport';
+import UnifiedMovements from './pages/Reports/UnifiedMovements';
 import DailyKardexReport from './pages/DailyKardexReport';
 import ConsumptionDashboard from './pages/Reports/ConsumptionDashboard';
 import PatientAlertsReport from './pages/Reports/PatientAlertsReport';
 import KardexResume from './pages/KardexResume';
 import HospitalizationControl from './pages/Reports/HospitalizationControl';
-import TrasiegosReport from './pages/TrasiegosReport';
 import ExecutiveConsumptionReport from './pages/ExecutiveConsumptionReport';
 
 
@@ -67,8 +66,7 @@ function App() {
             <Route path="/reports/kardex" element={<DailyKardexReport />} />
             <Route path="/reports/hospitalization-control" element={<HospitalizationControl />} />
             <Route path="/reports/cylinder-tracking" element={<CylinderTracking />} />
-            <Route path="/reports/movements-report" element={<MovementsReport />} />
-            <Route path="/reports/trasiegos" element={<TrasiegosReport />} />
+            <Route path="/reports/unified-search" element={<UnifiedMovements />} />
             <Route path="/reports/executive" element={<ExecutiveConsumptionReport />} />
 
             <Route path="/admin/reports" element={<Reports />} />
