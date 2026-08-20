@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { MdDownload, MdDateRange, MdLocalShipping, MdLocationOn, MdPerson, MdLocalHospital, MdSyncAlt } from 'react-icons/md';
+import { MdDownload, MdDateRange, MdLocalShipping, MdLocationOn, MdPerson, MdLocalHospital, MdSyncAlt, MdVisibility } from 'react-icons/md';
 import { format } from 'date-fns';
 import api from '../services/api';
+import Modal from './Modal';
 import { 
     exportSupplierReport, 
     exportLocationReport, 
@@ -22,6 +23,11 @@ const ExcelExportsPanel = () => {
       trasiegos: false
   });
 
+  // Modal Preview States
+  const [previewModal, setPreviewModal] = useState(false);
+  const [previewData, setPreviewData] = useState([]);
+  const [previewType, setPreviewType] = useState('');
+
   const setButtonLoading = (key, value) => {
       setLoadingStates(prev => ({ ...prev, [key]: value }));
   };
@@ -33,85 +39,47 @@ const ExcelExportsPanel = () => {
       return format(new Date(), 'dd/MM/yyyy');
   };
 
-  const downloadSupplierReport = async () => {
-      setButtonLoading('supplier', true);
+  const fetchPreviewData = async (type) => {
+      setButtonLoading(type, true);
       try {
           const res = await api.get('/reports/movements-search', {
               params: { export: true, start_date: startDate, end_date: endDate }
           });
-          // Filtramos solo ingresos y salidas de proveedores
-          const data = res.data.data.filter(item => 
-              item.type === 'Ingreso Proveedor' || item.type === 'Salida Proveedor' || 
-              (item.location && item.location.type === 'Proveedor')
-          );
-          await exportSupplierReport(data, getDateRangeText());
+          let data = [];
+          
+          if (type === 'supplier') {
+              data = res.data.data.filter(item => 
+                  item.type === 'Ingreso Proveedor' || item.type === 'Salida Proveedor' || 
+                  (item.location && item.location.type === 'Proveedor')
+              );
+          } else if (type === 'location') {
+              data = res.data.data.filter(item => item.location && item.location.type.includes('Servicio'));
+          } else if (type === 'patient') {
+              data = res.data.data.filter(item => item.location && item.location.type === 'Paciente');
+          } else if (type === 'ipress') {
+              data = res.data.data.filter(item => item.type === 'Canje de Red (Periferia)');
+          } else if (type === 'trasiegos') {
+              data = res.data.data.filter(item => item.type === 'Trasiego (Decantación)');
+          }
+
+          setPreviewData(data);
+          setPreviewType(type);
+          setPreviewModal(true);
       } catch (error) {
-          console.error("Error downloading supplier report", error);
+          console.error(`Error fetching ${type} report`, error);
       } finally {
-          setButtonLoading('supplier', false);
+          setButtonLoading(type, false);
       }
   };
 
-  const downloadLocationReport = async () => {
-      setButtonLoading('location', true);
-      try {
-          // Para ubicaciones se podría usar el kardex o los movimientos generales.
-          // Como pidieron la ubicación actual, si exportamos movimientos de HNAGV
-          const res = await api.get('/reports/movements-search', {
-              params: { export: true, start_date: startDate, end_date: endDate }
-          });
-          const data = res.data.data.filter(item => item.location && item.location.type.includes('Servicio'));
-          await exportLocationReport(data, getDateRangeText());
-      } catch (error) {
-          console.error("Error downloading location report", error);
-      } finally {
-          setButtonLoading('location', false);
-      }
-  };
-
-  const downloadPatientReport = async () => {
-      setButtonLoading('patient', true);
-      try {
-          const res = await api.get('/reports/movements-search', {
-              params: { export: true, start_date: startDate, end_date: endDate }
-          });
-          const data = res.data.data.filter(item => item.location && item.location.type === 'Paciente');
-          await exportPadomiPatientReport(data, getDateRangeText());
-      } catch (error) {
-          console.error("Error downloading patient report", error);
-      } finally {
-          setButtonLoading('patient', false);
-      }
-  };
-
-  const downloadIpressReport = async () => {
-      setButtonLoading('ipress', true);
-      try {
-          const res = await api.get('/reports/movements-search', {
-              params: { export: true, start_date: startDate, end_date: endDate }
-          });
-          const data = res.data.data.filter(item => item.type === 'Canje de Red (Periferia)');
-          await exportIpressReport(data, getDateRangeText());
-      } catch (error) {
-          console.error("Error downloading IPRESS report", error);
-      } finally {
-          setButtonLoading('ipress', false);
-      }
-  };
-
-  const downloadTrasiegosReport = async () => {
-      setButtonLoading('trasiegos', true);
-      try {
-          const res = await api.get('/reports/movements-search', {
-              params: { export: true, start_date: startDate, end_date: endDate }
-          });
-          const data = res.data.data.filter(item => item.type === 'Trasiego (Decantación)');
-          await exportTrasiegosReport(data, getDateRangeText());
-      } catch (error) {
-          console.error("Error downloading trasiegos report", error);
-      } finally {
-          setButtonLoading('trasiegos', false);
-      }
+  const executeDownload = async () => {
+      if (previewType === 'supplier') await exportSupplierReport(previewData, getDateRangeText());
+      else if (previewType === 'location') await exportLocationReport(previewData, getDateRangeText());
+      else if (previewType === 'patient') await exportPadomiPatientReport(previewData, getDateRangeText());
+      else if (previewType === 'ipress') await exportIpressReport(previewData, getDateRangeText());
+      else if (previewType === 'trasiegos') await exportTrasiegosReport(previewData, getDateRangeText());
+      
+      setPreviewModal(false);
   };
 
   const ReportCard = ({ title, description, icon: Icon, onClick, loading, bgColor, textColor }) => (
@@ -132,12 +100,12 @@ const ExcelExportsPanel = () => {
               {loading ? (
                   <>
                       <div className="w-5 h-5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
-                      Generando...
+                      Analizando...
                   </>
               ) : (
                   <>
-                      <MdDownload className="text-xl" />
-                      Descargar Excel
+                      <MdVisibility className="text-xl" />
+                      Previsualizar
                   </>
               )}
           </button>
@@ -185,7 +153,7 @@ const ExcelExportsPanel = () => {
                   description="Reporte mensual de recepción y despacho de cilindros por proveedor externo."
                   icon={MdLocalShipping}
                   loading={loadingStates.supplier}
-                  onClick={downloadSupplierReport}
+                  onClick={() => fetchPreviewData('supplier')}
                   bgColor="bg-cyan-50"
                   textColor="text-cyan-600"
               />
@@ -194,7 +162,7 @@ const ExcelExportsPanel = () => {
                   description="Reporte de la ubicación actual de cilindros en los servicios del HNAGV."
                   icon={MdLocationOn}
                   loading={loadingStates.location}
-                  onClick={downloadLocationReport}
+                  onClick={() => fetchPreviewData('location')}
                   bgColor="bg-blue-50"
                   textColor="text-blue-600"
               />
@@ -203,7 +171,7 @@ const ExcelExportsPanel = () => {
                   description="Reporte diario mensual de asignaciones a pacientes."
                   icon={MdPerson}
                   loading={loadingStates.patient}
-                  onClick={downloadPatientReport}
+                  onClick={() => fetchPreviewData('patient')}
                   bgColor="bg-purple-50"
                   textColor="text-purple-600"
               />
@@ -212,7 +180,7 @@ const ExcelExportsPanel = () => {
                   description="Reporte mensualizado de llenado de cilindros para centros asistenciales."
                   icon={MdLocalHospital}
                   loading={loadingStates.ipress}
-                  onClick={downloadIpressReport}
+                  onClick={() => fetchPreviewData('ipress')}
                   bgColor="bg-rose-50"
                   textColor="text-rose-600"
               />
@@ -221,11 +189,94 @@ const ExcelExportsPanel = () => {
                   description="Reporte diario mensual de trasiegos por paciente PADOMI y servicios."
                   icon={MdSyncAlt}
                   loading={loadingStates.trasiegos}
-                  onClick={downloadTrasiegosReport}
+                  onClick={() => fetchPreviewData('trasiegos')}
                   bgColor="bg-amber-50"
                   textColor="text-amber-600"
               />
           </div>
+
+          {/* Modal de Previsualización */}
+          <Modal 
+            isOpen={previewModal} 
+            onClose={() => setPreviewModal(false)} 
+            title="Vista Previa de Exportación" 
+            elevated 
+            maxWidth="max-w-6xl"
+          >
+            <div className="mb-4">
+              <p className="text-slate-600 font-medium">
+                Se han encontrado <span className="font-bold text-blue-600">{previewData.length} registros</span> para las fechas seleccionadas ({getDateRangeText()}).
+              </p>
+              <p className="text-sm text-slate-500 mt-1">
+                Revisa una muestra de los datos antes de exportarlos a Excel para asegurarte de que son los correctos.
+              </p>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden mb-6">
+                <div className="overflow-x-auto max-h-[400px]">
+                    <table className="w-full text-left text-sm whitespace-nowrap">
+                        <thead className="bg-slate-100 text-slate-600 uppercase text-xs font-bold sticky top-0">
+                            <tr>
+                                <th className="px-4 py-3">Fecha</th>
+                                <th className="px-4 py-3">Acción</th>
+                                <th className="px-4 py-3">Balón</th>
+                                <th className="px-4 py-3">Destino / Ubicación</th>
+                                <th className="px-4 py-3">Detalle</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                            {previewData.length === 0 ? (
+                                <tr>
+                                    <td colSpan="5" className="px-4 py-8 text-center text-slate-400">
+                                        No hay datos disponibles para exportar con estos filtros.
+                                    </td>
+                                </tr>
+                            ) : (
+                                previewData.map((item, index) => (
+                                    <tr key={index} className="hover:bg-blue-50/50 transition-colors">
+                                        <td className="px-4 py-3 text-slate-700">
+                                            {item.date ? format(new Date(item.date), 'dd/MM/yyyy') : ''}
+                                        </td>
+                                        <td className="px-4 py-3 font-medium">
+                                            <span className={`px-2 py-1 rounded-md text-xs ${item.action === 'Ingreso' ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                {item.action || 'N/A'}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className="font-bold text-slate-800">{item.cylinder?.serial_number || 'S/D'}</span>
+                                            <span className="text-xs text-slate-500 block">{item.cylinder?.ownership_type || 'N/A'} - {item.cylinder?.capacity}m³</span>
+                                        </td>
+                                        <td className="px-4 py-3 text-slate-700">
+                                            {item.location?.name || '-'}
+                                        </td>
+                                        <td className="px-4 py-3 text-slate-500">
+                                            {item.location?.detail || item.type || '-'}
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <button 
+                    onClick={() => setPreviewModal(false)}
+                    className="px-6 py-2.5 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                >
+                    Cancelar
+                </button>
+                <button 
+                    onClick={executeDownload}
+                    disabled={previewData.length === 0}
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed shadow-md transition-all"
+                >
+                    <MdDownload className="text-lg" />
+                    Confirmar y Descargar Excel
+                </button>
+            </div>
+          </Modal>
       </div>
   );
 };
