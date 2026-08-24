@@ -21,7 +21,7 @@ const ConsumptionDashboardTable = ({ data, date }) => {
           <div>
             <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">Registro de Consumo Diario</h2>
             <p className="text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2">
-                FECHA: {format(new Date(date), 'dd/MM/yyyy')}
+                FECHA: {format(new Date(date + 'T00:00:00'), 'dd/MM/yyyy')}
             </p>
           </div>
         </div>

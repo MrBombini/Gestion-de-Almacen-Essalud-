@@ -808,7 +808,7 @@ class ReportController extends Controller
 
         // 5. Manual Pagination
         $page = $request->query('page', 1);
-        $perPage = 20;
+        $perPage = $isExport ? $limit : 20;
         $total = $results->count();
 
         $paginatedResults = new LengthAwarePaginator(
@@ -882,6 +882,7 @@ class ReportController extends Controller
         $gaseosoSaldoInicial = collect();
         if ($isToday) {
             $gaseosoSaldoInicial = Cylinder::whereIn('location', ['CENTRAL', 'ALMACEN'])
+                ->where('status', 'full')
                 ->select('capacity', DB::raw('count(*) as total'))
                 ->groupBy('capacity')
                 ->get();
@@ -891,8 +892,7 @@ class ReportController extends Controller
             
             if ($snapshot && (isset($snapshot->snapshot_data['full']) || isset($snapshot->snapshot_data['empty']))) {
                 $full = collect($snapshot->snapshot_data['full'] ?? [])->whereIn('location', ['CENTRAL', 'ALMACEN']);
-                $empty = collect($snapshot->snapshot_data['empty'] ?? [])->whereIn('location', ['CENTRAL', 'ALMACEN']);
-                $gaseosoSaldoInicial = $full->concat($empty)->groupBy('capacity')->map(function ($group, $capacity) {
+                $gaseosoSaldoInicial = $full->groupBy('capacity')->map(function ($group, $capacity) {
                     return [
                         'capacity' => $capacity,
                         'total' => $group->sum('total')
@@ -900,6 +900,7 @@ class ReportController extends Controller
                 })->values();
             } else {
                 $gaseosoSaldoInicial = Cylinder::whereIn('location', ['CENTRAL', 'ALMACEN'])
+                    ->where('status', 'full')
                     ->select('capacity', DB::raw('count(*) as total'))
                     ->groupBy('capacity')
                     ->get();

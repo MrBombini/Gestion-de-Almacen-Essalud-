@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
+import { exportExecutiveConsumptionReport } from '../utils/excelExportService';
 
 function ExecutiveConsumptionReport() {
   const [date, setDate] = useState(() => {
@@ -36,31 +37,15 @@ function ExecutiveConsumptionReport() {
     fetchReport();
   }, [date]);
 
-  const handleExportExcel = () => {
-    if (!reportRef.current) return;
-    const header = `
-      <html xmlns:o="urn:schemas-microsoft-com:office:office" 
-            xmlns:x="urn:schemas-microsoft-com:office:excel" 
-            xmlns="http://www.w3.org/TR/REC-html40">
-      <head>
-        <meta charset="utf-8">
-        <style>
-          table { border-collapse: collapse; font-family: Arial, sans-serif; font-size: 11px; }
-          th, td { border: 1px solid #000; padding: 4px; text-align: center; vertical-align: middle; }
-          .section-main-title { border: 2px solid #000; font-size: 14px; font-weight: bold; background-color: #f8f9fa; }
-          .table-title { background-color: #b33979; color: white; font-weight: bold; }
-        </style>
-      </head>
-      <body>
-    `;
-    const sourceHTML = header + reportRef.current.innerHTML + "</body></html>";
-    const source = 'data:application/vnd.ms-excel;charset=utf-8,' + encodeURIComponent(sourceHTML);
-    const fileDownload = document.createElement("a");
-    document.body.appendChild(fileDownload);
-    fileDownload.href = source;
-    fileDownload.download = `Reporte_Ejecutivo_Consumo_${date}.xls`;
-    fileDownload.click();
-    document.body.removeChild(fileDownload);
+  const handleExportExcel = async () => {
+    if (!reportData) return;
+    try {
+      const dateText = date.split('-').reverse().join('/');
+      await exportExecutiveConsumptionReport(reportData, dateText);
+    } catch (error) {
+      console.error('Error exportando Excel:', error);
+      alert('Hubo un error al generar el archivo Excel.');
+    }
   };
 
   if (loading && !reportData) {

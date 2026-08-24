@@ -296,3 +296,246 @@ export const exportTrasiegosReport = async (data, dateRangeText) => {
     const buffer = await workbook.xlsx.writeBuffer();
     saveAs(new Blob([buffer]), `Reporte_Trasiegos_${dateRangeText.replace(/\//g, '-')}.xlsx`);
 };
+
+export const exportExecutiveConsumptionReport = async (reportData, dateText) => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Consumo Ejecutivo');
+
+    // 1. Header
+    worksheet.mergeCells('A1:I2');
+    const titleCell = worksheet.getCell('A1');
+    titleCell.value = 'REPORTE DE CONSUMO DE OXIGENO';
+    titleCell.font = { name: 'Arial', size: 16, bold: true };
+    titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    worksheet.mergeCells('A3:C3');
+    worksheet.getCell('A3').value = 'Gestión Logística';
+    worksheet.getCell('A3').font = { size: 9, bold: true };
+    
+    worksheet.mergeCells('G3:I3');
+    worksheet.getCell('G3').value = `FECHA: ${dateText}`;
+    worksheet.getCell('G3').font = { size: 10, bold: true };
+    worksheet.getCell('G3').alignment = { horizontal: 'right' };
+
+    worksheet.getRow(4).height = 10;
+
+    // Col width setup
+    worksheet.getColumn('A').width = 25;
+    worksheet.getColumn('B').width = 12;
+    worksheet.getColumn('C').width = 12;
+    worksheet.getColumn('D').width = 12;
+    worksheet.getColumn('E').width = 3; // Separator
+    worksheet.getColumn('F').width = 25;
+    worksheet.getColumn('G').width = 15;
+    worksheet.getColumn('H').width = 15;
+    worksheet.getColumn('I').width = 18;
+
+    const mainHeaderColor = 'FFB33979'; // Magenta
+    const yellowHighlight = 'FFFEF08A';
+    
+    const createMainTitle = (range, text) => {
+        worksheet.mergeCells(range);
+        const cell = worksheet.getCell(range.split(':')[0]);
+        cell.value = text;
+        cell.font = { name: 'Arial', size: 12, bold: true };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = { top: {style:'thick'}, left: {style:'thick'}, bottom: {style:'thick'}, right: {style:'thick'} };
+    };
+
+    const createSectionHeader = (range, text, bgCol = mainHeaderColor, txtCol = 'FFFFFFFF') => {
+        worksheet.mergeCells(range);
+        const cell = worksheet.getCell(range.split(':')[0]);
+        cell.value = text;
+        cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: txtCol } };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgCol } };
+    };
+
+    const applyGrid = (startCol, startRow, endCol, endRow, withBoldHeader = true) => {
+        for (let r = startRow; r <= endRow; r++) {
+            const row = worksheet.getRow(r);
+            for (let c = startCol; c <= endCol; c++) {
+                const cell = row.getCell(c);
+                cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+                cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                if (withBoldHeader && r === startRow) {
+                    cell.font = { bold: true };
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8F9FA' } }; // Light gray header
+                }
+            }
+        }
+    };
+
+    // Main Titles
+    createMainTitle('A5:D5', 'OXIGENO GASEOSO');
+    createMainTitle('F5:I5', 'OXIGENO LIQUIDO');
+    worksheet.getRow(6).height = 5;
+
+    // --- GASEOSO -> SALDO INICIAL ---
+    createSectionHeader('A7:D7', 'SALDO INICIAL');
+    worksheet.getRow(8).values = ['CAPACIDAD', '10 M3', '8 M3', '6 M3'];
+    worksheet.getRow(9).values = ['TOTAL UND', reportData.gaseoso.saldo_inicial['10'], reportData.gaseoso.saldo_inicial['8'], reportData.gaseoso.saldo_inicial['6']];
+    worksheet.getRow(10).getCell('A').value = 'TOTAL M3';
+    worksheet.mergeCells('B10:D10');
+    worksheet.getCell('B10').value = reportData.gaseoso.saldo_inicial.total_m3;
+    
+    // --- LIQUIDO -> SALDO INICIAL ---
+    createSectionHeader('F7:I7', 'SALDO INICIAL');
+    worksheet.getRow(8).getCell('F').value = 'LECTURA ANTERIOR';
+    worksheet.getRow(8).getCell('G').value = 'LECTURA ACTUAL';
+    worksheet.mergeCells('H8:I8');
+    worksheet.getCell('H8').value = 'SALDO INICIAL M3';
+    worksheet.getRow(9).getCell('F').value = reportData.liquido.saldo_inicial.lectura_anterior;
+    worksheet.getRow(9).getCell('G').value = reportData.liquido.saldo_inicial.lectura_actual;
+    worksheet.getRow(9).getCell('G').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: yellowHighlight } };
+    worksheet.mergeCells('H9:I9');
+    worksheet.getCell('H9').value = reportData.liquido.saldo_inicial.saldo_inicial_m3;
+
+    applyGrid(1, 8, 4, 10);
+    applyGrid(6, 8, 9, 9);
+    
+    // --- GASEOSO -> CONSUMO ---
+    let rowG = 12;
+    createSectionHeader(`A${rowG}:D${rowG}`, 'CONSUMO DE OXIGENO GASEOSO');
+    rowG++;
+    worksheet.getRow(rowG).values = ['CAPACIDAD', '10 M3', '8 M3', '6 M3'];
+    rowG++;
+    worksheet.getRow(rowG).values = ['PADOMI', reportData.gaseoso.consumo.padomi['10'], reportData.gaseoso.consumo.padomi['8'], reportData.gaseoso.consumo.padomi['6']];
+    rowG++;
+    worksheet.getRow(rowG).values = ['HNAGV', reportData.gaseoso.consumo.hnagv['10'], reportData.gaseoso.consumo.hnagv['8'], reportData.gaseoso.consumo.hnagv['6']];
+    rowG++;
+    worksheet.getRow(rowG).values = ['CCAA PERIFERIC', reportData.gaseoso.consumo.perifericos['10'], reportData.gaseoso.consumo.perifericos['8'], reportData.gaseoso.consumo.perifericos['6']];
+    rowG++;
+    worksheet.getRow(rowG).values = ['TOTAL UND', reportData.gaseoso.consumo.total_und['10'], reportData.gaseoso.consumo.total_und['8'], reportData.gaseoso.consumo.total_und['6']];
+    rowG++;
+    worksheet.getRow(rowG).getCell('A').value = 'TOTAL M3';
+    worksheet.mergeCells(`B${rowG}:D${rowG}`);
+    worksheet.getCell(`B${rowG}`).value = reportData.gaseoso.consumo.total_m3;
+    
+    applyGrid(1, rowG-5, 4, rowG);
+
+    // --- LIQUIDO -> CONSUMO ---
+    let rowL = 12;
+    createSectionHeader(`F${rowL}:I${rowL}`, 'CONSUMO DE OXIGENO LIQUIDO');
+    rowL++;
+    worksheet.getRow(rowL).getCell('F').value = 'LECTURA ANTERIOR';
+    worksheet.getRow(rowL).getCell('G').value = 'LECTURA ACTUAL';
+    worksheet.getRow(rowL).getCell('H').value = 'CONSUMO LIQ M3';
+    worksheet.getRow(rowL).getCell('I').value = 'CONSUMO / HORA';
+    rowL++;
+    worksheet.getRow(rowL).getCell('F').value = reportData.liquido.consumo.lectura_anterior;
+    worksheet.getRow(rowL).getCell('F').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: yellowHighlight } };
+    worksheet.getRow(rowL).getCell('G').value = reportData.liquido.consumo.lectura_actual;
+    worksheet.getRow(rowL).getCell('G').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: yellowHighlight } };
+    worksheet.getRow(rowL).getCell('H').value = reportData.liquido.consumo.consumo_m3;
+    worksheet.getRow(rowL).getCell('I').value = reportData.liquido.consumo.consumo_hora;
+
+    applyGrid(6, rowL-1, 9, rowL);
+    
+    // --- GASEOSO -> INGRESO ---
+    rowG += 2;
+    createSectionHeader(`A${rowG}:D${rowG}`, 'INGRESO DE CILINDROS DE OXIGENO');
+    rowG++;
+    worksheet.getRow(rowG).values = ['CAPACIDAD', '10 M3', '8 M3', '6 M3'];
+    rowG++;
+    worksheet.getRow(rowG).values = ['TOTAL UND', reportData.gaseoso.ingreso['10'], reportData.gaseoso.ingreso['8'], reportData.gaseoso.ingreso['6']];
+    rowG++;
+    worksheet.getRow(rowG).getCell('A').value = 'TOTAL M3';
+    worksheet.mergeCells(`B${rowG}:D${rowG}`);
+    worksheet.getCell(`B${rowG}`).value = reportData.gaseoso.ingreso.total_m3;
+
+    applyGrid(1, rowG-2, 4, rowG);
+
+    // --- LIQUIDO -> INGRESO ---
+    rowL += 2;
+    createSectionHeader(`F${rowL}:I${rowL}`, 'INGRESO DE OXIGENO LIQUIDO');
+    rowL++;
+    worksheet.getRow(rowL).getCell('F').value = 'INICIAL';
+    worksheet.getRow(rowL).getCell('G').value = 'FINAL';
+    worksheet.getRow(rowL).getCell('H').value = 'DIFERENCIA';
+    worksheet.getRow(rowL).getCell('I').value = 'RECARGADO M3';
+    rowL++;
+    worksheet.getRow(rowL).getCell('F').value = reportData.liquido.ingreso.inicial || '';
+    worksheet.getRow(rowL).getCell('G').value = reportData.liquido.ingreso.final || '';
+    worksheet.getRow(rowL).getCell('H').value = reportData.liquido.ingreso.diferencia;
+    worksheet.getRow(rowL).getCell('I').value = reportData.liquido.ingreso.recargado_m3;
+    
+    applyGrid(6, rowL-1, 9, rowL);
+
+    // --- GASEOSO -> RESERVA LLENOS ---
+    rowG += 2;
+    createSectionHeader(`A${rowG}:D${rowG}`, 'RESERVA DE CILINDROS DE OXIGENO');
+    rowG++;
+    worksheet.getRow(rowG).values = ['CAPACIDAD', '10 M3', '8 M3', '6 M3'];
+    rowG++;
+    worksheet.getRow(rowG).values = ['CENTRAL', reportData.gaseoso.reserva_llenos.central['10'], reportData.gaseoso.reserva_llenos.central['8'], reportData.gaseoso.reserva_llenos.central['6']];
+    rowG++;
+    worksheet.getRow(rowG).values = ['ALMACEN', reportData.gaseoso.reserva_llenos.almacen['10'], reportData.gaseoso.reserva_llenos.almacen['8'], reportData.gaseoso.reserva_llenos.almacen['6']];
+    rowG++;
+    worksheet.getRow(rowG).values = ['TOTAL UND', reportData.gaseoso.reserva_llenos.total_und['10'], reportData.gaseoso.reserva_llenos.total_und['8'], reportData.gaseoso.reserva_llenos.total_und['6']];
+    rowG++;
+    worksheet.getRow(rowG).getCell('A').value = 'TOTAL M3';
+    worksheet.mergeCells(`B${rowG}:D${rowG}`);
+    worksheet.getCell(`B${rowG}`).value = reportData.gaseoso.reserva_llenos.total_m3;
+    
+    applyGrid(1, rowG-4, 4, rowG);
+
+    // --- LIQUIDO -> RESERVA ---
+    rowL += 2;
+    createSectionHeader(`F${rowL}:I${rowL}`, 'RESERVA DE OXIGENO LIQUIDO');
+    rowL++;
+    worksheet.getRow(rowL).getCell('F').value = 'NIVEL ANTERIOR';
+    worksheet.getRow(rowL).getCell('G').value = 'NIVEL ACTUAL';
+    worksheet.getRow(rowL).getCell('H').value = 'RESERVA LIQ M3';
+    worksheet.getRow(rowL).getCell('I').value = 'PROYEC. DIAS';
+    rowL++;
+    worksheet.getRow(rowL).getCell('F').value = reportData.liquido.reserva.nivel_anterior;
+    worksheet.getRow(rowL).getCell('G').value = reportData.liquido.reserva.nivel_actual;
+    worksheet.getRow(rowL).getCell('G').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: yellowHighlight } };
+    worksheet.getRow(rowL).getCell('H').value = reportData.liquido.reserva.reserva_m3;
+    worksheet.getRow(rowL).getCell('I').value = reportData.liquido.reserva.proyeccion_dias;
+    
+    applyGrid(6, rowL-1, 9, rowL);
+
+    // --- GASEOSO -> BALANCE GENERAL ---
+    rowG += 2;
+    createSectionHeader(`A${rowG}:D${rowG}`, 'BALANCE GENERAL', 'FF3730A3', 'FFFFFFFF');
+    rowG++;
+    worksheet.getRow(rowG).values = ['SALDO INICIAL', 'CONSUMO', 'INGRESO', 'SALDO FINAL'];
+    rowG++;
+    worksheet.getRow(rowG).values = [
+        reportData.gaseoso.saldo_inicial.total_m3,
+        reportData.gaseoso.consumo.total_m3,
+        reportData.gaseoso.ingreso.total_m3,
+        reportData.gaseoso.reserva_llenos.total_m3
+    ];
+    worksheet.getRow(rowG).getCell('A').font = { bold: true, color: { argb: 'FF3730A3' } };
+    worksheet.getRow(rowG).getCell('B').font = { bold: true, color: { argb: 'FFDC2626' } };
+    worksheet.getRow(rowG).getCell('C').font = { bold: true, color: { argb: 'FF16A34A' } };
+    worksheet.getRow(rowG).getCell('D').font = { bold: true, color: { argb: 'FF1D4ED8' } };
+
+    applyGrid(1, rowG-1, 4, rowG);
+
+    // --- GASEOSO -> RESERVA VACIOS ---
+    rowG += 2;
+    createSectionHeader(`A${rowG}:D${rowG}`, 'RESERVA DE CILINDROS VACIOS DE OXIGENO');
+    rowG++;
+    worksheet.getRow(rowG).values = ['CAPACIDAD', '10 M3', '8 M3', '6 M3'];
+    rowG++;
+    worksheet.getRow(rowG).values = ['LINDE', reportData.gaseoso.reserva_vacios.linde['10'], reportData.gaseoso.reserva_vacios.linde['8'], reportData.gaseoso.reserva_vacios.linde['6']];
+    rowG++;
+    worksheet.getRow(rowG).values = ['ESSALUD', reportData.gaseoso.reserva_vacios.essalud['10'], reportData.gaseoso.reserva_vacios.essalud['8'], reportData.gaseoso.reserva_vacios.essalud['6']];
+    rowG++;
+    worksheet.getRow(rowG).values = ['PERIFERIA', reportData.gaseoso.reserva_vacios.periferia['10'], reportData.gaseoso.reserva_vacios.periferia['8'], reportData.gaseoso.reserva_vacios.periferia['6']];
+    rowG++;
+    worksheet.getRow(rowG).values = ['MANTENIMIENTO', reportData.gaseoso.reserva_vacios.mantenimiento['10'], reportData.gaseoso.reserva_vacios.mantenimiento['8'], reportData.gaseoso.reserva_vacios.mantenimiento['6']];
+    rowG++;
+    worksheet.getRow(rowG).values = ['DESCONOCIDOS', reportData.gaseoso.reserva_vacios.desconocidos['10'], reportData.gaseoso.reserva_vacios.desconocidos['8'], reportData.gaseoso.reserva_vacios.desconocidos['6']];
+    rowG++;
+    worksheet.getRow(rowG).values = ['TOTAL UND', reportData.gaseoso.reserva_vacios.total_und['10'], reportData.gaseoso.reserva_vacios.total_und['8'], reportData.gaseoso.reserva_vacios.total_und['6']];
+    
+    applyGrid(1, rowG-6, 4, rowG);
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(new Blob([buffer]), `Reporte_Ejecutivo_Consumo_${dateText.replace(/\//g, '-')}.xlsx`);
+};

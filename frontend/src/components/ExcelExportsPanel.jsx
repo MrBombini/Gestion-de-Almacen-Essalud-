@@ -32,10 +32,12 @@ const ExcelExportsPanel = () => {
       setLoadingStates(prev => ({ ...prev, [key]: value }));
   };
 
+  const parseLocalDate = (dateStr) => new Date(dateStr + 'T00:00:00');
+
   const getDateRangeText = () => {
-      if (startDate && endDate) return `${format(new Date(startDate), 'dd/MM/yyyy')} AL ${format(new Date(endDate), 'dd/MM/yyyy')}`;
-      if (startDate) return `DESDE ${format(new Date(startDate), 'dd/MM/yyyy')}`;
-      if (endDate) return `HASTA ${format(new Date(endDate), 'dd/MM/yyyy')}`;
+      if (startDate && endDate) return `${format(parseLocalDate(startDate), 'dd/MM/yyyy')} AL ${format(parseLocalDate(endDate), 'dd/MM/yyyy')}`;
+      if (startDate) return `DESDE ${format(parseLocalDate(startDate), 'dd/MM/yyyy')}`;
+      if (endDate) return `HASTA ${format(parseLocalDate(endDate), 'dd/MM/yyyy')}`;
       return format(new Date(), 'dd/MM/yyyy');
   };
 
