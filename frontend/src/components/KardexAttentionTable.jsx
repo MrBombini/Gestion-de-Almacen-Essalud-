@@ -29,7 +29,7 @@ const KardexAttentionTable = ({ data, date }) => {
       <div className="flex justify-between items-end border-b-4 border-slate-900 pb-4 mb-6">
         <div>
           <h2 className="text-4xl font-black text-slate-900 tracking-tighter">KARDEX ATENCIÓN DE OXÍGENO</h2>
-          <p className="text-xl font-bold text-slate-500 uppercase">FECHA: {format(new Date(date), 'dd/MM/yyyy')}</p>
+          <p className="text-xl font-bold text-slate-500 uppercase">FECHA: {format(new Date(date + 'T00:00:00'), 'dd/MM/yyyy')}</p>
         </div>
         <div className="text-right">
           <img src="/essalud_logo.png" alt="EsSalud" className="h-12 mb-2 ml-auto grayscale opacity-50" />

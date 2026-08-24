@@ -155,15 +155,16 @@ const Exchange = () => {
         const activePrescription = patient.prescriptions.find(pr => pr.status === 'active');
         if (activePrescription) {
           const today = format(new Date(), 'yyyy-MM-dd');
+          const parseExpDate = (d) => new Date(d.includes('T') ? d : d + 'T00:00:00');
           if (today > activePrescription.expires_at) {
             setPrescriptionAlert({
               type: 'error',
-              msg: `¡ALERTA! La receta venció el ${format(new Date(activePrescription.expires_at), 'dd/MM/yyyy')}. El intercambio está bloqueado.`
+              msg: `¡ALERTA! La receta venció el ${format(parseExpDate(activePrescription.expires_at), 'dd/MM/yyyy')}. El intercambio está bloqueado.`
             });
           } else {
             setPrescriptionAlert({
               type: 'success',
-              msg: `Receta vigente hasta el ${format(new Date(activePrescription.expires_at), 'dd/MM/yyyy')}.`
+              msg: `Receta vigente hasta el ${format(parseExpDate(activePrescription.expires_at), 'dd/MM/yyyy')}.`
             });
             setFormData(prev => ({ ...prev, prescription_id: activePrescription.id }));
           }
