@@ -721,10 +721,17 @@ class ReportController extends Controller
             $locationName = 'Almacén Central';
             $locationDetail = '';
 
+            $patientCode = null;
+            $patientAddress = null;
+
+            $serviceAbbreviation = null;
+
             if ($im->patient) {
                 $locationType = 'Paciente';
                 $locationName = $im->patient->full_name;
                 $locationDetail = $im->patient->dni ? 'DNI: ' . $im->patient->dni : ($im->patient->exchange_code ?: '');
+                $patientCode = $im->patient->exchange_code ?: ($im->patient->trasiego_code ?: $im->patient->dni);
+                $patientAddress = $im->patient->address;
             } elseif ($im->service) {
                 $locationType = 'Servicio (Hospital)';
                 $locationName = $im->service->name;
@@ -732,6 +739,7 @@ class ReportController extends Controller
                 if ($im->bed) {
                     $locationDetail .= ' - Cama: ' . $im->bed->bed_number;
                 }
+                $serviceAbbreviation = $im->service->abbreviation;
             } elseif ($im->supplier) {
                 $locationType = 'Proveedor';
                 $locationName = $im->supplier->name;
@@ -740,6 +748,7 @@ class ReportController extends Controller
 
             return [
                 'id' => 'M-' . $cm->id,
+                'movement_id' => $im->id,
                 'date' => $im->movement_at,
                 'shift' => $im->shift,
                 'type' => $typeLabel,
@@ -759,6 +768,9 @@ class ReportController extends Controller
                     'type' => $locationType,
                     'name' => $locationName,
                     'detail' => $locationDetail,
+                    'patient_code' => $patientCode,
+                    'patient_address' => $patientAddress,
+                    'service_abbreviation' => $serviceAbbreviation,
                 ]
             ];
         })->filter();
@@ -768,18 +780,27 @@ class ReportController extends Controller
             $locationName = $dec->manual_destination ?: 'Estación de Trasiego';
             $locationDetail = 'Cantidad: ' . $dec->refilled_amount . ' m³';
 
+            $patientCode = null;
+            $patientAddress = null;
+
+            $serviceAbbreviation = null;
+
             if ($dec->patient) {
                 $locationType = 'Paciente (Trasiego)';
                 $locationName = $dec->patient->full_name;
                 $locationDetail = 'DNI: ' . $dec->patient->dni;
+                $patientCode = $dec->patient->exchange_code ?: ($dec->patient->trasiego_code ?: $dec->patient->dni);
+                $patientAddress = $dec->patient->address;
             } elseif ($dec->service) {
                 $locationType = 'Servicio (Trasiego)';
                 $locationName = $dec->service->name;
                 $locationDetail = 'Trasiego Recarga';
+                $serviceAbbreviation = $dec->service->abbreviation;
             }
 
             return [
                 'id' => 'T-' . $dec->id,
+                'movement_id' => null,
                 'date' => $dec->decanted_at,
                 'shift' => $dec->shift,
                 'type' => 'Trasiego (Decantación)',
@@ -799,6 +820,9 @@ class ReportController extends Controller
                     'type' => $locationType,
                     'name' => $locationName,
                     'detail' => $locationDetail,
+                    'patient_code' => $patientCode,
+                    'patient_address' => $patientAddress,
+                    'service_abbreviation' => $serviceAbbreviation,
                 ]
             ];
         });
