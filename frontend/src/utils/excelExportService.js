@@ -146,19 +146,63 @@ export const exportLocationReport = async (data, dateRangeText) => {
     worksheet.getRow(5).values = worksheet.columns.map(c => c.header);
     applyHeaderStyles(worksheet, 5, 10);
 
-    data.forEach(item => {
-        const isFull = item.cylinder_status === 'full';
+    const filteredData = data.filter(item => item.location?.detail !== 'Trasiego Recarga' && item.location?.name !== 'Trasiego Recarga');
+
+    const groupedData = [];
+    const movementMap = new Map();
+
+    filteredData.forEach(item => {
+        if (item.movement_id) {
+            if (!movementMap.has(item.movement_id)) {
+                movementMap.set(item.movement_id, {
+                    baseItem: item,
+                    salida: item.action === 'Salida' ? item : null,
+                    ingreso: item.action === 'Ingreso' ? item : null,
+                });
+            } else {
+                const group = movementMap.get(item.movement_id);
+                if (item.action === 'Salida') group.salida = item;
+                if (item.action === 'Ingreso') group.ingreso = item;
+            }
+        } else {
+            groupedData.push({
+                baseItem: item,
+                salida: item.action === 'Salida' ? item : null,
+                ingreso: item.action === 'Ingreso' ? item : null,
+            });
+        }
+    });
+
+    movementMap.forEach(group => {
+        groupedData.push(group);
+    });
+
+    groupedData.sort((a, b) => new Date(b.baseItem.date) - new Date(a.baseItem.date));
+
+    groupedData.forEach(group => {
+        const base = group.baseItem;
+        const salida = group.salida;
+        const ingreso = group.ingreso;
+        
+        const mainCylinder = (salida && salida.cylinder) ? salida.cylinder : (ingreso ? ingreso.cylinder : base.cylinder);
+
+        const lleno = salida ? salida.cylinder?.serial_number : (base.cylinder_status === 'full' ? base.cylinder?.serial_number : '');
+        const modelo1 = salida ? salida.cylinder?.ownership_type : (base.cylinder_status === 'full' ? base.cylinder?.ownership_type : '');
+        
+        const vacio = ingreso ? ingreso.cylinder?.serial_number : (base.cylinder_status === 'empty' ? base.cylinder?.serial_number : '');
+        const modelo2 = ingreso ? ingreso.cylinder?.ownership_type : (base.cylinder_status === 'empty' ? base.cylinder?.ownership_type : '');
+
         worksheet.addRow({
-            fecha: item.date ? format(new Date(item.date), 'dd/MM/yyyy') : '',
-            semana: `Semana ${Math.ceil(new Date(item.date || new Date()).getDate() / 7)}`,
-            servicio: item.location?.name,
-            ubicacion: item.location?.detail || item.location?.name,
-            lleno_codigo: isFull ? item.cylinder?.serial_number : '',
-            modelo1: isFull ? item.cylinder?.ownership_type : '',
-            propiedad: item.cylinder?.ownership_type,
-            capacidad: item.cylinder?.capacity,
-            vacio_codigo: !isFull ? item.cylinder?.serial_number : '',
-            modelo2: !isFull ? item.cylinder?.ownership_type : '',
+            fecha: base.date ? format(new Date(base.date), 'dd/MM/yyyy') : '',
+            semana: `Semana ${Math.ceil(new Date(base.date || new Date()).getDate() / 7)}`,
+            servicio: base.location?.name,
+            ubicacion: base.location?.detail || base.location?.name,
+            lleno_codigo: lleno,
+            modelo1: modelo1 || mainCylinder?.ownership_type,
+            propiedad: mainCylinder?.ownership_type,
+            capacidad: mainCylinder?.capacity,
+            vacio_codigo: vacio,
+            modelo2: modelo2 || (vacio ? mainCylinder?.ownership_type : ''),
         });
     });
 
@@ -190,19 +234,60 @@ export const exportPadomiPatientReport = async (data, dateRangeText) => {
     worksheet.getRow(5).values = worksheet.columns.map(c => c.header);
     applyHeaderStyles(worksheet, 5, 11);
 
+    // Agrupar movimientos por movement_id para unificar Intercambios (Salida y Entrada)
+    const groupedData = [];
+    const movementMap = new Map();
+
     data.forEach(item => {
+        if (item.movement_id) {
+            if (!movementMap.has(item.movement_id)) {
+                movementMap.set(item.movement_id, {
+                    baseItem: item,
+                    salida: item.action === 'Salida' ? item : null,
+                    ingreso: item.action === 'Ingreso' ? item : null,
+                });
+            } else {
+                const group = movementMap.get(item.movement_id);
+                if (item.action === 'Salida') group.salida = item;
+                if (item.action === 'Ingreso') group.ingreso = item;
+            }
+        } else {
+            // Para trasiegos o elementos sin movement_id
+            groupedData.push({
+                baseItem: item,
+                salida: item.action === 'Salida' ? item : null,
+                ingreso: item.action === 'Ingreso' ? item : null,
+            });
+        }
+    });
+
+    movementMap.forEach(group => {
+        groupedData.push(group);
+    });
+
+    // Ordenar cronológicamente descendente
+    groupedData.sort((a, b) => new Date(b.baseItem.date) - new Date(a.baseItem.date));
+
+    groupedData.forEach(group => {
+        const base = group.baseItem;
+        const salida = group.salida;
+        const ingreso = group.ingreso;
+        
+        // Priorizar el cilindro lleno (salida) para los datos generales del balón, si no el ingreso o base.
+        const mainCylinder = (salida && salida.cylinder) ? salida.cylinder : (ingreso ? ingreso.cylinder : base.cylinder);
+
         worksheet.addRow({
-            fecha: item.date ? format(new Date(item.date), 'dd/MM/yyyy') : '',
-            semana: `Semana ${Math.ceil(new Date(item.date || new Date()).getDate() / 7)}`,
-            cod_paciente: item.location?.detail?.replace('DNI: ', ''),
-            dni: item.location?.detail?.replace('DNI: ', ''),
-            usuario: item.location?.name,
-            direccion: '', // No disponible en movimientos, requeriría inner join
-            lleno: item.action === 'Salida' ? item.cylinder?.serial_number : '',
-            modelo: item.cylinder?.ownership_type,
-            capacidad: item.cylinder?.capacity,
-            propiedad: item.cylinder?.ownership_type,
-            vacio: item.action === 'Ingreso' ? item.cylinder?.serial_number : '',
+            fecha: base.date ? format(new Date(base.date), 'dd/MM/yyyy') : '',
+            semana: `Semana ${Math.ceil(new Date(base.date || new Date()).getDate() / 7)}`,
+            cod_paciente: base.location?.patient_code || base.location?.detail?.replace('DNI: ', ''),
+            dni: base.location?.detail?.replace('DNI: ', ''),
+            usuario: base.location?.name,
+            direccion: base.location?.patient_address || '', 
+            lleno: salida ? salida.cylinder?.serial_number : '',
+            modelo: mainCylinder?.ownership_type,
+            capacidad: mainCylinder?.capacity,
+            propiedad: mainCylinder?.ownership_type,
+            vacio: ingreso ? ingreso.cylinder?.serial_number : '',
         });
     });
 
@@ -283,7 +368,7 @@ export const exportTrasiegosReport = async (data, dateRangeText) => {
             destino: destino,
             fecha: item.date ? format(new Date(item.date), 'dd/MM/yyyy') : '',
             semana: `Semana ${Math.ceil(new Date(item.date || new Date()).getDate() / 7)}`,
-            cod_paciente: item.location?.detail?.replace('DNI: ', ''),
+            cod_paciente: item.location?.service_abbreviation || item.location?.patient_code || item.location?.detail?.replace('DNI: ', ''),
             codigo_cil: item.cylinder?.serial_number,
             usuario: item.location?.name,
             capacidad: item.cylinder?.capacity,
