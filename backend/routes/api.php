@@ -15,6 +15,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\OwnershipTypeController;
 use App\Http\Controllers\DailyReadingController;
 use App\Http\Controllers\PrescriptionController;
+use App\Http\Controllers\AuthorityController;
 
 /*
 |--------------------------------------------------------------------------
@@ -53,6 +54,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::apiResource('suppliers', SupplierController::class);
         Route::apiResource('daily-readings', DailyReadingController::class);
         Route::apiResource('ownership-types', OwnershipTypeController::class);
+        Route::apiResource('authorities', AuthorityController::class);
 
         // Prescriptions (Sub-CRUD de Pacientes)
         Route::get('prescriptions', [PrescriptionController::class, 'index']);
@@ -77,6 +79,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::post('/supplier', [InventoryMovementController::class, 'createSupplierMovement']);
             Route::post('/periphery-exchange', [InventoryMovementController::class, 'createServiceBulkExchange']);
             Route::post('/supplier-entry', [InventoryMovementController::class, 'createSupplierEntry']);
+            Route::post('/loan-return', [InventoryMovementController::class, 'createLoanReturn']);
+            Route::post('/patient-return', [InventoryMovementController::class, 'createPatientReturn']);
+            Route::post('/patient-loan', [InventoryMovementController::class, 'createPatientLoan']);
         });
         
         // Reports

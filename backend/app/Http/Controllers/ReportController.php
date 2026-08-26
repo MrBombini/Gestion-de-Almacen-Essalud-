@@ -712,6 +712,8 @@ class ReportController extends Controller
             elseif ($im->type === 'SupplierMovement') $typeLabel = 'Salida Proveedor';
             elseif ($im->type === 'SupplierEntry') $typeLabel = 'Ingreso Proveedor';
             elseif ($im->type === 'ServiceBulkExchange') $typeLabel = 'Canje de Red (Periferia)';
+            elseif ($im->type === 'Loan') $typeLabel = 'Préstamo';
+            elseif ($im->type === 'Return') $typeLabel = 'Devolución';
 
             // Determine action label
             $actionLabel = $cm->action === 'Entry' ? 'Ingreso' : 'Salida';
@@ -744,6 +746,10 @@ class ReportController extends Controller
                 $locationType = 'Proveedor';
                 $locationName = $im->supplier->name;
                 $locationDetail = $im->supplier->ruc ? 'RUC: ' . $im->supplier->ruc : '';
+            } elseif ($im->authority) {
+                $locationType = 'Autoridad/Tercero';
+                $locationName = $im->authority->name;
+                $locationDetail = $im->authority->type ?: 'Entidad Externa';
             }
 
             return [
@@ -849,12 +855,14 @@ class ReportController extends Controller
     public function patientAlerts(Request $request)
     {
         $threeMonthsAgo = \Carbon\Carbon::now()->subMonths(3);
+        $today = \Carbon\Carbon::now()->startOfDay();
 
         $cylinders = \App\Models\Cylinder::with(['currentPatient.prescriptions', 'ownershipType', 'movements.inventoryMovement'])
             ->whereNotNull('current_patient_id')
             ->where('status', 'in_use')
             ->get()
-            ->filter(function ($cylinder) use ($threeMonthsAgo) {
+            ->filter(function ($cylinder) use ($threeMonthsAgo, $today) {
+                // Obtenemos el último movimiento de salida para este cilindro
                 $lastExit = collect($cylinder->movements)
                     ->where('action', 'Exit')
                     ->sortByDesc(function($m) {
@@ -862,9 +870,33 @@ class ReportController extends Controller
                     })
                     ->first();
 
-                if ($lastExit) {
-                    $date = $lastExit->inventoryMovement ? $lastExit->inventoryMovement->movement_at : $lastExit->created_at;
-                    return \Carbon\Carbon::parse($date)->lt($threeMonthsAgo);
+                if ($lastExit && $lastExit->inventoryMovement) {
+                    $movement = $lastExit->inventoryMovement;
+                    
+                    // ALERTA 1: Si fue un préstamo con fecha límite vencida
+                    if ($movement->type === 'PatientLoan' && !empty($movement->expected_return_date)) {
+                        $expectedDate = \Carbon\Carbon::parse($movement->expected_return_date)->startOfDay();
+                        if ($today->gt($expectedDate)) {
+                            // Agregar flag temporal para el frontend
+                            $cylinder->alert_reason = 'Préstamo Vencido';
+                            $cylinder->expected_return_date = $movement->expected_return_date;
+                            return true;
+                        }
+                    }
+
+                    // ALERTA 2: Regla estándar de 3 meses retenidos
+                    $date = $movement->movement_at;
+                    if (\Carbon\Carbon::parse($date)->lt($threeMonthsAgo)) {
+                        $cylinder->alert_reason = 'Retenido > 3 meses';
+                        return true;
+                    }
+                } elseif ($lastExit) {
+                    // Si no hay InventoryMovement pero hay CylinderMovement, usamos regla de 3 meses
+                    $date = $lastExit->created_at;
+                    if (\Carbon\Carbon::parse($date)->lt($threeMonthsAgo)) {
+                        $cylinder->alert_reason = 'Retenido > 3 meses';
+                        return true;
+                    }
                 }
                 
                 return false;

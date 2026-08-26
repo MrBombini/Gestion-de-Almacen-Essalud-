@@ -44,7 +44,7 @@ const PatientAlertsReport = () => {
                     <div>
                         <h2 className="text-2xl font-bold text-slate-800">Alertas de Pacientes</h2>
                         <p className="text-slate-500 text-sm mt-1">
-                            Balones prestados a pacientes hace más de 3 meses que no han sido devueltos.
+                            Préstamos con tiempo límite vencido y balones retenidos hace más de 3 meses.
                         </p>
                     </div>
                 </div>
@@ -71,8 +71,8 @@ const PatientAlertsReport = () => {
                                 <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Paciente</th>
                                 <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Contacto</th>
                                 <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Balón</th>
-                                <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Prestado El</th>
-                                <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Retraso</th>
+                                <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Motivo Alerta</th>
+                                <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Detalle</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -98,6 +98,7 @@ const PatientAlertsReport = () => {
                             )}
                             {!loading && filteredAlerts.map(cyl => {
                                 const patient = cyl.current_patient;
+                                const alertReason = cyl.alert_reason || 'Retenido > 3 meses';
                                 const { date, days } = getDaysDelayed(cyl);
                                 
                                 return (
@@ -114,13 +115,31 @@ const PatientAlertsReport = () => {
                                             <div className="font-bold text-slate-700">{cyl.serial_number}</div>
                                             <div className="text-xs text-slate-500">{cyl.ownership_type?.name}</div>
                                         </td>
-                                        <td className="p-4 text-sm text-slate-600 font-medium">
-                                            {date ? format(date, 'dd/MM/yyyy') : 'Desconocido'}
+                                        <td className="p-4">
+                                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${alertReason === 'Préstamo Vencido' ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
+                                                {alertReason === 'Préstamo Vencido' ? '⏳ Préstamo Vencido' : '⚠️ Retenido > 3 meses'}
+                                            </span>
                                         </td>
                                         <td className="p-4">
-                                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-200">
-                                                Hace {days} días
-                                            </span>
+                                            {alertReason === 'Préstamo Vencido' ? (
+                                                <>
+                                                    <div className="text-sm text-slate-700 font-bold">
+                                                        Venció el: {format(new Date(cyl.expected_return_date), 'dd/MM/yyyy')}
+                                                    </div>
+                                                    <div className="text-xs text-orange-600 font-bold mt-0.5">
+                                                        Retraso: {differenceInDays(new Date(), new Date(cyl.expected_return_date))} días
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div className="text-sm text-slate-700">
+                                                        Prestado: {date ? format(date, 'dd/MM/yyyy') : 'Desconocido'}
+                                                    </div>
+                                                    <div className="text-xs text-red-600 font-bold mt-0.5">
+                                                        Hace {days} días
+                                                    </div>
+                                                </>
+                                            )}
                                         </td>
                                     </tr>
                                 );

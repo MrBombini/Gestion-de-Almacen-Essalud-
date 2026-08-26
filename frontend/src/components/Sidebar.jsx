@@ -112,6 +112,10 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
               <MdSwapCalls className="text-lg" />
               <span>Periferia/Centros Medicos</span>
             </NavLink>
+            <NavLink to="/inventory/loan-return" className={navLinkClass} onClick={closeSidebarMobile}>
+              <MdBusiness className="text-lg" />
+              <span>Préstamos / Terceros</span>
+            </NavLink>
           </div>
 
           {/* SECCIÓN: OXÍGENO LÍQUIDO */}
@@ -145,6 +149,10 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
             <NavLink to="/beds" className={navLinkClass} onClick={closeSidebarMobile}>
               <MdAirlineSeatFlat className='text-lg' />
               <span>Camas</span>
+            </NavLink>
+            <NavLink to="/authorities" className={navLinkClass} onClick={closeSidebarMobile}>
+              <MdBusiness className="text-lg" />
+              <span>Autoridades / Entidades</span>
             </NavLink>
           </div>
 
