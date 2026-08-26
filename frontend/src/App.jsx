@@ -18,6 +18,8 @@ import SupplierMovement from './pages/SupplierMovement';
 import PeripheryExchange from './pages/PeripheryExchange';
 import Reports from './pages/Reports';
 import OwnershipTypes from './pages/OwnershipTypes';
+import Authorities from './pages/Authorities';
+import LoanReturn from './pages/LoanReturn';
 import TicketControl from './pages/Reports/TicketControl';
 import SupplierReport from './pages/Reports/SupplierReport';
 import PeripheryReport from './pages/Reports/PeripheryReport';
@@ -47,10 +49,12 @@ function App() {
             <Route path="/cylinders" element={<Cylinders />} />
             <Route path="/suppliers" element={<Suppliers />} />
             <Route path="/ownership-types" element={<OwnershipTypes />} />
+            <Route path="/authorities" element={<Authorities />} />
             <Route path="/beds" element={<Beds />} />
 
             <Route path="/inventory/exchange" element={<Exchange />} />
             <Route path="/inventory/decanting" element={<Decanting />} />
+            <Route path="/inventory/loan-return" element={<LoanReturn />} />
             <Route path="/inventory/supplier" element={<SupplierMovement />} />
             <Route path="/inventory/periphery" element={<PeripheryExchange />} />
 

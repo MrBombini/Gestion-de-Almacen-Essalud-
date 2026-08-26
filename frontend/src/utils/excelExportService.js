@@ -146,7 +146,11 @@ export const exportLocationReport = async (data, dateRangeText) => {
     worksheet.getRow(5).values = worksheet.columns.map(c => c.header);
     applyHeaderStyles(worksheet, 5, 10);
 
-    const filteredData = data.filter(item => item.location?.detail !== 'Trasiego Recarga' && item.location?.name !== 'Trasiego Recarga');
+    const filteredData = data.filter(item => 
+        item.location?.detail !== 'Trasiego Recarga' && 
+        item.location?.name !== 'Trasiego Recarga' &&
+        item.type !== 'Canje de Red (Periferia)'
+    );
 
     const groupedData = [];
     const movementMap = new Map();

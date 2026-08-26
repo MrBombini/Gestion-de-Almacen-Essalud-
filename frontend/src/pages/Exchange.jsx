@@ -25,6 +25,7 @@ const Exchange = () => {
   const cylindersList = Array.isArray(cylinders) ? cylinders : (cylinders?.data || []);
 
   const [destinationType, setDestinationType] = useState('service');
+  const [operationType, setOperationType] = useState('Exchange'); // 'Exchange', 'Assignment', 'Return'
 
   const [formData, setFormData] = useState({
     patient_id: '',
@@ -138,6 +139,7 @@ const Exchange = () => {
       notes: ''
     });
     setSelectedPatientOption(null);
+    setOperationType('Exchange');
     setSelectedCylInOption(null);
     setSelectedCylOutOption(null);
     setSelectedPatientData(null);
@@ -231,8 +233,16 @@ const Exchange = () => {
       if (!formData.service_id) return setErrorMessage('No se encontró el servicio de Manifold en la base de datos.');
     }
 
-    if (!formData.cylinder_in && !formData.cylinder_out) {
-      return setErrorMessage('Debes seleccionar al menos un cilindro de entrada (recibido) o de salida (entregado).');
+    if (operationType === 'Exchange') {
+      if (!formData.cylinder_in || !formData.cylinder_out) {
+        return setErrorMessage('Para un Intercambio, debes seleccionar ambos balones (el vacío que recibes y el lleno que entregas).');
+      }
+    } else if (operationType === 'Assignment') {
+      if (!formData.cylinder_out) return setErrorMessage('Para una Asignación inicial, debes seleccionar el balón lleno a entregar.');
+      if (formData.cylinder_in) return setErrorMessage('En Asignación inicial no se debe registrar balón vacío recibido.');
+    } else if (operationType === 'Return') {
+      if (!formData.cylinder_in) return setErrorMessage('Para una Devolución final, debes seleccionar el balón vacío a recibir.');
+      if (formData.cylinder_out) return setErrorMessage('En Devolución final no se debe registrar balón lleno entregado.');
     }
 
     try {
@@ -248,6 +258,7 @@ const Exchange = () => {
         patient_id: '', service_id: '', bed_id: '',
         prescription_id: '', cylinder_in: '', cylinder_out: '', notes: ''
       });
+      setOperationType('Exchange');
       setSelectedPatientOption(null);
       setSelectedCylInOption(null);
       setSelectedCylOutOption(null);
@@ -556,7 +567,13 @@ const Exchange = () => {
               <MdPropaneTank className="text-indigo-500" /> 2. Movimiento de Balones
             </h3>
 
-            <div>
+            <div className="flex flex-col sm:flex-row p-1 bg-slate-100 rounded-xl w-full gap-1">
+              <button type="button" onClick={() => { setOperationType('Exchange'); setFormData({...formData, cylinder_in: '', cylinder_out: ''}); setSelectedCylInOption(null); setSelectedCylOutOption(null); }} className={`flex-1 px-2 py-2 rounded-lg text-xs font-bold transition-all text-center ${operationType === 'Exchange' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200'}`}>🔄 Intercambio</button>
+              <button type="button" onClick={() => { setOperationType('Assignment'); setFormData({...formData, cylinder_in: ''}); setSelectedCylInOption(null); }} className={`flex-1 px-2 py-2 rounded-lg text-xs font-bold transition-all text-center ${operationType === 'Assignment' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200'}`}>📤 Asignación</button>
+              <button type="button" onClick={() => { setOperationType('Return'); setFormData({...formData, cylinder_out: ''}); setSelectedCylOutOption(null); }} className={`flex-1 px-2 py-2 rounded-lg text-xs font-bold transition-all text-center ${operationType === 'Return' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200'}`}>📥 Devolución</button>
+            </div>
+
+            <div className={operationType === 'Return' ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}>
               <label className="block text-sm font-semibold text-emerald-700 mb-1 font-mono uppercase tracking-wider">Cilindro ENTREGADO (Lleno)</label>
               <AsyncSelect
                 cacheOptions
@@ -573,7 +590,7 @@ const Exchange = () => {
               />
             </div>
 
-            <div>
+            <div className={operationType === 'Assignment' ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}>
               <label className="block text-sm font-semibold text-orange-700 mb-1 font-mono uppercase tracking-wider">Cilindro RECIBIDO (Vacío)</label>
               <AsyncSelect
                 cacheOptions

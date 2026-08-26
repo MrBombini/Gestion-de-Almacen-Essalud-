@@ -364,6 +364,206 @@ class InventoryMovementController extends Controller
         return $this->createSupplierMovement($request, 'SupplierEntry');
     }
 
+    public function createLoanReturn(Request $request)
+    {
+        $validated = $request->validate([
+            'authority_id'       => ['required', 'exists:authorities,id'],
+            'operation_type'     => ['required', 'string', 'in:Loan,Return'],
+            'shift'              => ['required', 'string', 'in:Morning,Afternoon,Night'],
+            'cylinders'          => ['required', 'array', 'min:1'],
+            'cylinders.*'        => ['exists:cylinders,id'],
+            'notes'              => ['nullable', 'string']
+        ]);
+
+        return DB::transaction(function () use ($validated) {
+            $movement = InventoryMovement::create([
+                'type'               => $validated['operation_type'], // Loan or Return
+                'authority_id'       => $validated['authority_id'],
+                'shift'              => $validated['shift'],
+                'user_id'            => Auth::id(),
+                'movement_at'        => Carbon::now(),
+                'notes'              => $validated['notes'] ?? null
+            ]);
+
+            foreach ($validated['cylinders'] as $cylinderId) {
+                if ($validated['operation_type'] === 'Loan') {
+                    // Prestar (Salida de Planta)
+                    CylinderMovement::create([
+                        'inventory_movement_id' => $movement->id,
+                        'cylinder_id'           => $cylinderId,
+                        'action'                => 'Exit',
+                        'cylinder_status'       => 'in_use'
+                    ]);
+
+                    $cylinder = Cylinder::where('id', $cylinderId)->lockForUpdate()->first();
+                    $cylinder->update([
+                        'status'             => 'in_use',
+                        'location'           => 'AUTORIDAD / TERCEROS',
+                        'current_patient_id' => null,
+                        'current_service_id' => null,
+                        'current_bed_id'     => null
+                    ]);
+                } else {
+                    // Devolución (Ingreso a Planta)
+                    CylinderMovement::create([
+                        'inventory_movement_id' => $movement->id,
+                        'cylinder_id'           => $cylinderId,
+                        'action'                => 'Entry',
+                        'cylinder_status'       => 'empty'
+                    ]);
+
+                    $cylinder = Cylinder::where('id', $cylinderId)->lockForUpdate()->first();
+                    $cylinder->update([
+                        'status'             => 'empty',
+                        'location'           => 'CENTRAL',
+                        'current_patient_id' => null,
+                        'current_service_id' => null,
+                        'current_bed_id'     => null
+                    ]);
+                }
+            }
+
+            return response()->json($movement->load([
+                'cylinderMovements.cylinder.ownershipType',
+                'authority'
+            ]), 201);
+        });
+    }
+
+    /**
+     * Devolución de balón de paciente PADOMI
+     * El paciente devuelve su balón (fallecimiento, alta médica, viaje, etc.)
+     */
+    public function createPatientReturn(Request $request)
+    {
+        $validated = $request->validate([
+            'patient_id'    => ['required', 'exists:patients,id'],
+            'cylinder_id'   => ['required', 'exists:cylinders,id'],
+            'reason'        => ['required', 'string', 'in:Fallecimiento,Alta médica,Viaje,Baja voluntaria,Otro'],
+            'return_status' => ['required', 'string', 'in:empty,full'],
+            'shift'         => ['required', 'string', 'in:Morning,Afternoon,Night'],
+            'notes'         => ['nullable', 'string']
+        ]);
+
+        // Validar que el cilindro esté asignado a este paciente
+        $cylinder = Cylinder::find($validated['cylinder_id']);
+
+        if (!$cylinder) {
+            return response()->json(['message' => 'El cilindro no existe.'], 422);
+        }
+
+        if ($cylinder->current_patient_id != $validated['patient_id']) {
+            return response()->json([
+                'message' => 'El cilindro no está asignado a este paciente. Verifique los datos.'
+            ], 422);
+        }
+
+        return DB::transaction(function () use ($validated, $cylinder) {
+            // Registrar el movimiento de devolución
+            $movement = InventoryMovement::create([
+                'type'        => 'PatientReturn',
+                'shift'       => $validated['shift'],
+                'patient_id'  => $validated['patient_id'],
+                'user_id'     => Auth::id(),
+                'movement_at' => Carbon::now(),
+                'notes'       => $validated['notes'] ?? null,
+                'reason'      => $validated['reason'],
+            ]);
+
+            // Registrar el movimiento del cilindro (entra al almacén)
+            CylinderMovement::create([
+                'inventory_movement_id' => $movement->id,
+                'cylinder_id'           => $cylinder->id,
+                'action'                => 'Entry',
+                'cylinder_status'       => $validated['return_status']
+            ]);
+
+            // Liberar el cilindro: regresa a CENTRAL sin paciente asignado
+            $cylinder->lockForUpdate();
+            $cylinder->update([
+                'status'             => $validated['return_status'],
+                'location'           => 'CENTRAL',
+                'current_patient_id' => null,
+                'current_service_id' => null,
+                'current_bed_id'     => null,
+            ]);
+
+            return response()->json($movement->load([
+                'cylinderMovements.cylinder.ownershipType',
+                'patient'
+            ]), 201);
+        });
+    }
+
+    /**
+     * Préstamo de balón a paciente PADOMI
+     * El paciente recibe un balón (se valida receta médica vigente)
+     */
+    public function createPatientLoan(Request $request)
+    {
+        $validated = $request->validate([
+            'patient_id'           => ['required', 'exists:patients,id'],
+            'cylinder_id'          => ['required', 'exists:cylinders,id'],
+            'prescription_id'      => ['required', 'exists:prescriptions,id'],
+            'expected_return_date' => ['nullable', 'date'],
+            'shift'                => ['required', 'string', 'in:Morning,Afternoon,Night'],
+            'notes'                => ['nullable', 'string']
+        ]);
+
+        // Validación de receta vigente
+        $prescription = Prescription::find($validated['prescription_id']);
+        $today = Carbon::now()->format('Y-m-d');
+        if (!$prescription || $prescription->patient_id != $validated['patient_id'] || $today > $prescription->expires_at) {
+            return response()->json(['message' => 'El paciente no tiene una receta médica válida y vigente.'], 422);
+        }
+
+        // Validación de cilindro
+        $cylinder = Cylinder::where('id', $validated['cylinder_id'])->first();
+        if (!$cylinder) {
+            return response()->json(['message' => 'El cilindro no existe.'], 422);
+        }
+
+        if ($cylinder->status !== 'full' || strtoupper($cylinder->location) !== 'CENTRAL') {
+            return response()->json([
+                'message' => 'El cilindro debe estar lleno y ubicado en CENTRAL para poder ser prestado.'
+            ], 422);
+        }
+
+        return DB::transaction(function () use ($validated, $cylinder) {
+            $movement = InventoryMovement::create([
+                'type'                 => 'PatientLoan',
+                'shift'                => $validated['shift'],
+                'patient_id'           => $validated['patient_id'],
+                'prescription_id'      => $validated['prescription_id'],
+                'user_id'              => Auth::id(),
+                'movement_at'          => Carbon::now(),
+                'notes'                => $validated['notes'] ?? null,
+                'expected_return_date' => $validated['expected_return_date'] ?? null,
+            ]);
+
+            CylinderMovement::create([
+                'inventory_movement_id' => $movement->id,
+                'cylinder_id'           => $cylinder->id,
+                'action'                => 'Exit',
+                'cylinder_status'       => 'in_use'
+            ]);
+
+            $cylinder->lockForUpdate();
+            $cylinder->update([
+                'status'             => 'in_use',
+                'location'           => 'PADOMI',
+                'current_patient_id' => $validated['patient_id'],
+                'current_service_id' => null,
+                'current_bed_id'     => null,
+            ]);
+
+            return response()->json($movement->load([
+                'cylinderMovements.cylinder.ownershipType',
+                'patient'
+            ]), 201);
+        });
+    }
+
     public function index(Request $request)
     {
         $perPage = $request->query('per_page', 20);
@@ -375,6 +575,7 @@ class InventoryMovementController extends Controller
                 'user',
                 'patient',
                 'service',
+                'authority',
                 'bed',
                 'supplier',
                 'cylinderMovements.cylinder.ownershipType',

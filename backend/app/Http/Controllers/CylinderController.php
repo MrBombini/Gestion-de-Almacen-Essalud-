@@ -40,6 +40,11 @@ class CylinderController extends Controller
             $query->where('current_service_id', $request->current_service_id);
         }
 
+        // Filtro por paciente asignado actualmente (para devolucion PADOMI)
+        if ($request->filled('patient_id') && $request->patient_id !== 'ALL' && $request->patient_id !== 'null') {
+            $query->where('current_patient_id', $request->patient_id);
+        }
+
         $perPage = $request->get('per_page', 20);
         
         if ($perPage === 'all') {

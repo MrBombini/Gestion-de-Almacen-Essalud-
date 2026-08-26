@@ -20,7 +20,10 @@ class InventoryMovement extends Model
         'supplier_id',
         'user_id',
         'movement_at',
-        'notes'
+        'notes',
+        'reason',
+        'expected_return_date',
+        'authority_id'
     ];
 
     public function supplier()
@@ -56,5 +59,10 @@ class InventoryMovement extends Model
     public function cylinderMovements()
     {
         return $this->hasMany(CylinderMovement::class);
+    }
+
+    public function authority()
+    {
+        return $this->belongsTo(Authority::class);
     }
 }
