@@ -1,38 +1,58 @@
-import { useState, useRef } from 'react';
-import { MdPrint, MdDownload, MdSearch, MdLocalHospital } from 'react-icons/md';
+import { useState, useRef, useEffect } from 'react';
+import { MdPrint, MdDownload, MdSearch, MdLocalHospital, MdNavigateBefore, MdNavigateNext, MdOutlineClear } from 'react-icons/md';
 import useFetch from '../../hooks/useFetch';
 
 const PeripheryReport = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [searchUrl, setSearchUrl] = useState('/reports/kardex?per_page=all');
-
-  // 1. Fetch Kardex history
-  const { data: kardexData, loading, error } = useFetch(searchUrl);
-  const kardexList = Array.isArray(kardexData) ? kardexData : (kardexData?.data || []);
-
-  const handleFetchDates = () => {
-    const params = new URLSearchParams();
-    params.append('per_page', 'all');
-    if (startDate) params.append('start_date', startDate);
-    if (endDate) params.append('end_date', endDate);
-    setSearchUrl(`/reports/kardex?${params.toString()}`);
-  };
-
-  // 2. Filter ONLY periphery movements
-  const peripheryMovements = kardexList.filter(mov => 
-    mov.service && mov.service.type === 'PERIFERIE'
-  );
-
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedReport, setSelectedReport] = useState(null);
   const reportRef = useRef(null);
 
-  // Filter list by ID or Service Name
-  const filteredMovements = peripheryMovements.filter(mov => 
-    mov.id.toString().includes(searchTerm) || 
-    mov.service?.name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm.trim());
+      setCurrentPage(1);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const params = new URLSearchParams();
+  params.append('type', 'ServiceBulkExchange');
+  params.append('page', currentPage);
+  params.append('per_page', 20);
+  if (startDate) params.append('start_date', startDate);
+  if (endDate) params.append('end_date', endDate);
+  if (debouncedSearch) params.append('search', debouncedSearch);
+
+  const { data: kardexData, loading, error, execute } = useFetch(`/reports/kardex?${params.toString()}`);
+
+  useEffect(() => {
+    execute({ url: `/reports/kardex?${params.toString()}` });
+  }, [startDate, endDate, debouncedSearch, currentPage]);
+
+  const kardexList = Array.isArray(kardexData) ? kardexData : (kardexData?.data || []);
+  const peripheryMovements = kardexList;
+
+  const paginationMeta = kardexData && kardexData.total !== undefined ? {
+    currentPage: kardexData.current_page || 1,
+    lastPage: kardexData.last_page || 1,
+    total: kardexData.total || 0,
+    perPage: kardexData.per_page || 20
+  } : {
+    currentPage: 1,
+    lastPage: 1,
+    total: peripheryMovements.length,
+    perPage: 20
+  };
+
+  const handleFetchDates = () => {
+    setCurrentPage(1);
+  };
+
+  const filteredMovements = peripheryMovements;
 
   // ==========================================
   // DATA EXTRACTION & CALCULATION
@@ -227,6 +247,33 @@ const PeripheryReport = () => {
             {!loading && filteredMovements.length === 0 && (
               <div className="text-center p-4 text-slate-400 text-sm">No se encontraron registros a periferia.</div>
             )}
+          </div>
+
+          {/* Barra de Paginación (20 por página) */}
+          <div className="p-2.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-600">
+            <span className="font-medium">
+              Pág. <span className="font-bold">{paginationMeta.currentPage}</span> de <span className="font-bold">{paginationMeta.lastPage}</span> ({paginationMeta.total} total)
+            </span>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                disabled={paginationMeta.currentPage <= 1 || loading}
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                className="p-1 rounded-lg border bg-white border-slate-200 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 font-bold"
+                title="Anterior"
+              >
+                <MdNavigateBefore className="text-base" />
+              </button>
+              <button
+                type="button"
+                disabled={paginationMeta.currentPage >= paginationMeta.lastPage || loading}
+                onClick={() => setCurrentPage(prev => Math.min(paginationMeta.lastPage, prev + 1))}
+                className="p-1 rounded-lg border bg-white border-slate-200 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 font-bold"
+                title="Siguiente"
+              >
+                <MdNavigateNext className="text-base" />
+              </button>
+            </div>
           </div>
         </div>
 

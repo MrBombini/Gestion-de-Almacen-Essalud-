@@ -146,11 +146,14 @@ export const exportLocationReport = async (data, dateRangeText) => {
     worksheet.getRow(5).values = worksheet.columns.map(c => c.header);
     applyHeaderStyles(worksheet, 5, 10);
 
-    const filteredData = data.filter(item => 
-        item.location?.detail !== 'Trasiego Recarga' && 
-        item.location?.name !== 'Trasiego Recarga' &&
-        item.type !== 'Canje de Red (Periferia)'
-    );
+    const filteredData = data.filter(item => {
+        const isService = item.location && (item.location.type === 'Servicio (Hospital)' || item.location.type?.includes('Servicio'));
+        const isNotPeriphery = item.type !== 'Canje de Red (Periferia)' && item.location?.type !== 'Centro Asistencial (Periferia)' && item.location?.detail !== 'PERIFERIE / CENTRO MÉDICO';
+        const isNotTrasiego = item.type !== 'Trasiego (Decantación)' && !item.location?.type?.includes('Trasiego') && item.location?.detail !== 'Trasiego Recarga';
+        const isNotSupplier = item.type !== 'Ingreso Proveedor' && item.type !== 'Salida Proveedor' && item.location?.type !== 'Proveedor';
+        const isNotPatient = item.location?.type !== 'Paciente' && item.type !== 'Intercambio PADOMI' && item.type !== 'Devolución Paciente';
+        return isService && isNotPeriphery && isNotTrasiego && isNotSupplier && isNotPatient;
+    });
 
     const groupedData = [];
     const movementMap = new Map();
@@ -628,3 +631,74 @@ export const exportExecutiveConsumptionReport = async (reportData, dateText) => 
     const buffer = await workbook.xlsx.writeBuffer();
     saveAs(new Blob([buffer]), `Reporte_Ejecutivo_Consumo_${dateText.replace(/\//g, '-')}.xlsx`);
 };
+
+export const exportCylindersInventoryReport = async (cylindersData, dateText) => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Inventario Balones');
+
+    applyBaseStyles(worksheet, 'INVENTARIO GENERAL Y CONTROL DE CILINDROS DE OXÍGENO', '', dateText);
+
+    worksheet.columns = [
+        { header: 'Nº', key: 'nro', width: 6 },
+        { header: 'CÓDIGO CILINDRO', key: 'codigo', width: 20 },
+        { header: 'CÓDIGO REFERENCIA', key: 'codigo_ref', width: 20 },
+        { header: 'PROPIEDAD', key: 'propiedad', width: 18 },
+        { header: 'MODELO / PROVEEDOR', key: 'modelo', width: 22 },
+        { header: 'ESTADO', key: 'estado', width: 16 },
+        { header: 'UBICACIÓN', key: 'ubicacion', width: 22 },
+        { header: 'DETALLE ASIGNACIÓN (PACIENTE / SERVICIO)', key: 'asignacion', width: 38 },
+        { header: 'CAPACIDAD M3', key: 'capacidad', width: 15 },
+        { header: 'TIPO DE GAS', key: 'gas', width: 22 },
+    ];
+
+    worksheet.getRow(5).values = worksheet.columns.map(c => c.header);
+    applyHeaderStyles(worksheet, 5, 10);
+
+    const statusTranslations = {
+        'full': 'LLENO',
+        'empty': 'VACÍO',
+        'in_use': 'EN USO',
+        'in_transit': 'EN TRÁNSITO',
+        'lost': 'EXTRAVIADO'
+    };
+
+    cylindersData.forEach((item, index) => {
+        let detalleAsignacion = '-';
+        if (item.location === 'PADOMI') {
+            const p = item.current_patient || item.patient;
+            detalleAsignacion = p ? `${p.full_name || ''} (DNI: ${p.dni || 'S/D'})` : 'Paciente PADOMI';
+        } else if (item.location === 'HOSPITALIZACION') {
+            const s = item.current_service || item.service;
+            const b = item.current_bed;
+            detalleAsignacion = s ? `${s.name || ''}${b ? ' - Cama: ' + b.bed_number : ''}` : 'Servicio Hospitalario';
+        } else if (item.location === 'PERIFERIE' || item.location === 'PERIFERIE/CENTROS MEDICOS') {
+            const s = item.current_service || item.service;
+            detalleAsignacion = s ? s.name : 'Centro Asistencial Red';
+        } else if (item.location === 'PROVEEDOR') {
+            const sup = item.supplier;
+            detalleAsignacion = sup ? sup.name : 'Recarga Externa';
+        } else if (item.location === 'CENTRAL') {
+            detalleAsignacion = 'Almacén Central / Planta';
+        } else if (item.location === 'AUTORIDAD / TERCEROS' || item.location === 'AUTORIDADES') {
+            detalleAsignacion = 'Entidad Externa / Autoridad';
+        }
+
+        worksheet.addRow({
+            nro: index + 1,
+            codigo: item.serial_number || 'S/D',
+            codigo_ref: item.barcode || '-',
+            propiedad: item.ownership_type?.name || item.ownership_type_name || 'ESSALUD',
+            modelo: item.supplier?.name || item.supplier_name || item.ownership_type?.name || '-',
+            estado: statusTranslations[item.status] || (item.status ? item.status.toUpperCase() : 'S/D'),
+            ubicacion: item.location || 'CENTRAL',
+            asignacion: detalleAsignacion,
+            capacidad: `${item.capacity || 0} m³`,
+            gas: item.gas_type || 'OXÍGENO MEDICINAL',
+        });
+    });
+
+    applyDataStyles(worksheet, 6, cylindersData.length, 10);
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(new Blob([buffer]), `Inventario_Cilindros_${dateText.replace(/\//g, '-')}.xlsx`);
+};
+

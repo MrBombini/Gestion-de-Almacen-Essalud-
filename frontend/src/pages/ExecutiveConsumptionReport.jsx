@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
 import { exportExecutiveConsumptionReport } from '../utils/excelExportService';
+import { MdSave, MdRefresh, MdFileDownload, MdPrint, MdCheckCircle, MdErrorOutline } from 'react-icons/md';
 
 function ExecutiveConsumptionReport() {
   const [date, setDate] = useState(() => {
@@ -17,12 +18,23 @@ function ExecutiveConsumptionReport() {
   const [reportData, setReportData] = useState(null);
   const [error, setError] = useState('');
 
+  // Estado editable para Oxígeno Líquido
+  const [editableLiquid, setEditableLiquid] = useState(null);
+  const [isSavingLiquid, setIsSavingLiquid] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState('');
+  const [saveError, setSaveError] = useState('');
+
   const fetchReport = async () => {
     setLoading(true);
     setError('');
+    setSaveSuccess('');
+    setSaveError('');
     try {
       const response = await api.get(`/reports/executive-consumption?date=${date}`);
       setReportData(response.data);
+      if (response.data && response.data.liquido) {
+        setEditableLiquid(JSON.parse(JSON.stringify(response.data.liquido)));
+      }
     } catch (err) {
       console.error(err);
       setError('Error al cargar el reporte gerencial.');
@@ -37,11 +49,86 @@ function ExecutiveConsumptionReport() {
     fetchReport();
   }, [date]);
 
+  // Manejador reactivo para recalcular valores matemáticos en vivo
+  const handleLiquidFieldChange = (section, field, rawValue) => {
+    const value = rawValue === '' ? '' : parseFloat(rawValue) || 0;
+    const factor = 55.9;
+
+    setEditableLiquid(prev => {
+      if (!prev) return prev;
+      const updated = JSON.parse(JSON.stringify(prev));
+      updated[section][field] = value;
+
+      // 1. Recálculo de Saldo Inicial
+      if (section === 'saldo_inicial' && field === 'lectura_actual') {
+        const val = parseFloat(value) || 0;
+        updated.saldo_inicial.saldo_inicial_m3 = (val * factor).toFixed(2);
+        updated.reserva.nivel_anterior = val;
+      }
+
+      // 2. Recálculo de Consumo de Flujómetro
+      if (section === 'consumo') {
+        const ant = parseFloat(field === 'lectura_anterior' ? value : updated.consumo.lectura_anterior) || 0;
+        const act = parseFloat(field === 'lectura_actual' ? value : updated.consumo.lectura_actual) || 0;
+        const diff = Math.max(0, act - ant);
+        updated.consumo.consumo_m3 = diff.toFixed(2);
+        updated.consumo.consumo_hora = diff > 0 ? (diff / 24).toFixed(6) : 0;
+      }
+
+      // 3. Recálculo de Ingreso de Cisterna
+      if (section === 'ingreso') {
+        const ini = parseFloat(field === 'inicial' ? value : updated.ingreso.inicial) || 0;
+        const fin = parseFloat(field === 'final' ? value : updated.ingreso.final) || 0;
+        const diff = Math.max(0, fin - ini);
+        updated.ingreso.diferencia = diff.toFixed(2);
+        updated.ingreso.recargado_m3 = (diff * factor).toFixed(2);
+      }
+
+      // 4. Recálculo de Reserva y Proyección
+      const currentNivel = parseFloat(section === 'reserva' && field === 'nivel_actual' ? value : updated.reserva.nivel_actual) || 0;
+      const reservaM3 = currentNivel * factor;
+      updated.reserva.reserva_m3 = reservaM3.toFixed(2);
+
+      const consumoM3 = parseFloat(updated.consumo.consumo_m3) || 0;
+      if (consumoM3 > 0 && reservaM3 > 0) {
+        updated.reserva.proyeccion_dias = (reservaM3 / consumoM3).toFixed(4);
+      } else {
+        updated.reserva.proyeccion_dias = 0;
+      }
+
+      return updated;
+    });
+  };
+
+  const handleSaveLiquid = async () => {
+    if (!editableLiquid) return;
+    setIsSavingLiquid(true);
+    setSaveSuccess('');
+    setSaveError('');
+    try {
+      const response = await api.post('/reports/executive-consumption/save', {
+        date,
+        liquid: editableLiquid
+      });
+      setSaveSuccess('¡Datos de oxígeno líquido guardados correctamente!');
+      setTimeout(() => setSaveSuccess(''), 4000);
+    } catch (err) {
+      console.error(err);
+      setSaveError(err.response?.data?.message || 'Error al guardar los datos de oxígeno líquido.');
+    } finally {
+      setIsSavingLiquid(false);
+    }
+  };
+
   const handleExportExcel = async () => {
     if (!reportData) return;
     try {
       const dateText = date.split('-').reverse().join('/');
-      await exportExecutiveConsumptionReport(reportData, dateText);
+      const fullReport = {
+        ...reportData,
+        liquido: editableLiquid || reportData.liquido
+      };
+      await exportExecutiveConsumptionReport(fullReport, dateText);
     } catch (error) {
       console.error('Error exportando Excel:', error);
       alert('Hubo un error al generar el archivo Excel.');
@@ -49,12 +136,23 @@ function ExecutiveConsumptionReport() {
   };
 
   if (loading && !reportData) {
-    return <div className="p-6 text-center text-gray-500">Cargando reporte...</div>;
+    return (
+      <div className="p-12 flex flex-col items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600 mb-3"></div>
+        <p className="text-gray-500 font-medium text-sm">Cargando reporte ejecutivo...</p>
+      </div>
+    );
   }
 
   if (error) {
-    return <div className="p-6 text-center text-red-500">{error}</div>;
+    return (
+      <div className="p-6 text-center text-red-500 bg-red-50 rounded-xl font-bold m-6 border border-red-200">
+        {error}
+      </div>
+    );
   }
+
+  const liquid = editableLiquid || (reportData ? reportData.liquido : null);
 
   return (
     <div className="p-4 md:p-6 pb-20 max-w-[1400px] mx-auto bg-gray-50 min-h-screen">
@@ -62,75 +160,117 @@ function ExecutiveConsumptionReport() {
         @media print {
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: white !important; }
           .report-container { box-shadow: none !important; border: none !important; }
-          @page { size: A4 landscape; margin: 10mm; }
+          @page { size: A4 landscape; margin: 8mm; }
         }
-        .report-container { width: 100%; padding: 2rem; border-radius: 4px; }
-        .report-header { display: flex; align-items: stretch; border: 3px solid #000; margin-bottom: 2rem; }
-        .logo-box { width: 150px; border-right: 2px solid #000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px; }
+        .report-container { width: 100%; padding: 1.5rem; border-radius: 4px; }
+        .report-header { display: flex; align-items: stretch; border: 2.5px solid #000; margin-bottom: 1.5rem; }
+        .logo-box { width: 140px; border-right: 2px solid #000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px; }
         .title-box { flex: 1; display: flex; align-items: center; justify-content: center; }
-        .title-box h2 { font-size: 28px; font-weight: 900; letter-spacing: 2px; color: #111; text-transform: uppercase; }
-        .date-box { width: 150px; border-left: 2px solid #000; display: flex; flex-direction: column; }
-        .date-title { border-bottom: 2px solid #000; text-align: center; font-weight: bold; padding: 5px; background-color: #f8f9fa; font-size: 14px; }
-        .date-value { flex: 1; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; }
-        .report-grid { display: grid; grid-template-columns: 1fr; gap: 2rem; }
-        @media(min-width: 1024px) { .report-grid { grid-template-columns: 1fr 1fr; gap: 0; } }
-        .section-main-title { border: 3px solid #000; text-align: center; font-weight: 900; font-size: 18px; padding: 10px; letter-spacing: 1px; background-color: #f8f9fa; margin-bottom: 20px; }
+        .title-box h2 { font-size: 24px; font-weight: 900; letter-spacing: 2px; color: #111; text-transform: uppercase; margin: 0; }
+        .date-box { width: 140px; border-left: 2px solid #000; display: flex; flex-direction: column; }
+        .date-title { border-bottom: 2px solid #000; text-align: center; font-weight: bold; padding: 4px; background-color: #f8f9fa; font-size: 13px; }
+        .date-value { flex: 1; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 16px; }
+        .report-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+        @media(min-width: 1024px) { .report-grid { grid-template-columns: 1fr 1fr; gap: 1.5rem; } }
+        .section-main-title { border: 2.5px solid #000; text-align: center; font-weight: 900; font-size: 16px; padding: 8px; letter-spacing: 1px; background-color: #f8f9fa; margin-bottom: 14px; }
         .data-table-container { width: 100%; }
-        .table-title { background-color: #b33979; color: white; text-align: center; font-weight: bold; padding: 6px; font-size: 15px; letter-spacing: 1px; }
-        .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        .data-table th { border-left: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb; border-bottom: 2px solid #b33979; padding: 8px; text-align: center; font-weight: bold; color: #111; }
-        .data-table td { border: 1px solid #e5e7eb; padding: 6px 8px; text-align: center; color: #333; }
+        .table-title { background-color: #b33979; color: white; text-align: center; font-weight: bold; padding: 5px; font-size: 13px; letter-spacing: 0.5px; }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .data-table th { border-left: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb; border-bottom: 2px solid #b33979; padding: 6px; text-align: center; font-weight: bold; color: #111; }
+        .data-table td { border: 1px solid #e5e7eb; padding: 5px 6px; text-align: center; color: #333; }
         .data-table td.text-left { text-align: left; }
-        .double-border-bottom { border-bottom: 4px double #b33979; }
+        .double-border-bottom { border-bottom: 3px double #b33979; }
         .bg-yellow-100 { background-color: #fef08a !important; }
+        .input-liquid-editable {
+          background-color: #fef08a;
+          border: 1px solid #f59e0b;
+          border-radius: 4px;
+          text-align: center;
+          font-weight: bold;
+          color: #000;
+          outline: none;
+          width: 80px;
+          padding: 2px 4px;
+        }
+        .input-liquid-editable:focus {
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
       `}</style>
 
-      <div className="flex flex-col md:flex-row justify-between items-center mb-6 bg-white p-4 rounded-xl shadow-sm border border-gray-100 print:hidden">
+      {/* Barra de Filtros y Acciones */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 bg-white p-4 rounded-2xl shadow-sm border border-slate-200 print:hidden">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Reporte Ejecutivo de Consumo</h1>
-          <p className="text-gray-500 text-sm">Consolidado general de Oxígeno Gaseoso y Líquido</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Reporte Ejecutivo de Consumo</h1>
+          <p className="text-slate-500 text-xs sm:text-sm">Consolidado general de Oxígeno Gaseoso y Líquido (Corte 07:00 AM)</p>
         </div>
-        <div className="flex gap-3 items-center mt-4 md:mt-0">
+        
+        <div className="flex flex-wrap gap-2.5 items-center w-full md:w-auto">
           <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="border-gray-300 rounded-lg shadow-sm px-4 py-2 focus:ring-blue-500 focus:border-blue-500"
+            className="border border-slate-300 rounded-xl shadow-sm px-3.5 py-2 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
           />
+          
           <button
             onClick={fetchReport}
-            className="bg-blue-600 text-white px-5 py-2 rounded-lg font-medium shadow-sm hover:bg-blue-700 transition"
+            className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2 rounded-xl text-sm font-bold transition-colors"
+            title="Refrescar datos"
           >
-            Refrescar
+            <MdRefresh className="text-lg" /> Refrescar
           </button>
+
+          <button
+            onClick={handleSaveLiquid}
+            disabled={isSavingLiquid || !editableLiquid}
+            className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all"
+            title="Guardar datos editados de oxígeno líquido"
+          >
+            <MdSave className="text-lg" /> {isSavingLiquid ? 'Guardando...' : 'Guardar Líquido'}
+          </button>
+
           <button
             onClick={handleExportExcel}
             disabled={!reportData}
-            className="bg-green-600 text-white px-5 py-2 rounded-lg font-medium shadow-sm hover:bg-green-700 transition disabled:opacity-50 flex items-center gap-2"
+            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-            Excel
+            <MdFileDownload className="text-lg" /> Excel
           </button>
+
           <button
             onClick={() => window.print()}
             disabled={!reportData}
-            className="bg-gray-800 text-white px-5 py-2 rounded-lg font-medium shadow-sm hover:bg-gray-900 transition disabled:opacity-50 flex items-center gap-2"
+            className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-900 disabled:bg-slate-300 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-            Imprimir
+            <MdPrint className="text-lg" /> Imprimir
           </button>
         </div>
       </div>
+
+      {/* Alertas de Guardado */}
+      {saveSuccess && (
+        <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl flex items-center gap-2 text-sm font-bold print:hidden">
+          <MdCheckCircle className="text-xl text-emerald-600 shrink-0" />
+          {saveSuccess}
+        </div>
+      )}
+      {saveError && (
+        <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl flex items-center gap-2 text-sm font-bold print:hidden">
+          <MdErrorOutline className="text-xl text-rose-600 shrink-0" />
+          {saveError}
+        </div>
+      )}
 
       {reportData && (
         <div className="report-container bg-white shadow-xl border border-gray-200" id="printable-report" ref={reportRef}>
           {/* Header Row */}
           <div className="report-header">
             <div className="logo-box">
-              <div className="h-12 w-12 rounded-full border-2 border-orange-600 flex items-center justify-center text-orange-600 font-bold text-xl">
+              <div className="h-10 w-10 rounded-full border-2 border-orange-600 flex items-center justify-center text-orange-600 font-bold text-lg">
                 G
               </div>
-              <span className="text-[10px] uppercase mt-1 font-bold">Gestión Logística</span>
+              <span className="text-[9px] uppercase mt-1 font-bold">Gestión Logística</span>
             </div>
             <div className="title-box">
               <h2>REPORTE DE CONSUMO DE OXIGENO</h2>
@@ -142,7 +282,8 @@ function ExecutiveConsumptionReport() {
           </div>
 
           <div className="report-grid">
-            {/* COLUMN 1: GASEOSO */}
+            
+            {/* COLUMNA 1: GASEOSO */}
             <div className="column-gas">
               <h3 className="section-main-title">OXIGENO GASEOSO</h3>
 
@@ -161,20 +302,20 @@ function ExecutiveConsumptionReport() {
                   <tbody>
                     <tr>
                       <td className="text-left font-bold bg-gray-50">TOTAL UND</td>
-                      <td>{reportData.gaseoso.saldo_inicial['10']}</td>
-                      <td>{reportData.gaseoso.saldo_inicial['8']}</td>
-                      <td>{reportData.gaseoso.saldo_inicial['6']}</td>
+                      <td className="font-bold">{reportData.gaseoso.saldo_inicial['10']}</td>
+                      <td className="font-bold">{reportData.gaseoso.saldo_inicial['8']}</td>
+                      <td className="font-bold">{reportData.gaseoso.saldo_inicial['6']}</td>
                     </tr>
                     <tr className="double-border-bottom">
                       <td className="text-left font-bold bg-gray-50">TOTAL M3</td>
-                      <td colSpan="3" className="text-center font-bold">{reportData.gaseoso.saldo_inicial.total_m3}</td>
+                      <td colSpan="3" className="text-center font-bold text-sm text-indigo-900">{reportData.gaseoso.saldo_inicial.total_m3}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
 
               {/* Consumo */}
-              <div className="data-table-container mt-6">
+              <div className="data-table-container mt-4">
                 <h4 className="table-title">CONSUMO DE OXIGENO GASEOSO</h4>
                 <table className="data-table">
                   <thead>
@@ -206,20 +347,20 @@ function ExecutiveConsumptionReport() {
                     </tr>
                     <tr>
                       <td className="text-left font-bold bg-gray-50 text-indigo-900 border-t-2 border-indigo-200">TOTAL UND</td>
-                      <td className="border-t-2 border-indigo-200">{reportData.gaseoso.consumo.total_und['10']}</td>
-                      <td className="border-t-2 border-indigo-200">{reportData.gaseoso.consumo.total_und['8']}</td>
-                      <td className="border-t-2 border-indigo-200">{reportData.gaseoso.consumo.total_und['6']}</td>
+                      <td className="border-t-2 border-indigo-200 font-bold">{reportData.gaseoso.consumo.total_und['10']}</td>
+                      <td className="border-t-2 border-indigo-200 font-bold">{reportData.gaseoso.consumo.total_und['8']}</td>
+                      <td className="border-t-2 border-indigo-200 font-bold">{reportData.gaseoso.consumo.total_und['6']}</td>
                     </tr>
                     <tr className="double-border-bottom">
                       <td className="text-left font-bold bg-gray-50">TOTAL M3</td>
-                      <td colSpan="3" className="text-center font-bold text-lg">{reportData.gaseoso.consumo.total_m3}</td>
+                      <td colSpan="3" className="text-center font-bold text-sm text-red-600">{reportData.gaseoso.consumo.total_m3}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
 
               {/* Ingreso */}
-              <div className="data-table-container mt-6">
+              <div className="data-table-container mt-4">
                 <h4 className="table-title">INGRESO DE CILINDROS DE OXIGENO</h4>
                 <table className="data-table">
                   <thead>
@@ -233,20 +374,20 @@ function ExecutiveConsumptionReport() {
                   <tbody>
                     <tr>
                       <td className="text-left font-bold bg-gray-50">TOTAL UND</td>
-                      <td>{reportData.gaseoso.ingreso['10']}</td>
-                      <td>{reportData.gaseoso.ingreso['8']}</td>
-                      <td>{reportData.gaseoso.ingreso['6']}</td>
+                      <td className="font-bold">{reportData.gaseoso.ingreso['10']}</td>
+                      <td className="font-bold">{reportData.gaseoso.ingreso['8']}</td>
+                      <td className="font-bold">{reportData.gaseoso.ingreso['6']}</td>
                     </tr>
                     <tr className="double-border-bottom">
                       <td className="text-left font-bold bg-gray-50">TOTAL M3</td>
-                      <td colSpan="3" className="text-center font-bold text-lg">{reportData.gaseoso.ingreso.total_m3}</td>
+                      <td colSpan="3" className="text-center font-bold text-sm text-emerald-700">{reportData.gaseoso.ingreso.total_m3}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
 
               {/* Reserva Llenos */}
-              <div className="data-table-container mt-6">
+              <div className="data-table-container mt-4">
                 <h4 className="table-title">RESERVA DE CILINDROS DE OXIGENO</h4>
                 <table className="data-table">
                   <thead>
@@ -264,7 +405,6 @@ function ExecutiveConsumptionReport() {
                       <td>{reportData.gaseoso.reserva_llenos.central['8']}</td>
                       <td>{reportData.gaseoso.reserva_llenos.central['6']}</td>
                     </tr>
-
                     <tr>
                       <td className="text-left font-bold bg-gray-50">ALMACEN</td>
                       <td>{reportData.gaseoso.reserva_llenos.almacen['10']}</td>
@@ -273,20 +413,20 @@ function ExecutiveConsumptionReport() {
                     </tr>
                     <tr>
                       <td className="text-left font-bold bg-gray-50 border-t-2 border-indigo-200">TOTAL UND</td>
-                      <td className="border-t-2 border-indigo-200">{reportData.gaseoso.reserva_llenos.total_und['10']}</td>
-                      <td className="border-t-2 border-indigo-200">{reportData.gaseoso.reserva_llenos.total_und['8']}</td>
-                      <td className="border-t-2 border-indigo-200">{reportData.gaseoso.reserva_llenos.total_und['6']}</td>
+                      <td className="border-t-2 border-indigo-200 font-bold">{reportData.gaseoso.reserva_llenos.total_und['10']}</td>
+                      <td className="border-t-2 border-indigo-200 font-bold">{reportData.gaseoso.reserva_llenos.total_und['8']}</td>
+                      <td className="border-t-2 border-indigo-200 font-bold">{reportData.gaseoso.reserva_llenos.total_und['6']}</td>
                     </tr>
                     <tr className="double-border-bottom">
                       <td className="text-left font-bold bg-gray-50">TOTAL M3</td>
-                      <td colSpan="3" className="text-center font-bold text-lg">{reportData.gaseoso.reserva_llenos.total_m3}</td>
+                      <td colSpan="3" className="text-center font-bold text-sm text-blue-700">{reportData.gaseoso.reserva_llenos.total_m3}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
 
               {/* Balance General */}
-              <div className="data-table-container mt-6">
+              <div className="data-table-container mt-4">
                 <h4 className="table-title bg-indigo-900 text-white">BALANCE GENERAL</h4>
                 <table className="data-table">
                   <thead>
@@ -298,18 +438,18 @@ function ExecutiveConsumptionReport() {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr className="double-border-bottom bg-indigo-50">
-                      <td className="font-bold text-lg text-indigo-900">{reportData.gaseoso.saldo_inicial.total_m3}</td>
-                      <td className="font-bold text-lg text-red-600">{reportData.gaseoso.consumo.total_m3}</td>
-                      <td className="font-bold text-lg text-green-600">{reportData.gaseoso.ingreso.total_m3}</td>
-                      <td className="font-bold text-lg text-blue-700">{reportData.gaseoso.reserva_llenos.total_m3}</td>
+                    <tr className="double-border-bottom bg-indigo-50/50">
+                      <td className="font-bold text-base text-indigo-900">{reportData.gaseoso.saldo_inicial.total_m3}</td>
+                      <td className="font-bold text-base text-red-600">{reportData.gaseoso.consumo.total_m3}</td>
+                      <td className="font-bold text-base text-green-600">{reportData.gaseoso.ingreso.total_m3}</td>
+                      <td className="font-bold text-base text-blue-700">{reportData.gaseoso.reserva_llenos.total_m3}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
 
-              {/* Reserva Vacios */}
-              <div className="data-table-container mt-6">
+              {/* Reserva Vacíos */}
+              <div className="data-table-container mt-4">
                 <h4 className="table-title">RESERVA DE CILINDROS VACIOS DE OXIGENO</h4>
                 <table className="data-table">
                   <thead>
@@ -353,9 +493,9 @@ function ExecutiveConsumptionReport() {
                     </tr>
                     <tr className="double-border-bottom">
                       <td className="text-left font-bold bg-gray-50 text-indigo-900 border-t-2 border-indigo-200">TOTAL UND</td>
-                      <td className="border-t-2 border-indigo-200">{reportData.gaseoso.reserva_vacios.total_und['10']}</td>
-                      <td className="border-t-2 border-indigo-200">{reportData.gaseoso.reserva_vacios.total_und['8']}</td>
-                      <td className="border-t-2 border-indigo-200">{reportData.gaseoso.reserva_vacios.total_und['6']}</td>
+                      <td className="border-t-2 border-indigo-200 font-bold">{reportData.gaseoso.reserva_vacios.total_und['10']}</td>
+                      <td className="border-t-2 border-indigo-200 font-bold">{reportData.gaseoso.reserva_vacios.total_und['8']}</td>
+                      <td className="border-t-2 border-indigo-200 font-bold">{reportData.gaseoso.reserva_vacios.total_und['6']}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -363,104 +503,156 @@ function ExecutiveConsumptionReport() {
 
             </div>
 
-            {/* COLUMN 2: LIQUIDO */}
-            <div className="column-liquid relative pl-0 md:pl-6">
-              {/* Divider in desktop */}
-              <div className="hidden md:block absolute left-0 top-0 bottom-0 w-px bg-gray-200"></div>
-
+            {/* COLUMNA 2: LÍQUIDO */}
+            <div className="column-liquid relative">
               <h3 className="section-main-title">OXIGENO LIQUIDO</h3>
 
-              {/* Saldo Inicial Liquido */}
-              <div className="data-table-container">
-                <h4 className="table-title">SALDO INICIAL</h4>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>LECTURA ANTERIOR</th>
-                      <th>LECTURA ACTUAL</th>
-                      <th>SALDO INICIAL M3</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="double-border-bottom">
-                      <td>{reportData.liquido.saldo_inicial.lectura_anterior}</td>
-                      <td className="bg-yellow-100 font-bold">{reportData.liquido.saldo_inicial.lectura_actual}</td>
-                      <td className="font-bold">{reportData.liquido.saldo_inicial.saldo_inicial_m3}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+              {liquid && (
+                <>
+                  {/* Saldo Inicial Líquido */}
+                  <div className="data-table-container">
+                    <h4 className="table-title">SALDO INICIAL</h4>
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>LECTURA ANTERIOR</th>
+                          <th>LECTURA ACTUAL</th>
+                          <th>SALDO INICIAL M3</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="double-border-bottom">
+                          <td className="font-semibold">{liquid.saldo_inicial.lectura_anterior}</td>
+                          <td className="bg-yellow-100 font-bold p-1">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={liquid.saldo_inicial.lectura_actual ?? ''}
+                              onChange={(e) => handleLiquidFieldChange('saldo_inicial', 'lectura_actual', e.target.value)}
+                              className="input-liquid-editable"
+                            />
+                          </td>
+                          <td className="font-bold text-sm text-indigo-900">{liquid.saldo_inicial.saldo_inicial_m3}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
 
-              {/* Consumo Liquido */}
-              <div className="data-table-container mt-6">
-                <h4 className="table-title">CONSUMO DE OXIGENO LIQUIDO</h4>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>LECTURA ANTERIOR</th>
-                      <th>LECTURA ACTUAL</th>
-                      <th>CONSUMO DE OXIGENO LIQUIDO M3</th>
-                      <th>CONSUMO / HORA</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="double-border-bottom">
-                      <td className="bg-yellow-100 font-bold">{reportData.liquido.consumo.lectura_anterior}</td>
-                      <td className="bg-yellow-100 font-bold">{reportData.liquido.consumo.lectura_actual}</td>
-                      <td className="font-bold">{reportData.liquido.consumo.consumo_m3}</td>
-                      <td>{reportData.liquido.consumo.consumo_hora}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                  {/* Consumo Líquido */}
+                  <div className="data-table-container mt-4">
+                    <h4 className="table-title">CONSUMO DE OXIGENO LIQUIDO</h4>
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>LECTURA ANTERIOR</th>
+                          <th>LECTURA ACTUAL</th>
+                          <th>CONSUMO DE OXIGENO LIQUIDO M3</th>
+                          <th>CONSUMO / HORA</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="double-border-bottom">
+                          <td className="bg-yellow-100 font-bold p-1">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={liquid.consumo.lectura_anterior ?? ''}
+                              onChange={(e) => handleLiquidFieldChange('consumo', 'lectura_anterior', e.target.value)}
+                              className="input-liquid-editable"
+                            />
+                          </td>
+                          <td className="bg-yellow-100 font-bold p-1">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={liquid.consumo.lectura_actual ?? ''}
+                              onChange={(e) => handleLiquidFieldChange('consumo', 'lectura_actual', e.target.value)}
+                              className="input-liquid-editable"
+                            />
+                          </td>
+                          <td className="font-bold text-sm text-red-600">{liquid.consumo.consumo_m3}</td>
+                          <td className="font-mono text-xs">{liquid.consumo.consumo_hora}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
 
-              {/* Ingreso Liquido */}
-              <div className="data-table-container mt-6">
-                <h4 className="table-title">INGRESO DE OXIGENO LIQUIDO</h4>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>INICIAL</th>
-                      <th>FINAL</th>
-                      <th>DIFERENCIA</th>
-                      <th>RECARGADO M3</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="double-border-bottom">
-                      <td>{reportData.liquido.ingreso.inicial || ''}</td>
-                      <td>{reportData.liquido.ingreso.final || ''}</td>
-                      <td>{reportData.liquido.ingreso.diferencia}</td>
-                      <td className="font-bold text-green-700">{reportData.liquido.ingreso.recargado_m3}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                  {/* Ingreso Líquido */}
+                  <div className="data-table-container mt-4">
+                    <h4 className="table-title">INGRESO DE OXIGENO LIQUIDO</h4>
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>INICIAL</th>
+                          <th>FINAL</th>
+                          <th>DIFERENCIA</th>
+                          <th>RECARGADO M3</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="double-border-bottom">
+                          <td className="bg-yellow-100 font-bold p-1">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={liquid.ingreso.inicial ?? ''}
+                              onChange={(e) => handleLiquidFieldChange('ingreso', 'inicial', e.target.value)}
+                              className="input-liquid-editable"
+                              placeholder="0.00"
+                            />
+                          </td>
+                          <td className="bg-yellow-100 font-bold p-1">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={liquid.ingreso.final ?? ''}
+                              onChange={(e) => handleLiquidFieldChange('ingreso', 'final', e.target.value)}
+                              className="input-liquid-editable"
+                              placeholder="0.00"
+                            />
+                          </td>
+                          <td className="font-bold">{liquid.ingreso.diferencia}</td>
+                          <td className="font-bold text-sm text-emerald-700">{liquid.ingreso.recargado_m3}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
 
-              {/* Reserva Liquido */}
-              <div className="data-table-container mt-6">
-                <h4 className="table-title">RESERVA DE OXIGENO LIQUIDO</h4>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>NIVEL ANTERIOR</th>
-                      <th>NIVEL ACTUAL</th>
-                      <th>RESERVA DE OXIGENO LIQUIDO M3</th>
-                      <th>PROYECCION DE CONSUMO (DIAS)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="double-border-bottom">
-                      <td>{reportData.liquido.reserva.nivel_anterior}</td>
-                      <td className="bg-yellow-100 font-bold">{reportData.liquido.reserva.nivel_actual}</td>
-                      <td className="font-bold text-blue-700">{reportData.liquido.reserva.reserva_m3}</td>
-                      <td className="font-bold">{reportData.liquido.reserva.proyeccion_dias}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                  {/* Reserva Líquido */}
+                  <div className="data-table-container mt-4">
+                    <h4 className="table-title">RESERVA DE OXIGENO LIQUIDO</h4>
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>NIVEL ANTERIOR</th>
+                          <th>NIVEL ACTUAL</th>
+                          <th>RESERVA DE OXIGENO LIQUIDO M3</th>
+                          <th>PROYECCION DE CONSUMO (DIAS)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="double-border-bottom">
+                          <td className="font-semibold">{liquid.reserva.nivel_anterior}</td>
+                          <td className="bg-yellow-100 font-bold p-1">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={liquid.reserva.nivel_actual ?? ''}
+                              onChange={(e) => handleLiquidFieldChange('reserva', 'nivel_actual', e.target.value)}
+                              className="input-liquid-editable"
+                            />
+                          </td>
+                          <td className="font-bold text-sm text-blue-700">{liquid.reserva.reserva_m3}</td>
+                          <td className="font-bold text-sm text-indigo-900">{liquid.reserva.proyeccion_dias}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
 
             </div>
+
           </div>
         </div>
       )}

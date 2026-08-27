@@ -102,10 +102,9 @@ const DailyKardexReport = () => {
   };
 
   // ==========================================
-  // 4. SALDO INICIAL SEGURO (FLEX-MATCHER APLICADO)
+  // 4. SALDO INICIAL SEGURO A LAS 07:00 AM
   // ==========================================
   const startingBalances = useMemo(() => {
-    // 1. Calcular el stock actual (tiempo real)
     const currentBals = matrixColumns.map(() => ({ LLENO: 0, VACIO: 0 }));
 
     initialBalance.forEach(item => {
@@ -148,46 +147,8 @@ const DailyKardexReport = () => {
       }
     });
 
-    // 2. Revertir los movimientos del día para reconstruir el stock a las 07:00 AM
-    // SOLO SI se usó el stock en vivo (used_live_stock)
-    const usedLiveStock = reportPayload.used_live_stock !== false; 
-    
-    if (usedLiveStock) {
-        const allMovs = [
-          ...(shiftsData['MAÑANA']?.movements || []),
-          ...(shiftsData['TARDE']?.movements || []),
-          ...(shiftsData['NOCHE']?.movements || [])
-        ];
-
-        allMovs.forEach(mov => {
-            if (!mov) return;
-            const cylMovs = ensureArray(mov.cylinder_movements);
-            
-            cylMovs.forEach(cylMov => {
-                const colIdx = getCylinderColumnIndex(mov, cylMov);
-                if (colIdx !== -1) {
-                    const cStatus = String(cylMov.cylinder_status || '').toLowerCase().trim();
-                    const isFull = cStatus === 'full' || cStatus === 'in_use' || cStatus === 'lleno';
-                    
-                    const act = String(cylMov.action || '').toLowerCase().trim();
-                    const isExit = act === 'exit' || act === 'salida';
-                    const isEntry = act === 'entry' || act === 'ingreso';
-
-                    // REVERSIÓN
-                    if (isFull) {
-                        if (isEntry) currentBals[colIdx].LLENO -= 1;
-                        if (isExit) currentBals[colIdx].LLENO += 1;
-                    } else { 
-                        if (isEntry) currentBals[colIdx].VACIO -= 1;
-                        if (isExit) currentBals[colIdx].VACIO += 1;
-                    }
-                }
-            });
-        });
-    }
-
     return currentBals;
-  }, [initialBalance, matrixColumns, shiftsData, reportPayload.used_live_stock]);
+  }, [initialBalance, matrixColumns]);
 
   // ==========================================
   // 4. MOTOR MATEMÁTICO EN CASCADA

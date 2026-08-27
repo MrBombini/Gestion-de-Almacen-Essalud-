@@ -74,16 +74,26 @@ class InventoryMovementController extends Controller
         }
 
         return DB::transaction(function () use ($validated) {
+            $attentionNumber = null;
+            if (!empty($validated['patient_id'])) {
+                $maxAttention = InventoryMovement::where('type', 'Exchange')
+                    ->whereNotNull('patient_id')
+                    ->lockForUpdate()
+                    ->max('attention_number');
+                $attentionNumber = ($maxAttention ? (int) $maxAttention : 0) + 1;
+            }
+
             $movement = InventoryMovement::create([
-                'type'            => 'Exchange',
-                'shift'           => $validated['shift'],
-                'patient_id'      => $validated['patient_id'] ?? null,
-                'service_id'      => $validated['service_id'] ?? null,
-                'bed_id'          => $validated['bed_id'] ?? null,
-                'prescription_id' => $validated['prescription_id'] ?? null,
-                'user_id'         => Auth::id(),
-                'notes'           => $validated['notes'] ?? null,
-                'movement_at'     => Carbon::now()
+                'type'             => 'Exchange',
+                'attention_number' => $attentionNumber,
+                'shift'            => $validated['shift'],
+                'patient_id'       => $validated['patient_id'] ?? null,
+                'service_id'       => $validated['service_id'] ?? null,
+                'bed_id'           => $validated['bed_id'] ?? null,
+                'prescription_id'  => $validated['prescription_id'] ?? null,
+                'user_id'          => Auth::id(),
+                'notes'            => $validated['notes'] ?? null,
+                'movement_at'      => Carbon::now()
             ]);
 
             // Determinar la nueva ubicación según el destino
@@ -487,6 +497,11 @@ class InventoryMovementController extends Controller
                 'current_service_id' => null,
                 'current_bed_id'     => null,
             ]);
+
+            // Anular / Suspender automáticamente todas las recetas activas del paciente
+            Prescription::where('patient_id', $validated['patient_id'])
+                ->where('status', 'active')
+                ->update(['status' => 'inactive']);
 
             return response()->json($movement->load([
                 'cylinderMovements.cylinder.ownershipType',

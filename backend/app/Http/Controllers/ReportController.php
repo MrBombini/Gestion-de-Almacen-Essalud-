@@ -14,70 +14,296 @@ use Illuminate\Pagination\LengthAwarePaginator;
 class ReportController extends Controller
 {
     /**
-     * REPORTE 1: KARDEX ATENCIÓN DE OXÍGENO (Profesional)
-     * Este es el reporte principal solicitado basado en el formato físico.
+     * Reconstruye o recupera el inventario de balones llenos y vacíos a las 07:00 AM de una fecha dada.
+     */
+    private function getHistoricalInventory($date)
+    {
+        $targetDate = Carbon::parse($date)->toDateString();
+        $isToday = Carbon::parse($targetDate)->isToday();
+        $previousDate = Carbon::parse($targetDate)->subDay()->toDateString();
+        $startDateTime = Carbon::parse($targetDate)->setTime(7, 0, 0);
+
+        // 1. Intentar obtener snapshot guardado para esa fecha
+        $snapshot = \App\Models\DailySnapshot::where('date', $previousDate)->first();
+        if (!$snapshot) {
+            $snapshot = \App\Models\DailySnapshot::where('date', $targetDate)->first();
+        }
+
+        if ($snapshot && !empty($snapshot->snapshot_data['full']) && !empty($snapshot->snapshot_data['empty'])) {
+            return [
+                'full' => collect($snapshot->snapshot_data['full']),
+                'empty' => collect($snapshot->snapshot_data['empty']),
+                'from_snapshot' => true,
+            ];
+        }
+
+        // 2. Si no hay snapshot, obtener stock actual y revertir movimientos
+        $currentFull = Cylinder::where('status', 'full')
+            ->select('location', 'capacity', 'ownership_type_id', 'supplier_id', 'physical_condition', DB::raw('count(*) as total'))
+            ->groupBy('location', 'capacity', 'ownership_type_id', 'supplier_id', 'physical_condition')
+            ->with(['ownershipType', 'supplier'])
+            ->get();
+
+        $currentEmpty = Cylinder::where('status', 'empty')
+            ->select('location', 'capacity', 'ownership_type_id', 'supplier_id', 'physical_condition', DB::raw('count(*) as total'))
+            ->groupBy('location', 'capacity', 'ownership_type_id', 'supplier_id', 'physical_condition')
+            ->with(['ownershipType', 'supplier'])
+            ->get();
+
+        $movementsSinceDate = CylinderMovement::whereHas('inventoryMovement', function($q) use ($startDateTime) {
+                $q->where('movement_at', '>=', $startDateTime);
+            })
+            ->with(['inventoryMovement', 'cylinder.ownershipType', 'cylinder.supplier'])
+            ->get();
+
+        $fullMap = [];
+        foreach ($currentFull as $item) {
+            $loc = strtoupper($item->location ?? 'CENTRAL');
+            $cap = (int) $item->capacity;
+            $own = (int) $item->ownership_type_id;
+            $sup = (int) ($item->supplier_id ?? 0);
+            $key = "{$loc}|{$cap}|{$own}|{$sup}";
+            $fullMap[$key] = [
+                'location' => $loc,
+                'capacity' => $cap,
+                'ownership_type_id' => $own,
+                'supplier_id' => $item->supplier_id,
+                'ownership_type' => $item->ownershipType,
+                'supplier' => $item->supplier,
+                'total' => (int) $item->total
+            ];
+        }
+
+        $emptyMap = [];
+        foreach ($currentEmpty as $item) {
+            $loc = strtoupper($item->location ?? 'CENTRAL');
+            $cap = (int) $item->capacity;
+            $own = (int) $item->ownership_type_id;
+            $sup = (int) ($item->supplier_id ?? 0);
+            $key = "{$loc}|{$cap}|{$own}|{$sup}";
+            $emptyMap[$key] = [
+                'location' => $loc,
+                'capacity' => $cap,
+                'ownership_type_id' => $own,
+                'supplier_id' => $item->supplier_id,
+                'ownership_type' => $item->ownershipType,
+                'supplier' => $item->supplier,
+                'total' => (int) $item->total
+            ];
+        }
+
+        foreach ($movementsSinceDate as $cm) {
+            $cyl = $cm->cylinder;
+            if (!$cyl) continue;
+
+            $action = strtolower($cm->action ?? '');
+            $status = strtolower($cm->cylinder_status ?? ($action === 'entry' ? 'empty' : 'full'));
+            $loc = 'CENTRAL';
+            $cap = (int) ($cyl->capacity ?? 10);
+            $own = (int) ($cyl->ownership_type_id ?? 0);
+            $sup = (int) ($cyl->supplier_id ?? 0);
+            $key = "{$loc}|{$cap}|{$own}|{$sup}";
+
+            $isFull = in_array($status, ['full', 'lleno', 'in_use']);
+            
+            if ($isFull) {
+                if (!isset($fullMap[$key])) {
+                    $fullMap[$key] = [
+                        'location' => $loc,
+                        'capacity' => $cap,
+                        'ownership_type_id' => $own,
+                        'supplier_id' => $cyl->supplier_id,
+                        'ownership_type' => $cyl->ownershipType,
+                        'supplier' => $cyl->supplier,
+                        'total' => 0
+                    ];
+                }
+                if ($action === 'entry' || $action === 'ingreso') {
+                    $fullMap[$key]['total'] -= 1;
+                } elseif ($action === 'exit' || $action === 'salida') {
+                    $fullMap[$key]['total'] += 1;
+                }
+            } else {
+                if (!isset($emptyMap[$key])) {
+                    $emptyMap[$key] = [
+                        'location' => $loc,
+                        'capacity' => $cap,
+                        'ownership_type_id' => $own,
+                        'supplier_id' => $cyl->supplier_id,
+                        'ownership_type' => $cyl->ownershipType,
+                        'supplier' => $cyl->supplier,
+                        'total' => 0
+                    ];
+                }
+                if ($action === 'entry' || $action === 'ingreso') {
+                    $emptyMap[$key]['total'] -= 1;
+                } elseif ($action === 'exit' || $action === 'salida') {
+                    $emptyMap[$key]['total'] += 1;
+                }
+            }
+        }
+
+        foreach ($fullMap as &$f) {
+            if ($f['total'] < 0) $f['total'] = 0;
+        }
+        foreach ($emptyMap as &$e) {
+            if ($e['total'] < 0) $e['total'] = 0;
+        }
+
+        $fullCollection = collect(array_values($fullMap));
+        $emptyCollection = collect(array_values($emptyMap));
+
+        if (!$isToday && Carbon::parse($targetDate)->isPast()) {
+            \App\Models\DailySnapshot::updateOrCreate(
+                ['date' => $previousDate],
+                [
+                    'snapshot_data' => [
+                        'full' => $fullCollection->toArray(),
+                        'empty' => $emptyCollection->toArray(),
+                        'timestamp' => Carbon::now()->toIso8601String(),
+                        'auto_generated' => true
+                    ]
+                ]
+            );
+        }
+
+        return [
+            'full' => $fullCollection,
+            'empty' => $emptyCollection,
+            'from_snapshot' => false,
+        ];
+    }
+
+    /**
+     * Aplica los movimientos de un turno a los saldos iniciales del turno.
+     */
+    private function applyShiftMovementsToStock($fullStock, $emptyStock, $shiftMoves)
+    {
+        $fullMap = [];
+        foreach ($fullStock as $item) {
+            $item = (array) $item;
+            $loc = strtoupper($item['location'] ?? 'CENTRAL');
+            $cap = (int) ($item['capacity'] ?? 10);
+            $own = (int) ($item['ownership_type_id'] ?? 0);
+            $sup = (int) ($item['supplier_id'] ?? 0);
+            $key = "{$loc}|{$cap}|{$own}|{$sup}";
+            $fullMap[$key] = $item;
+            $fullMap[$key]['total'] = (int) ($item['total'] ?? 0);
+        }
+
+        $emptyMap = [];
+        foreach ($emptyStock as $item) {
+            $item = (array) $item;
+            $loc = strtoupper($item['location'] ?? 'CENTRAL');
+            $cap = (int) ($item['capacity'] ?? 10);
+            $own = (int) ($item['ownership_type_id'] ?? 0);
+            $sup = (int) ($item['supplier_id'] ?? 0);
+            $key = "{$loc}|{$cap}|{$own}|{$sup}";
+            $emptyMap[$key] = $item;
+            $emptyMap[$key]['total'] = (int) ($item['total'] ?? 0);
+        }
+
+        foreach ($shiftMoves as $move) {
+            foreach ($move->cylinderMovements as $cm) {
+                $cyl = $cm->cylinder;
+                if (!$cyl) continue;
+
+                $action = strtolower($cm->action ?? '');
+                $status = strtolower($cm->cylinder_status ?? ($action === 'entry' ? 'empty' : 'full'));
+                $loc = 'CENTRAL';
+                $cap = (int) ($cyl->capacity ?? 10);
+                $own = (int) ($cyl->ownership_type_id ?? 0);
+                $sup = (int) ($cyl->supplier_id ?? 0);
+                $key = "{$loc}|{$cap}|{$own}|{$sup}";
+
+                $isFull = in_array($status, ['full', 'lleno', 'in_use']);
+
+                if ($isFull) {
+                    if (!isset($fullMap[$key])) {
+                        $fullMap[$key] = [
+                            'location' => $loc,
+                            'capacity' => $cap,
+                            'ownership_type_id' => $own,
+                            'supplier_id' => $cyl->supplier_id,
+                            'ownership_type' => $cyl->ownershipType,
+                            'supplier' => $cyl->supplier,
+                            'total' => 0
+                        ];
+                    }
+                    if ($action === 'entry' || $action === 'ingreso') {
+                        $fullMap[$key]['total'] += 1;
+                    } elseif ($action === 'exit' || $action === 'salida') {
+                        $fullMap[$key]['total'] -= 1;
+                    }
+                } else {
+                    if (!isset($emptyMap[$key])) {
+                        $emptyMap[$key] = [
+                            'location' => $loc,
+                            'capacity' => $cap,
+                            'ownership_type_id' => $own,
+                            'supplier_id' => $cyl->supplier_id,
+                            'ownership_type' => $cyl->ownershipType,
+                            'supplier' => $cyl->supplier,
+                            'total' => 0
+                        ];
+                    }
+                    if ($action === 'entry' || $action === 'ingreso') {
+                        $emptyMap[$key]['total'] += 1;
+                    } elseif ($action === 'exit' || $action === 'salida') {
+                        $emptyMap[$key]['total'] -= 1;
+                    }
+                }
+            }
+        }
+
+        foreach ($fullMap as &$f) {
+            if ($f['total'] < 0) $f['total'] = 0;
+        }
+        foreach ($emptyMap as &$e) {
+            if ($e['total'] < 0) $e['total'] = 0;
+        }
+
+        return [
+            'full' => collect(array_values($fullMap)),
+            'empty' => collect(array_values($emptyMap))
+        ];
+    }
+
+    /**
+     * REPORTE 1: KARDEX ATENCIÓN DE OXÍGENO (Matriz Diaria)
      */
     public function dailyKardex(Request $request)
     {
         $date = $request->query('date', Carbon::today()->toDateString());
         
-        // 1. Saldo Inicial / Stock Actual por Propietario (Garantizando que aparezcan todos los tipos)
-        $ownershipTypes = DB::table('ownership_types')->get();
-        $counts = DB::table('cylinders')
-            ->select('ownership_type_id', 'status', DB::raw('count(*) as total'))
-            ->where('location', 'CENTRAL')
-            ->whereNull('deleted_at')
-            ->groupBy('ownership_type_id', 'status')
-            ->get();
+        $historical = $this->getHistoricalInventory($date);
+        $full = $historical['full']->map(function($item) {
+            $item = (array) $item;
+            $item['status'] = 'full';
+            return $item;
+        });
+        $empty = $historical['empty']->map(function($item) {
+            $item = (array) $item;
+            $item['status'] = 'empty';
+            return $item;
+        });
+        $initialBalance = $full->concat($empty)->values();
 
-        $stockSummary = $ownershipTypes->map(function($type) use ($counts) {
+        $ownershipTypes = DB::table('ownership_types')->get();
+        $stockSummary = $ownershipTypes->map(function($type) use ($full, $empty) {
+            $fCount = $full->where('ownership_type_id', $type->id)->sum('total');
+            $eCount = $empty->where('ownership_type_id', $type->id)->sum('total');
             return [
                 'name' => $type->name,
-                'full' => $counts->where('ownership_type_id', $type->id)->where('status', 'full')->first()->total ?? 0,
-                'empty' => $counts->where('ownership_type_id', $type->id)->where('status', 'empty')->first()->total ?? 0,
+                'full' => $fCount,
+                'empty' => $eCount,
             ];
         });
-
-        // 2. Saldo Inicial Detallado (Para lógica de celdas)
-        $isToday = Carbon::parse($date)->isToday();
-        
-        $usedLiveStock = false;
-        if ($isToday) {
-            $initialBalance = Cylinder::where('location', 'CENTRAL')
-                ->select('capacity', 'status', 'ownership_type_id', 'supplier_id', DB::raw('count(*) as total'))
-                ->groupBy('capacity', 'status', 'ownership_type_id', 'supplier_id')
-                ->with(['ownershipType', 'supplier'])
-                ->get();
-            $usedLiveStock = true;
-        } else {
-            $previousDate = Carbon::parse($date)->subDay()->toDateString();
-            $snapshot = \App\Models\DailySnapshot::where('date', $previousDate)->first();
-            
-            if ($snapshot && (isset($snapshot->snapshot_data['full']) || isset($snapshot->snapshot_data['empty']))) {
-                $full = collect($snapshot->snapshot_data['full'] ?? [])->where('location', 'CENTRAL')->map(function($item) {
-                    $item['status'] = 'full';
-                    return $item;
-                });
-                $empty = collect($snapshot->snapshot_data['empty'] ?? [])->where('location', 'CENTRAL')->map(function($item) {
-                    $item['status'] = 'empty';
-                    return $item;
-                });
-                $initialBalance = $full->concat($empty)->values();
-            } else {
-                // Fallback to live stock if snapshot is missing
-                $initialBalance = Cylinder::where('location', 'CENTRAL')
-                    ->select('capacity', 'status', 'ownership_type_id', 'supplier_id', DB::raw('count(*) as total'))
-                    ->groupBy('capacity', 'status', 'ownership_type_id', 'supplier_id')
-                    ->with(['ownershipType', 'supplier'])
-                    ->get();
-                $usedLiveStock = true;
-            }
-        }
             
         $startDateTime = Carbon::parse($date)->setTime(7, 0, 0);
         $endDateTime = Carbon::parse($date)->addDay()->setTime(7, 0, 0);
 
-        // 3. Movimientos del día agrupados por turno
+        // Movimientos del día agrupados por turno (7am a 7am)
         $allMovements = InventoryMovement::with([
                 'cylinderMovements.cylinder.ownershipType', 
                 'cylinderMovements.cylinder.supplier',
@@ -93,7 +319,6 @@ class ReportController extends Controller
 
         $shifts = $allMovements->groupBy('shift');
 
-        // Formatear respuesta por turnos (Mañana, Tarde, Noche)
         $formattedShifts = [];
         foreach (['Morning' => 'MAÑANA', 'Afternoon' => 'TARDE', 'Night' => 'NOCHE'] as $key => $display) {
             $shiftMovements = $shifts->get($key, collect());
@@ -107,17 +332,16 @@ class ReportController extends Controller
 
         return response()->json([
             'date' => $date,
-            'used_live_stock' => $usedLiveStock,
+            'used_live_stock' => false,
             'stock_summary' => $stockSummary,
             'initial_balance' => $initialBalance,
             'shifts' => $formattedShifts,
-            'note' => 'El saldo inicial detallado y por propietario muestra una captura en tiempo real del estado actual del almacén.'
+            'note' => 'Saldo inicial histórico exacto a las 07:00 AM.'
         ]);
     }
 
     /**
-     * REPORTE 2: REGISTRO DE CONSUMO DE OXÍGENO DIARIO
-     * Panel consolidado de m3 entregados y estado de la reserva por turnos.
+     * REPORTE 2: REGISTRO DE CONSUMO DE OXÍGENO DIARIO (Resumen Kardex Cascada)
      */
     public function dailyConsumptionDashboard(Request $request)
     {
@@ -126,27 +350,29 @@ class ReportController extends Controller
         $startDateTime = Carbon::parse($date)->setTime(7, 0, 0);
         $endDateTime = Carbon::parse($date)->addDay()->setTime(7, 0, 0);
 
-        // 1. Obtener todos los movimientos del día con relaciones completas de cilindros y marcas
         $movements = InventoryMovement::whereBetween('movement_at', [$startDateTime, $endDateTime])
-            ->with(['cylinderMovements.cylinder.ownershipType', 'user', 'patient', 'service'])
+            ->with(['cylinderMovements.cylinder.ownershipType', 'cylinderMovements.cylinder.supplier', 'user', 'patient', 'service'])
             ->get();
 
-        // 2. Estado Físico ACTUAL del almacén
-        $fullStock = Cylinder::where('status', 'full')
-            ->select('location', 'capacity', 'ownership_type_id', 'supplier_id', DB::raw('count(*) as total'))
-            ->groupBy('location', 'capacity', 'ownership_type_id', 'supplier_id')
-            ->with(['ownershipType', 'supplier'])
-            ->get();
+        // 1. Obtener inventario exacto a las 07:00 AM para este día
+        $historical = $this->getHistoricalInventory($date);
+        $currFull = $historical['full'];
+        $currEmpty = $historical['empty'];
 
-        $emptyStock = Cylinder::where('status', 'empty')
-            ->select('location', 'capacity', 'ownership_type_id', 'supplier_id', DB::raw('count(*) as total'))
-            ->groupBy('location', 'capacity', 'ownership_type_id', 'supplier_id')
-            ->with(['ownershipType', 'supplier'])
-            ->get();
+        // Calcular Saldo Inicial de oxígeno en m3 (Balones llenos en Central y Almacén a las 07:00 AM)
+        $initialBalanceM3 = 0;
+        foreach ($currFull as $stock) {
+            $s = (array) $stock;
+            $loc = strtoupper($s['location'] ?? 'CENTRAL');
+            if ($loc === 'CENTRAL' || $loc === 'ALMACEN') {
+                $initialBalanceM3 += ((float) ($s['capacity'] ?? 10) * (int) ($s['total'] ?? 0));
+            }
+        }
 
         $shifts = ['Morning' => 'MAÑANA', 'Afternoon' => 'TARDE', 'Night' => 'NOCHE'];
         $shiftData = [];
-        $grandTotal = 0;
+        $grandTotalConsumo = 0;
+        $grandTotalIngreso = 0;
 
         foreach ($shifts as $key => $name) {
             $shiftMoves = $movements->where('shift', $key)->values();
@@ -157,7 +383,6 @@ class ReportController extends Controller
             $totalIngresoShift = 0;
 
             foreach ($shiftMoves as $move) {
-                // Consumo (Salidas)
                 $m3Exit = $move->cylinderMovements->where('action', 'Exit')->sum(function($cm) {
                     return (float) ($cm->cylinder->capacity ?? 0);
                 });
@@ -166,7 +391,6 @@ class ReportController extends Controller
                 elseif ($move->service_id && $move->type !== 'ServiceBulkExchange') $hnagv += $m3Exit;
                 elseif ($move->type === 'ServiceBulkExchange') $perifericos += $m3Exit;
 
-                // Ingreso (Entradas de proveedores)
                 if (in_array($move->type, ['SupplierEntry', 'SupplierMovement'])) {
                     $totalIngresoShift += $move->cylinderMovements->where('action', 'Entry')->sum(function($cm) {
                         return (float) ($cm->cylinder->capacity ?? 0);
@@ -175,9 +399,9 @@ class ReportController extends Controller
             }
 
             $totalShift = $padomi + $hnagv + $perifericos;
-            $grandTotal += $totalShift;
+            $grandTotalConsumo += $totalShift;
+            $grandTotalIngreso += $totalIngresoShift;
 
-            // Estructura anidada perfecta para React
             $shiftData[$name] = [
                 'padomi' => $padomi,
                 'hnagv' => $hnagv,
@@ -185,65 +409,45 @@ class ReportController extends Controller
                 'total' => $totalShift,
                 'total_ingreso' => $totalIngresoShift,
                 'operators' => $shiftMoves->pluck('user.name')->unique()->filter()->values(),
-                'reserva_llenos' => $fullStock,
-                'almacen_vacios' => $emptyStock,
+                'reserva_llenos' => $currFull->values(),
+                'almacen_vacios' => $currEmpty->values(),
                 'movements' => $shiftMoves
             ];
+
+            // Avanzar el stock al final del turno (que será el inicio del siguiente turno)
+            $nextStock = $this->applyShiftMovementsToStock($currFull, $currEmpty, $shiftMoves);
+            $currFull = $nextStock['full'];
+            $currEmpty = $nextStock['empty'];
         }
 
-        // Calcular Saldo Inicial Dinámico
-        // Saldo Inicial = Stock Actual Físico Lleno (m3) - Total Ingresos del Día + Total Consumos del Día
-        $isToday = Carbon::parse($date)->isToday();
-        
-        if ($isToday) {
-            $currentFullM3 = 0;
-            foreach ($fullStock as $stock) {
-                $currentFullM3 += ((float) $stock->capacity * (int) $stock->total);
-            }
-
-            $totalIngresoDay = 0;
-            $totalConsumoDay = 0;
-            foreach ($shiftData as $shift) {
-                $totalIngresoDay += $shift['total_ingreso'];
-                $totalConsumoDay += $shift['total'];
-            }
-
-            $initialBalance = $currentFullM3 - $totalIngresoDay + $totalConsumoDay;
-        } else {
-            $previousDate = Carbon::parse($date)->subDay()->toDateString();
-            $snapshot = \App\Models\DailySnapshot::where('date', $previousDate)->first();
-            
-            if ($snapshot && isset($snapshot->snapshot_data['full'])) {
-                $snapshotFullStock = $snapshot->snapshot_data['full'];
-                $initialBalance = 0;
-                foreach ($snapshotFullStock as $stock) {
-                    if (($stock['location'] ?? '') === 'CENTRAL') {
-                        $initialBalance += ((float) ($stock['capacity'] ?? 0) * (int) ($stock['total'] ?? 0));
-                    }
-                }
-            } else {
-                $initialBalance = 0; // Sin registro = 0
-            }
-        }
         return response()->json([
             'date' => $date,
             'shifts' => $shiftData,
-            'grand_total' => $grandTotal,
-            'initial_balance' => $initialBalance,
+            'grand_total' => $grandTotalConsumo,
+            'grand_total_ingreso' => $grandTotalIngreso,
+            'initial_balance' => $initialBalanceM3,
         ]);
     }
 
     /**
-     * Reporte Auxiliar: Kardex General (Listado simple)
+     * Reporte Auxiliar: Kardex General y Control de Atención con Filtros Avanzados
      */
     public function kardexGeneral(Request $request)
     {
-        $perPage = $request->query('per_page', 20);
-        if ($perPage > 500) {
-            $perPage = 500;
+        $perPageParam = $request->query('per_page', 20);
+        $perPage = 20;
+        if ($perPageParam === 'all') {
+            $perPage = 100;
+        } elseif (is_numeric($perPageParam)) {
+            $perPage = min((int) $perPageParam, 100);
+            if ($perPage <= 0) $perPage = 20;
         }
+
+        $date = $request->query('date');
         $startDate = $request->query('start_date');
         $endDate = $request->query('end_date');
+        $type = $request->query('type');
+        $search = $request->query('search');
 
         $query = InventoryMovement::with([
                 'user',
@@ -254,13 +458,46 @@ class ReportController extends Controller
                 'cylinderMovements.cylinder.ownershipType',
                 'cylinderMovements.cylinder.supplier'
             ])
-            ->orderBy('movement_at', 'desc');
+            ->orderBy('movement_at', 'desc')
+            ->orderBy('id', 'desc');
 
+        if ($date) {
+            $query->whereDate('movement_at', $date);
+        }
         if ($startDate) {
             $query->whereDate('movement_at', '>=', $startDate);
         }
         if ($endDate) {
             $query->whereDate('movement_at', '<=', $endDate);
+        }
+        if ($type) {
+            $query->where('type', $type);
+        }
+        if ($search) {
+            $query->where(function($q) use ($search) {
+                if (is_numeric($search)) {
+                    $q->where('id', $search)
+                      ->orWhere('attention_number', (int) $search);
+                }
+                $q->orWhere('reference_document', 'like', "%{$search}%")
+                  ->orWhereHas('patient', function($sub) use ($search) {
+                      $sub->where('full_name', 'like', "%{$search}%")
+                          ->orWhere('dni', 'like', "%{$search}%")
+                          ->orWhere('exchange_code', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('service', function($sub) use ($search) {
+                      $sub->where('name', 'like', "%{$search}%")
+                          ->orWhere('abbreviation', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('supplier', function($sub) use ($search) {
+                      $sub->where('name', 'like', "%{$search}%")
+                          ->orWhere('ruc', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('cylinderMovements.cylinder', function($sub) use ($search) {
+                      $sub->where('serial_number', 'like', "%{$search}%")
+                          ->orWhere('barcode', 'like', "%{$search}%");
+                  });
+            });
         }
 
         $kardex = $query->paginate($perPage);
@@ -708,12 +945,21 @@ class ReportController extends Controller
             
             // Determine type label in Spanish
             $typeLabel = 'Movimiento';
-            if ($im->type === 'Exchange') $typeLabel = 'Intercambio';
-            elseif ($im->type === 'SupplierMovement') $typeLabel = 'Salida Proveedor';
-            elseif ($im->type === 'SupplierEntry') $typeLabel = 'Ingreso Proveedor';
-            elseif ($im->type === 'ServiceBulkExchange') $typeLabel = 'Canje de Red (Periferia)';
-            elseif ($im->type === 'Loan') $typeLabel = 'Préstamo';
-            elseif ($im->type === 'Return') $typeLabel = 'Devolución';
+            if ($im->type === 'Exchange') {
+                $typeLabel = $im->patient ? 'Intercambio PADOMI' : 'Intercambio HNAGV';
+            } elseif ($im->type === 'SupplierMovement') {
+                $typeLabel = 'Salida Proveedor';
+            } elseif ($im->type === 'SupplierEntry') {
+                $typeLabel = 'Ingreso Proveedor';
+            } elseif ($im->type === 'ServiceBulkExchange') {
+                $typeLabel = 'Canje de Red (Periferia)';
+            } elseif ($im->type === 'Loan') {
+                $typeLabel = 'Préstamo';
+            } elseif ($im->type === 'Return') {
+                $typeLabel = 'Devolución';
+            } elseif ($im->type === 'PatientReturn') {
+                $typeLabel = 'Devolución Paciente';
+            }
 
             // Determine action label
             $actionLabel = $cm->action === 'Entry' ? 'Ingreso' : 'Salida';
@@ -735,11 +981,17 @@ class ReportController extends Controller
                 $patientCode = $im->patient->exchange_code ?: ($im->patient->trasiego_code ?: $im->patient->dni);
                 $patientAddress = $im->patient->address;
             } elseif ($im->service) {
-                $locationType = 'Servicio (Hospital)';
-                $locationName = $im->service->name;
-                $locationDetail = $im->service->type;
-                if ($im->bed) {
-                    $locationDetail .= ' - Cama: ' . $im->bed->bed_number;
+                if ($im->type === 'ServiceBulkExchange') {
+                    $locationType = 'Centro Asistencial (Periferia)';
+                    $locationName = $im->service->name;
+                    $locationDetail = 'PERIFERIE / CENTRO MÉDICO';
+                } else {
+                    $locationType = 'Servicio (Hospital)';
+                    $locationName = $im->service->name;
+                    $locationDetail = $im->service->type;
+                    if ($im->bed) {
+                        $locationDetail .= ' - Cama: ' . $im->bed->bed_number;
+                    }
                 }
                 $serviceAbbreviation = $im->service->abbreviation;
             } elseif ($im->supplier) {
@@ -927,49 +1179,22 @@ class ReportController extends Controller
     public function executiveConsumption(Request $request)
     {
         $date = $request->query('date', Carbon::today()->toDateString());
-        $isToday = Carbon::parse($date)->isToday();
         
         $startDateTime = Carbon::parse($date)->setTime(7, 0, 0);
         $endDateTime = Carbon::parse($date)->addDay()->setTime(7, 0, 0);
 
         // ==========================================
-        // 1. GASEOSO - SALDO INICIAL (Snapshots o Vivo)
+        // 1. GASEOSO - SALDO INICIAL (Corte histórico exacto a las 07:00 AM)
         // ==========================================
-        $gaseosoSaldoInicial = collect();
-        if ($isToday) {
-            $gaseosoSaldoInicial = Cylinder::whereIn('location', ['CENTRAL', 'ALMACEN'])
-                ->where('status', 'full')
-                ->select('capacity', DB::raw('count(*) as total'))
-                ->groupBy('capacity')
-                ->get();
-        } else {
-            $previousDate = Carbon::parse($date)->subDay()->toDateString();
-            $snapshot = \App\Models\DailySnapshot::where('date', $previousDate)->first();
-            
-            if ($snapshot && (isset($snapshot->snapshot_data['full']) || isset($snapshot->snapshot_data['empty']))) {
-                $full = collect($snapshot->snapshot_data['full'] ?? [])->whereIn('location', ['CENTRAL', 'ALMACEN']);
-                $gaseosoSaldoInicial = $full->groupBy('capacity')->map(function ($group, $capacity) {
-                    return [
-                        'capacity' => $capacity,
-                        'total' => $group->sum('total')
-                    ];
-                })->values();
-            } else {
-                $gaseosoSaldoInicial = Cylinder::whereIn('location', ['CENTRAL', 'ALMACEN'])
-                    ->where('status', 'full')
-                    ->select('capacity', DB::raw('count(*) as total'))
-                    ->groupBy('capacity')
-                    ->get();
-            }
-        }
-
-        // Formatear Saldo Inicial Gaseoso (10, 8, 6)
+        $historicalInventory = $this->getHistoricalInventory($date);
+        $fullStockAt7am = collect($historicalInventory['full'] ?? [])->whereIn('location', ['CENTRAL', 'ALMACEN']);
+        
         $saldoInicialGas = [
             '10' => 0, '8' => 0, '6' => 0, 'total_und' => 0, 'total_m3' => 0
         ];
-        foreach ($gaseosoSaldoInicial as $item) {
-            $cap = (int) $item['capacity'];
-            $tot = (int) $item['total'];
+        foreach ($fullStockAt7am as $item) {
+            $cap = (int) ($item['capacity'] ?? 0);
+            $tot = (int) ($item['total'] ?? 0);
             if (in_array($cap, [10, 8, 6])) {
                 $saldoInicialGas[$cap] += $tot;
                 $saldoInicialGas['total_und'] += $tot;
@@ -978,7 +1203,7 @@ class ReportController extends Controller
         }
 
         // ==========================================
-        // 2. GASEOSO - CONSUMO DEL DIA
+        // 2. GASEOSO - CONSUMO DEL DIA (07:00 AM a 07:00 AM siguiente)
         // ==========================================
         $movements = InventoryMovement::whereBetween('movement_at', [$startDateTime, $endDateTime])
             ->with(['cylinderMovements.cylinder', 'service', 'patient'])
@@ -1035,22 +1260,15 @@ class ReportController extends Controller
             }
         }
 
-
-
         // ==========================================
-        // 4. GASEOSO - RESERVA (LLENOS ACTUALES)
+        // 4. GASEOSO - RESERVA LLENOS (Calculado al final de los turnos)
         // ==========================================
-        $llenosFisico = [];
-        if (!$isToday && isset($snapshot) && $snapshot && isset($snapshot->snapshot_data['full'])) {
-            $llenosFisico = collect($snapshot->snapshot_data['full'])->whereIn('location', ['CENTRAL', 'ALMACEN'])->toArray();
-        } else {
-            $llenosFisico = Cylinder::where('status', 'full')
-                ->whereIn('location', ['CENTRAL', 'ALMACEN'])
-                ->select('location', 'capacity', DB::raw('count(*) as total'))
-                ->groupBy('location', 'capacity')
-                ->get()
-                ->toArray();
-        }
+        // Calculamos la reserva final aplicando los movimientos del día sobre el saldo inicial
+        $currFull = collect($historicalInventory['full'] ?? []);
+        $currEmpty = collect($historicalInventory['empty'] ?? []);
+        $stockEndDay = $this->applyShiftMovementsToStock($currFull, $currEmpty, $movements);
+        
+        $llenosFisico = collect($stockEndDay['full'] ?? [])->whereIn('location', ['CENTRAL', 'ALMACEN'])->values();
 
         $reservaLlenos = [
             'central' => ['10' => 0, '8' => 0, '6' => 0],
@@ -1060,13 +1278,14 @@ class ReportController extends Controller
         ];
 
         foreach ($llenosFisico as $lleno) {
-            $cap = (int) $lleno['capacity'];
-            $tot = (int) $lleno['total'];
+            $cap = (int) ($lleno['capacity'] ?? 0);
+            $tot = (int) ($lleno['total'] ?? 0);
             if (!in_array($cap, [10, 8, 6])) continue;
 
-            $loc = strtolower($lleno['location']);
+            $loc = strtolower($lleno['location'] ?? 'central');
             if ($loc === 'central') $reservaLlenos['central'][$cap] += $tot;
             elseif ($loc === 'almacen') $reservaLlenos['almacen'][$cap] += $tot;
+            else $reservaLlenos['central'][$cap] += $tot;
 
             $reservaLlenos['total_und'][$cap] += $tot;
             $reservaLlenos['total_und']['all'] += $tot;
@@ -1076,18 +1295,7 @@ class ReportController extends Controller
         // ==========================================
         // 5. GASEOSO - RESERVA VACIOS
         // ==========================================
-        $vaciosFisico = [];
-        if (!$isToday && isset($snapshot) && $snapshot && isset($snapshot->snapshot_data['empty'])) {
-            $vaciosFisico = collect($snapshot->snapshot_data['empty'])->whereIn('location', ['CENTRAL', 'ALMACEN'])->toArray();
-        } else {
-            $vaciosFisico = Cylinder::where('status', 'empty')
-                ->whereIn('location', ['CENTRAL', 'ALMACEN'])
-                ->select('location', 'capacity', 'ownership_type_id', 'supplier_id', 'physical_condition', DB::raw('count(*) as total'))
-                ->groupBy('location', 'capacity', 'ownership_type_id', 'supplier_id', 'physical_condition')
-                ->with(['ownershipType', 'supplier'])
-                ->get()
-                ->toArray();
-        }
+        $vaciosFisico = collect($stockEndDay['empty'] ?? [])->whereIn('location', ['CENTRAL', 'ALMACEN'])->values();
 
         $reservaVacios = [
             'linde' => ['10' => 0, '8' => 0, '6' => 0],
@@ -1099,104 +1307,101 @@ class ReportController extends Controller
         ];
 
         foreach ($vaciosFisico as $vacio) {
-            $cap = (int) $vacio['capacity'];
+            $cap = (int) ($vacio['capacity'] ?? 0);
             if (!in_array($cap, [10, 8, 6])) continue;
 
             $cond = strtolower(trim($vacio['physical_condition'] ?? ''));
-            $own = strtolower(trim($vacio['ownership_type']['name'] ?? $vacio['ownership_type_name'] ?? ''));
-            $sup = strtolower(trim($vacio['supplier']['name'] ?? $vacio['supplier_name'] ?? ''));
+            $own = strtolower(trim($vacio['ownership_type_name'] ?? $vacio['ownership_type']['name'] ?? ''));
+            $sup = strtolower(trim($vacio['supplier_name'] ?? $vacio['supplier']['name'] ?? ''));
             $tot = (int) ($vacio['total'] ?? 1);
 
-            $mappedGroup = null;
-
+            $mappedGroup = 'desconocidos';
             if ($cond === 'mala' || $cond === 'bad' || str_contains($own, 'mantenimiento')) {
                 $mappedGroup = 'mantenimiento';
-            } elseif (str_contains($own, 'desconocido') || str_contains($own, 'produccion') || $own === '') {
-                $mappedGroup = 'desconocidos';
-            } elseif (str_contains($own, 'linde') || str_contains($sup, 'linde')) {
+            } elseif (str_contains($own, 'linde') || str_contains($sup, 'linde') || str_contains($own, 'praxair') || str_contains($sup, 'praxair')) {
                 $mappedGroup = 'linde';
             } elseif (str_contains($own, 'essalud')) {
                 $mappedGroup = 'essalud';
             } elseif (str_contains($own, 'periferi') || str_contains($sup, 'periferi')) {
                 $mappedGroup = 'periferia';
-            } else {
-                // Fallback
-                $mappedGroup = 'desconocidos';
             }
 
-            if ($mappedGroup) {
-                $reservaVacios[$mappedGroup][$cap] += $tot;
-                $reservaVacios['total_und'][$cap] += $tot;
-                $reservaVacios['total_und']['all'] += $tot;
-            }
+            $reservaVacios[$mappedGroup][$cap] += $tot;
+            $reservaVacios['total_und'][$cap] += $tot;
+            $reservaVacios['total_und']['all'] += $tot;
         }
 
         // ==========================================
-        // 6. LÍQUIDO - TANQUE CRIO
+        // 6. LÍQUIDO - RECUPERACIÓN / PERSISTENCIA
         // ==========================================
-        $readings = \App\Models\DailyReading::whereBetween('reading_date', [$startDateTime, $endDateTime])
-            ->orderBy('reading_date', 'asc')
-            ->orderBy('id', 'asc')
-            ->get();
-        
-        $refills = \App\Models\LiquidRefill::whereBetween('refilled_at', [$startDateTime, $endDateTime])
-            ->get();
+        $snapshot = \App\Models\DailySnapshot::where('date', $date)->first();
+        $savedLiquid = ($snapshot && isset($snapshot->snapshot_data['liquid'])) ? $snapshot->snapshot_data['liquid'] : null;
 
-        $firstReading = $readings->first();
-        $lastReading = $readings->last();
-        $previousReading = \App\Models\DailyReading::where('reading_date', '<', $startDateTime)
-            ->orderBy('reading_date', 'desc')
-            ->orderBy('id', 'desc')
-            ->first();
+        if ($savedLiquid) {
+            $liquidoFinal = $savedLiquid;
+        } else {
+            // Lectura del día anterior para saldo inicial y consumo
+            $previousReading = \App\Models\DailyReading::where('reading_date', '<', $date)
+                ->orderBy('reading_date', 'desc')
+                ->orderBy('id', 'desc')
+                ->first();
+            
+            $dayReadings = \App\Models\DailyReading::where('reading_date', $date)
+                ->orderBy('id', 'asc')
+                ->get();
+            
+            $firstReading = $dayReadings->first();
+            $lastReading = $dayReadings->last();
 
-        // Saldo Inicial
-        $liquidoSaldoInicial = [
-            'lectura_anterior' => $previousReading ? (float) $previousReading->tank_level : 0,
-            'lectura_actual' => $firstReading ? (float) $firstReading->tank_level : ($previousReading ? (float) $previousReading->tank_level : 0),
-            'saldo_inicial_m3' => 0
-        ];
-        // Factor de conversión M3 indicado en la imagen
-        $factor = 55.9; 
-        $liquidoSaldoInicial['saldo_inicial_m3'] = round($liquidoSaldoInicial['lectura_actual'] * $factor, 2);
+            $prevLevel = $previousReading ? (float) $previousReading->tank_level : 0;
+            $currLevelInitial = $firstReading ? (float) $firstReading->tank_level : ($prevLevel > 0 ? $prevLevel : 264.6);
+            $currLevelFinal = $lastReading ? (float) $lastReading->tank_level : $currLevelInitial;
 
-        // Consumo
-        // Según imagen: dia actual - dia anterior (del nivel del evaporador)
-        $evapAnterior = $previousReading ? (float) $previousReading->evaporator_level : 0;
-        $evapActual = $lastReading ? (float) $lastReading->evaporator_level : ($firstReading ? (float) $firstReading->evaporator_level : 0);
-        
-        $liquidoConsumo = [
-            'lectura_anterior' => $evapAnterior,
-            'lectura_actual' => $evapActual,
-            'consumo_m3' => 0,
-            'consumo_hora' => 0
-        ];
-        
-        $liquidoConsumo['consumo_m3'] = round($evapActual - $evapAnterior, 2);
-        $liquidoConsumo['consumo_hora'] = round($liquidoConsumo['consumo_m3'] / 24, 8); // 8 decimales según imagen
+            $prevFlow = $previousReading ? (float) $previousReading->flow_meter_reading : 0;
+            $currFlow = $lastReading ? (float) $lastReading->flow_meter_reading : ($firstReading ? (float) $firstReading->flow_meter_reading : $prevFlow);
 
-        // Ingreso
-        $inicialIngreso = $refills->first() ? (float) $refills->first()->initial_level : 0;
-        $finalIngreso = $refills->last() ? (float) $refills->last()->final_level : 0;
-        
-        $liquidoIngreso = [
-            'inicial' => $inicialIngreso,
-            'final' => $finalIngreso,
-            'diferencia' => 0,
-            'recargado_m3' => 0
-        ];
-        $liquidoIngreso['diferencia'] = abs($finalIngreso - $inicialIngreso);
-        $liquidoIngreso['recargado_m3'] = round($liquidoIngreso['diferencia'] * $factor, 2);
+            $refills = \App\Models\LiquidRefill::whereDate('refilled_at', $date)->get();
+            $refillBefore = $refills->isNotEmpty() ? (float) $refills->first()->level_before : 0;
+            $refillAfter = $refills->isNotEmpty() ? (float) $refills->last()->level_after : 0;
 
-        // Reserva
-        $liquidoReserva = [
-            'nivel_anterior' => $liquidoSaldoInicial['lectura_actual'], // "dia actual"
-            'nivel_actual' => $lastReading ? (float) $lastReading->tank_level : 0, // "nuevo registro"
-            'reserva_m3' => 0,
-            'proyeccion_dias' => 0
-        ];
-        $liquidoReserva['reserva_m3'] = round($liquidoReserva['nivel_actual'] * $factor, 2);
-        if ($liquidoConsumo['consumo_m3'] > 0) {
-            $liquidoReserva['proyeccion_dias'] = round($liquidoReserva['reserva_m3'] / $liquidoConsumo['consumo_m3'], 8); // 8 decimales según imagen
+            $factor = 55.9;
+
+            $saldoInicialM3 = round($currLevelInitial * $factor, 2);
+
+            $consumoM3 = max(0, round($currFlow - $prevFlow, 2));
+            $consumoHora = $consumoM3 > 0 ? round($consumoM3 / 24, 6) : 0;
+
+            $refillDiff = max(0, round($refillAfter - $refillBefore, 2));
+            $refillM3 = round($refillDiff * $factor, 2);
+
+            $reservaM3 = round($currLevelFinal * $factor, 2);
+            $proyeccionDias = $consumoM3 > 0 ? round($reservaM3 / $consumoM3, 4) : 0;
+
+            $liquidoFinal = [
+                'saldo_inicial' => [
+                    'lectura_anterior' => $prevLevel,
+                    'lectura_actual' => $currLevelInitial,
+                    'saldo_inicial_m3' => $saldoInicialM3
+                ],
+                'consumo' => [
+                    'lectura_anterior' => $prevFlow,
+                    'lectura_actual' => $currFlow,
+                    'consumo_m3' => $consumoM3,
+                    'consumo_hora' => $consumoHora
+                ],
+                'ingreso' => [
+                    'inicial' => $refillBefore,
+                    'final' => $refillAfter,
+                    'diferencia' => $refillDiff,
+                    'recargado_m3' => $refillM3
+                ],
+                'reserva' => [
+                    'nivel_anterior' => $currLevelInitial,
+                    'nivel_actual' => $currLevelFinal,
+                    'reserva_m3' => $reservaM3,
+                    'proyeccion_dias' => $proyeccionDias
+                ]
+            ];
         }
 
         return response()->json([
@@ -1208,12 +1413,37 @@ class ReportController extends Controller
                 'reserva_llenos' => $reservaLlenos,
                 'reserva_vacios' => $reservaVacios
             ],
-            'liquido' => [
-                'saldo_inicial' => $liquidoSaldoInicial,
-                'consumo' => $liquidoConsumo,
-                'ingreso' => $liquidoIngreso,
-                'reserva' => $liquidoReserva
-            ]
+            'liquido' => $liquidoFinal
+        ]);
+    }
+
+    /**
+     * Guardar datos editados de Oxígeno Líquido para una fecha específica
+     */
+    public function saveExecutiveLiquid(Request $request)
+    {
+        $validated = $request->validate([
+            'date' => 'required|date',
+            'liquid' => 'required|array',
+            'liquid.saldo_inicial' => 'required|array',
+            'liquid.consumo' => 'required|array',
+            'liquid.ingreso' => 'required|array',
+            'liquid.reserva' => 'required|array',
+        ]);
+
+        $date = $validated['date'];
+        $liquid = $validated['liquid'];
+
+        $snapshot = \App\Models\DailySnapshot::firstOrNew(['date' => $date]);
+        $currentData = $snapshot->snapshot_data ?? [];
+        $currentData['liquid'] = $liquid;
+        $snapshot->snapshot_data = $currentData;
+        $snapshot->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Datos de Oxígeno Líquido guardados exitosamente.',
+            'liquid' => $liquid
         ]);
     }
 }

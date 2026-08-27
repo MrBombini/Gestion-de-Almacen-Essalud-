@@ -11,6 +11,7 @@ class InventoryMovement extends Model
 
     protected $fillable = [
         'type',
+        'attention_number',
         'shift',
         'reference_document',
         'patient_id',
@@ -24,6 +25,11 @@ class InventoryMovement extends Model
         'reason',
         'expected_return_date',
         'authority_id'
+    ];
+
+    protected $casts = [
+        'attention_number' => 'integer',
+        'movement_at' => 'datetime'
     ];
 
     public function supplier()
