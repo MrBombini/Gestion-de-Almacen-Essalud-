@@ -78,7 +78,6 @@ class InventoryMovementController extends Controller
             if (!empty($validated['patient_id'])) {
                 $maxAttention = InventoryMovement::where('type', 'Exchange')
                     ->whereNotNull('patient_id')
-                    ->lockForUpdate()
                     ->max('attention_number');
                 $attentionNumber = ($maxAttention ? (int) $maxAttention : 0) + 1;
             }
