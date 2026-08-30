@@ -16,6 +16,7 @@ import Users from './pages/Users';
 import Suppliers from './pages/Suppliers';
 import SupplierMovement from './pages/SupplierMovement';
 import PeripheryExchange from './pages/PeripheryExchange';
+import WarehouseTransfer from './pages/WarehouseTransfer';
 import Reports from './pages/Reports';
 import OwnershipTypes from './pages/OwnershipTypes';
 import Authorities from './pages/Authorities';
@@ -57,6 +58,7 @@ function App() {
             <Route path="/inventory/loan-return" element={<LoanReturn />} />
             <Route path="/inventory/supplier" element={<SupplierMovement />} />
             <Route path="/inventory/periphery" element={<PeripheryExchange />} />
+            <Route path="/inventory/warehouse-transfer" element={<WarehouseTransfer />} />
 
             <Route path="/liquid/daily" element={<DailyReading />} />
             <Route path="/liquid/refill" element={<LiquidRefill />} />

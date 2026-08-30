@@ -15,7 +15,8 @@ import {
   MdPropaneTank,
   MdAirlineSeatFlat,
   MdSwapCalls,
-  MdClose
+  MdClose,
+  MdSyncAlt
 } from 'react-icons/md';
 import { FaGasPump, FaBedPulse } from 'react-icons/fa6';
 
@@ -107,6 +108,10 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
             <NavLink to="/inventory/supplier" className={navLinkClass} onClick={closeSidebarMobile}>
               <MdLocalShipping className="text-lg" />
               <span>Mov. Proveedor</span>
+            </NavLink>
+            <NavLink to="/inventory/warehouse-transfer" className={navLinkClass} onClick={closeSidebarMobile}>
+              <MdSyncAlt className="text-lg" />
+              <span>Traslado Interno</span>
             </NavLink>
             <NavLink to="/inventory/periphery" className={navLinkClass} onClick={closeSidebarMobile}>
               <MdSwapCalls className="text-lg" />

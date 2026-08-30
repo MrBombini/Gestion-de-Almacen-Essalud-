@@ -82,6 +82,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::post('/loan-return', [InventoryMovementController::class, 'createLoanReturn']);
             Route::post('/patient-return', [InventoryMovementController::class, 'createPatientReturn']);
             Route::post('/patient-loan', [InventoryMovementController::class, 'createPatientLoan']);
+            Route::post('/warehouse-transfer', [InventoryMovementController::class, 'createWarehouseTransfer']);
         });
         
         // Reports

@@ -246,6 +246,7 @@ const DailyKardexReport = () => {
       if (!mov) return;
       const mType = String(mov.type || '').toLowerCase().trim();
       const isSupplier = mType === 'suppliermovement' || mType === 'supplierentry';
+      const isWarehouseTransfer = mType === 'warehousetransfer';
       const isPeriferie = checkIsPeriferie(mov);
       
       if (isSupplier) {
@@ -253,6 +254,9 @@ const DailyKardexReport = () => {
           if (supName.includes('LINDE') || supName.includes('PRAXAIR')) lindeMovements.push(mov);
           else plantaMovements.push(mov);
       } 
+      else if (isWarehouseTransfer) {
+          plantaMovements.push(mov);
+      }
       else if (isPeriferie) peripheryMovements.push(mov);
       else standardMovements.push(mov);
     });
@@ -267,11 +271,23 @@ const DailyKardexReport = () => {
             const cStatus = String(cylMov.cylinder_status || '').toLowerCase().trim();
             const isFull = cStatus === 'full' || cStatus === 'in_use' || cStatus === 'lleno';
             
-            const act = String(cylMov.action || '').toLowerCase().trim();
+            let act = String(cylMov.action || '').toLowerCase().trim();
+            
+            // Lógica especial para traslados internos (WarehouseTransfer)
+            if (m.type === 'WarehouseTransfer') {
+              if (m.reference_document === 'ALMACEN_TO_CENTRAL') {
+                act = 'entry'; // Ingresa a CENTRAL
+              } else if (m.reference_document === 'CENTRAL_TO_ALMACEN') {
+                act = 'exit';  // Sale de CENTRAL
+              }
+            }
+
             const isExit = act === 'exit' || act === 'salida';
             const isEntry = act === 'entry' || act === 'ingreso';
             
-            const value = isEntry ? 1 : (isExit ? -1 : 0);
+            // Usamos 1 tanto para ingresos como para salidas porque queremos mostrar
+            // la CANTIDAD de movimientos (absoluta) en la matriz de Kardex.
+            const value = (isEntry || isExit) ? 1 : 0;
             
             if (isFull) counts[colIdx].LLENO += value;
             else counts[colIdx].VACIO += value;

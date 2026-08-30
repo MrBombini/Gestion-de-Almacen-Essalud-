@@ -14,6 +14,7 @@ use Carbon\Carbon;
 
 class InventoryMovementController extends Controller
 {
+
     /**
      * Create an Exchange movement (Patient exchange empty for full)
      */
@@ -85,7 +86,7 @@ class InventoryMovementController extends Controller
             $movement = InventoryMovement::create([
                 'type'             => 'Exchange',
                 'attention_number' => $attentionNumber,
-                'shift'            => $validated['shift'],
+                'shift'            => $validated['shift'] ?? $request->input('shift', 'Morning'),
                 'patient_id'       => $validated['patient_id'] ?? null,
                 'service_id'       => $validated['service_id'] ?? null,
                 'bed_id'           => $validated['bed_id'] ?? null,
@@ -187,7 +188,7 @@ class InventoryMovementController extends Controller
             $decanting = Decanting::create([
                 'cylinder_id'        => $validated['cylinder_id'],
                 'refilled_amount'    => $validated['refilled_amount'],
-                'shift'              => $validated['shift'],
+                'shift'              => $validated['shift'] ?? $request->input('shift', 'Morning'),
                 'service_id'         => $validated['service_id'] ?? null,
                 'patient_id'         => $validated['patient_id'] ?? null,
                 'prescription_id'    => $validated['prescription_id'] ?? null,
@@ -238,7 +239,7 @@ class InventoryMovementController extends Controller
                 'type'               => $type,
                 'supplier_id'        => $validated['supplier_id'],
                 'reference_document' => $validated['reference_document'],
-                'shift'              => $validated['shift'],
+                'shift'              => $validated['shift'] ?? $request->input('shift', 'Morning'),
                 'user_id'            => Auth::id(),
                 'movement_at'        => Carbon::now(),
                 'notes'              => $validated['notes'] ?? null
@@ -546,7 +547,7 @@ class InventoryMovementController extends Controller
         return DB::transaction(function () use ($validated, $cylinder) {
             $movement = InventoryMovement::create([
                 'type'                 => 'PatientLoan',
-                'shift'                => $validated['shift'],
+                'shift'                => $validated['shift'] ?? $request->input('shift', 'Morning'),
                 'patient_id'           => $validated['patient_id'],
                 'prescription_id'      => $validated['prescription_id'],
                 'user_id'              => Auth::id(),
@@ -650,5 +651,53 @@ class InventoryMovementController extends Controller
             ->paginate($perPage);
 
         return response()->json($decantings);
+    }
+
+    /**
+     * Traslado interno entre ALMACEN y CENTRAL
+     */
+    public function createWarehouseTransfer(Request $request)
+    {
+        $validated = $request->validate([
+            'direction' => ['required', 'string', 'in:ALMACEN_TO_CENTRAL,CENTRAL_TO_ALMACEN'],
+            'cylinders' => ['required', 'array', 'min:1'],
+            'cylinders.*' => ['exists:cylinders,id'],
+            'notes' => ['nullable', 'string']
+        ]);
+
+        return DB::transaction(function () use ($validated) {
+            $movement = InventoryMovement::create([
+                'type'               => 'WarehouseTransfer',
+                'reference_document' => $validated['direction'],
+                'shift'              => $request->input('shift', 'Morning'),
+                'user_id'            => Auth::id(),
+                'movement_at'        => Carbon::now(),
+                'notes'              => $validated['notes'] ?? null
+            ]);
+
+            $newLocation = $validated['direction'] === 'ALMACEN_TO_CENTRAL' ? 'CENTRAL' : 'ALMACEN';
+            $oldLocation = $validated['direction'] === 'ALMACEN_TO_CENTRAL' ? 'ALMACEN' : 'CENTRAL';
+
+            foreach ($validated['cylinders'] as $cylinderId) {
+                // Lock cylinder
+                $cylinder = Cylinder::where('id', $cylinderId)->lockForUpdate()->first();
+                
+                // Only move if it's currently in the expected old location (optional but good for data integrity)
+                if (strtoupper($cylinder->location) === $oldLocation) {
+                    CylinderMovement::create([
+                        'inventory_movement_id' => $movement->id,
+                        'cylinder_id'           => $cylinder->id,
+                        'action'                => 'Transfer',
+                        'cylinder_status'       => $cylinder->status // Keep current status
+                    ]);
+
+                    $cylinder->update([
+                        'location' => $newLocation
+                    ]);
+                }
+            }
+
+            return response()->json($movement->load(['cylinderMovements.cylinder.ownershipType']), 201);
+        });
     }
 }

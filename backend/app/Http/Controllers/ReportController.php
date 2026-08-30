@@ -14,6 +14,43 @@ use Illuminate\Pagination\LengthAwarePaginator;
 class ReportController extends Controller
 {
     /**
+     * Aplica un cambio de inventario (+ o -) intentando afectar CENTRAL primero, luego ALMACEN.
+     * Si no existe, lo crea en CENTRAL.
+     */
+    private function applyInventoryChange(&$map, $cap, $own, $sup, $cyl, $delta, $preferredLocation = 'CENTRAL', $fallbackLocation = 'ALMACEN')
+    {
+        $keyPref = "{$preferredLocation}|{$cap}|{$own}|{$sup}";
+        $keyFall = "{$fallbackLocation}|{$cap}|{$own}|{$sup}";
+
+        if ($delta > 0) {
+            // Añadir: siempre añadir a la preferida
+            if (!isset($map[$keyPref])) {
+                $map[$keyPref] = [
+                    'location' => $preferredLocation, 'capacity' => $cap, 'ownership_type_id' => $own,
+                    'supplier_id' => $sup, 'ownership_type' => $cyl->ownershipType, 'supplier' => $cyl->supplier, 'total' => 0
+                ];
+            }
+            $map[$keyPref]['total'] += $delta;
+        } elseif ($delta < 0) {
+            // Restar: intentar primero en la preferida, si no hay suficiente, intentar en el fallback
+            if (isset($map[$keyPref]) && $map[$keyPref]['total'] > 0) {
+                $map[$keyPref]['total'] += $delta; // $delta es negativo
+            } elseif (isset($map[$keyFall]) && $map[$keyFall]['total'] > 0) {
+                $map[$keyFall]['total'] += $delta;
+            } else {
+                // Si ninguno tiene, forzar negativo en la preferida para que luego se cape a 0 si es necesario
+                if (!isset($map[$keyPref])) {
+                    $map[$keyPref] = [
+                        'location' => $preferredLocation, 'capacity' => $cap, 'ownership_type_id' => $own,
+                        'supplier_id' => $sup, 'ownership_type' => $cyl->ownershipType, 'supplier' => $cyl->supplier, 'total' => 0
+                    ];
+                }
+                $map[$keyPref]['total'] += $delta;
+            }
+        }
+    }
+
+    /**
      * Reconstruye o recupera el inventario de balones llenos y vacíos a las 07:00 AM de una fecha dada.
      */
     private function getHistoricalInventory($date)
@@ -106,39 +143,42 @@ class ReportController extends Controller
 
             $isFull = in_array($status, ['full', 'lleno', 'in_use']);
             
-            if ($isFull) {
-                if (!isset($fullMap[$key])) {
-                    $fullMap[$key] = [
-                        'location' => $loc,
-                        'capacity' => $cap,
-                        'ownership_type_id' => $own,
-                        'supplier_id' => $cyl->supplier_id,
-                        'ownership_type' => $cyl->ownershipType,
-                        'supplier' => $cyl->supplier,
-                        'total' => 0
-                    ];
+            // Si es un traslado interno
+            if ($action === 'transfer' && $cm->inventoryMovement) {
+                $direction = $cm->inventoryMovement->reference_document;
+                // Revertir: 
+                // ALMACEN_TO_CENTRAL => originalmente CENTRAL sumó, ALMACEN restó. Para revertir: CENTRAL resta, ALMACEN suma.
+                if ($direction === 'ALMACEN_TO_CENTRAL') {
+                    if ($isFull) {
+                        $this->applyInventoryChange($fullMap, $cap, $own, $sup, $cyl, -1, 'CENTRAL', 'ALMACEN');
+                        $this->applyInventoryChange($fullMap, $cap, $own, $sup, $cyl, 1, 'ALMACEN', 'CENTRAL');
+                    } else {
+                        $this->applyInventoryChange($emptyMap, $cap, $own, $sup, $cyl, -1, 'CENTRAL', 'ALMACEN');
+                        $this->applyInventoryChange($emptyMap, $cap, $own, $sup, $cyl, 1, 'ALMACEN', 'CENTRAL');
+                    }
+                } elseif ($direction === 'CENTRAL_TO_ALMACEN') {
+                    if ($isFull) {
+                        $this->applyInventoryChange($fullMap, $cap, $own, $sup, $cyl, -1, 'ALMACEN', 'CENTRAL');
+                        $this->applyInventoryChange($fullMap, $cap, $own, $sup, $cyl, 1, 'CENTRAL', 'ALMACEN');
+                    } else {
+                        $this->applyInventoryChange($emptyMap, $cap, $own, $sup, $cyl, -1, 'ALMACEN', 'CENTRAL');
+                        $this->applyInventoryChange($emptyMap, $cap, $own, $sup, $cyl, 1, 'CENTRAL', 'ALMACEN');
+                    }
                 }
+                continue;
+            }
+
+            if ($isFull) {
                 if ($action === 'entry' || $action === 'ingreso') {
-                    $fullMap[$key]['total'] -= 1;
+                    $this->applyInventoryChange($fullMap, $cap, $own, $sup, $cyl, -1, 'CENTRAL', 'ALMACEN');
                 } elseif ($action === 'exit' || $action === 'salida') {
-                    $fullMap[$key]['total'] += 1;
+                    $this->applyInventoryChange($fullMap, $cap, $own, $sup, $cyl, 1, 'CENTRAL', 'ALMACEN');
                 }
             } else {
-                if (!isset($emptyMap[$key])) {
-                    $emptyMap[$key] = [
-                        'location' => $loc,
-                        'capacity' => $cap,
-                        'ownership_type_id' => $own,
-                        'supplier_id' => $cyl->supplier_id,
-                        'ownership_type' => $cyl->ownershipType,
-                        'supplier' => $cyl->supplier,
-                        'total' => 0
-                    ];
-                }
                 if ($action === 'entry' || $action === 'ingreso') {
-                    $emptyMap[$key]['total'] -= 1;
+                    $this->applyInventoryChange($emptyMap, $cap, $own, $sup, $cyl, -1, 'CENTRAL', 'ALMACEN');
                 } elseif ($action === 'exit' || $action === 'salida') {
-                    $emptyMap[$key]['total'] += 1;
+                    $this->applyInventoryChange($emptyMap, $cap, $own, $sup, $cyl, 1, 'CENTRAL', 'ALMACEN');
                 }
             }
         }
@@ -150,8 +190,12 @@ class ReportController extends Controller
             if ($e['total'] < 0) $e['total'] = 0;
         }
 
-        $fullCollection = collect(array_values($fullMap));
-        $emptyCollection = collect(array_values($emptyMap));
+        $fullCollection = collect(array_values($fullMap))->filter(function($item) {
+            return in_array($item['location'], ['CENTRAL', 'ALMACEN']);
+        })->values();
+        $emptyCollection = collect(array_values($emptyMap))->filter(function($item) {
+            return in_array($item['location'], ['CENTRAL', 'ALMACEN']);
+        })->values();
 
         if (!$isToday && Carbon::parse($targetDate)->isPast()) {
             \App\Models\DailySnapshot::updateOrCreate(
@@ -218,39 +262,40 @@ class ReportController extends Controller
 
                 $isFull = in_array($status, ['full', 'lleno', 'in_use']);
 
-                if ($isFull) {
-                    if (!isset($fullMap[$key])) {
-                        $fullMap[$key] = [
-                            'location' => $loc,
-                            'capacity' => $cap,
-                            'ownership_type_id' => $own,
-                            'supplier_id' => $cyl->supplier_id,
-                            'ownership_type' => $cyl->ownershipType,
-                            'supplier' => $cyl->supplier,
-                            'total' => 0
-                        ];
+                if ($action === 'transfer' && $cm->inventoryMovement) {
+                    $direction = $cm->inventoryMovement->reference_document;
+                    // Aplicar: ALMACEN_TO_CENTRAL => CENTRAL suma 1, ALMACEN resta 1
+                    if ($direction === 'ALMACEN_TO_CENTRAL') {
+                        if ($isFull) {
+                            $this->applyInventoryChange($fullMap, $cap, $own, $sup, $cyl, 1, 'CENTRAL', 'ALMACEN');
+                            $this->applyInventoryChange($fullMap, $cap, $own, $sup, $cyl, -1, 'ALMACEN', 'CENTRAL');
+                        } else {
+                            $this->applyInventoryChange($emptyMap, $cap, $own, $sup, $cyl, 1, 'CENTRAL', 'ALMACEN');
+                            $this->applyInventoryChange($emptyMap, $cap, $own, $sup, $cyl, -1, 'ALMACEN', 'CENTRAL');
+                        }
+                    } elseif ($direction === 'CENTRAL_TO_ALMACEN') {
+                        if ($isFull) {
+                            $this->applyInventoryChange($fullMap, $cap, $own, $sup, $cyl, 1, 'ALMACEN', 'CENTRAL');
+                            $this->applyInventoryChange($fullMap, $cap, $own, $sup, $cyl, -1, 'CENTRAL', 'ALMACEN');
+                        } else {
+                            $this->applyInventoryChange($emptyMap, $cap, $own, $sup, $cyl, 1, 'ALMACEN', 'CENTRAL');
+                            $this->applyInventoryChange($emptyMap, $cap, $own, $sup, $cyl, -1, 'CENTRAL', 'ALMACEN');
+                        }
                     }
+                    continue;
+                }
+
+                if ($isFull) {
                     if ($action === 'entry' || $action === 'ingreso') {
-                        $fullMap[$key]['total'] += 1;
+                        $this->applyInventoryChange($fullMap, $cap, $own, $sup, $cyl, 1, 'CENTRAL', 'ALMACEN');
                     } elseif ($action === 'exit' || $action === 'salida') {
-                        $fullMap[$key]['total'] -= 1;
+                        $this->applyInventoryChange($fullMap, $cap, $own, $sup, $cyl, -1, 'CENTRAL', 'ALMACEN');
                     }
                 } else {
-                    if (!isset($emptyMap[$key])) {
-                        $emptyMap[$key] = [
-                            'location' => $loc,
-                            'capacity' => $cap,
-                            'ownership_type_id' => $own,
-                            'supplier_id' => $cyl->supplier_id,
-                            'ownership_type' => $cyl->ownershipType,
-                            'supplier' => $cyl->supplier,
-                            'total' => 0
-                        ];
-                    }
                     if ($action === 'entry' || $action === 'ingreso') {
-                        $emptyMap[$key]['total'] += 1;
+                        $this->applyInventoryChange($emptyMap, $cap, $own, $sup, $cyl, 1, 'CENTRAL', 'ALMACEN');
                     } elseif ($action === 'exit' || $action === 'salida') {
-                        $emptyMap[$key]['total'] -= 1;
+                        $this->applyInventoryChange($emptyMap, $cap, $own, $sup, $cyl, -1, 'CENTRAL', 'ALMACEN');
                     }
                 }
             }
@@ -277,16 +322,25 @@ class ReportController extends Controller
         $date = $request->query('date', Carbon::today()->toDateString());
         
         $historical = $this->getHistoricalInventory($date);
-        $full = $historical['full']->map(function($item) {
-            $item = (array) $item;
-            $item['status'] = 'full';
-            return $item;
-        });
-        $empty = $historical['empty']->map(function($item) {
-            $item = (array) $item;
-            $item['status'] = 'empty';
-            return $item;
-        });
+        $full = $historical['full']
+            ->filter(function($item) {
+                return strtoupper($item['location']) === 'CENTRAL';
+            })
+            ->map(function($item) {
+                $item = (array) $item;
+                $item['status'] = 'full';
+                return $item;
+            });
+            
+        $empty = $historical['empty']
+            ->filter(function($item) {
+                return strtoupper($item['location']) === 'CENTRAL';
+            })
+            ->map(function($item) {
+                $item = (array) $item;
+                $item['status'] = 'empty';
+                return $item;
+            });
         $initialBalance = $full->concat($empty)->values();
 
         $ownershipTypes = DB::table('ownership_types')->get();
@@ -462,13 +516,17 @@ class ReportController extends Controller
             ->orderBy('id', 'desc');
 
         if ($date) {
-            $query->whereDate('movement_at', $date);
+            $startOfDay = Carbon::parse($date)->setTime(7, 0, 0);
+            $endOfDay = Carbon::parse($date)->addDay()->setTime(7, 0, 0);
+            $query->whereBetween('movement_at', [$startOfDay, $endOfDay]);
         }
         if ($startDate) {
-            $query->whereDate('movement_at', '>=', $startDate);
+            $start = Carbon::parse($startDate)->setTime(7, 0, 0);
+            $query->where('movement_at', '>=', $start);
         }
         if ($endDate) {
-            $query->whereDate('movement_at', '<=', $endDate);
+            $end = Carbon::parse($endDate)->addDay()->setTime(7, 0, 0);
+            $query->where('movement_at', '<', $end);
         }
         if ($type) {
             $query->where('type', $type);
@@ -928,11 +986,13 @@ class ReportController extends Controller
             }
 
             if ($startDate) {
-                $decQuery->whereDate('decanted_at', '>=', $startDate);
+                $start = \Carbon\Carbon::parse($startDate)->setTime(7, 0, 0);
+                $decQuery->where('decanted_at', '>=', $start);
             }
 
             if ($endDate) {
-                $decQuery->whereDate('decanted_at', '<=', $endDate);
+                $end = \Carbon\Carbon::parse($endDate)->addDay()->setTime(7, 0, 0);
+                $decQuery->where('decanted_at', '<', $end);
             }
 
             $decantings = $decQuery->orderBy('id', 'desc')->take($limit)->get();
