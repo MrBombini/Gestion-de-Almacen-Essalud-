@@ -157,8 +157,7 @@ const KardexResume = () => {
       (getStock(llenos, 'ALMACEN', 8, 'ESSALUD') * 8);
   };
 
-  const llenos_global = shiftsData['MAÑANA']?.reserva_llenos || [];
-  const current_physical_reserva = getPhysicalReserve(llenos_global);
+  const initial_balance_m3 = payload.initial_balance ?? 0;
 
   const m_consumo = shiftsData['MAÑANA']?.total || 0;
   const m_ingreso = shiftsData['MAÑANA']?.total_ingreso || 0;
@@ -170,20 +169,19 @@ const KardexResume = () => {
   const gran_total_consumo = m_consumo + t_consumo + n_consumo;
   const gran_total_ingreso = m_ingreso + t_ingreso + n_ingreso;
 
-  // Saldo Inicial Exacto = Reserva Actual - Total Ingresos + Total Consumos
-  const calculated_initial_balance = current_physical_reserva - gran_total_ingreso + gran_total_consumo;
+  // Reservas Físicas Reales calculadas de los balones físicos reportados al final de cada turno
+  const m_reserva_fisica = getPhysicalReserve(shiftsData['MAÑANA']?.reserva_llenos);
+  const t_reserva_fisica = getPhysicalReserve(shiftsData['TARDE']?.reserva_llenos);
+  const n_reserva_fisica = getPhysicalReserve(shiftsData['NOCHE']?.reserva_llenos);
 
-  const m_saldo_anterior = calculated_initial_balance; 
-  const m_reserva = m_saldo_anterior + m_ingreso - m_consumo;
-
-  const t_saldo_anterior = m_reserva; 
-  const t_reserva = t_saldo_anterior + t_ingreso - t_consumo;
-
-  const n_saldo_anterior = t_reserva; 
-  const n_reserva = n_saldo_anterior + n_ingreso - n_consumo;
+  const m_saldo_anterior = initial_balance_m3;
+  const t_saldo_anterior = m_reserva_fisica;
+  const n_saldo_anterior = t_reserva_fisica;
   
-  const cuadreMatematico = m_saldo_anterior + gran_total_ingreso - gran_total_consumo;
-  const isCuadreOk = cuadreMatematico === n_reserva;
+  // Cuadre matemático: Balance Inicial + Ingresos Totales - Consumos Totales
+  const cuadreMatematico = initial_balance_m3 + gran_total_ingreso - gran_total_consumo;
+  // Validamos si la matemática cuadra con los balones físicos que quedaron al final del día
+  const isCuadreOk = cuadreMatematico === n_reserva_fisica;
 
   // ==========================================
   // RENDERIZADOR DE BLOQUES POR TURNO
@@ -498,9 +496,9 @@ const KardexResume = () => {
               <h2 className="text-2xl font-bold m-0 mt-4 uppercase text-center w-full flex justify-start border-b border-slate-300 pb-2">FECHA: {displayDate}</h2>
             </div>
 
-            {renderShiftBlock('MAÑANA', shiftsData['MAÑANA'], m_saldo_anterior, m_reserva)}
-            {renderShiftBlock('TARDE', shiftsData['TARDE'], t_saldo_anterior, t_reserva)}
-            {renderShiftBlock('NOCHE', shiftsData['NOCHE'], n_saldo_anterior, n_reserva)}
+            {renderShiftBlock('MAÑANA', shiftsData['MAÑANA'], m_saldo_anterior, m_reserva_fisica)}
+            {renderShiftBlock('TARDE', shiftsData['TARDE'], t_saldo_anterior, t_reserva_fisica)}
+            {renderShiftBlock('NOCHE', shiftsData['NOCHE'], n_saldo_anterior, n_reserva_fisica)}
             
             <table className="w-full text-sm border-collapse border-2 border-black mb-4">
               <thead>
@@ -543,7 +541,7 @@ const KardexResume = () => {
                   <td className="border border-black p-2 text-center font-bold text-lg">{m_saldo_anterior}</td>
                   <td className="border border-black p-2 text-center font-bold text-lg">{gran_total_consumo}</td>
                   <td className="border border-black p-2 text-center font-bold text-lg">{gran_total_ingreso}</td>
-                  <td className="border border-black p-2 text-center font-bold text-lg">{n_reserva}</td>
+                  <td className="border border-black p-2 text-center font-bold text-lg">{n_reserva_fisica}</td>
                 </tr>
                 <tr className={isCuadreOk ? 'cuadre-ok bg-green-100' : 'cuadre-error bg-red-100'}>
                   <td className="border border-black p-2 font-bold text-center flex items-center justify-center gap-2">
