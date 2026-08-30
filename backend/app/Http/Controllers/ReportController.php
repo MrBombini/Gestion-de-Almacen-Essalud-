@@ -456,6 +456,9 @@ class ReportController extends Controller
             $grandTotalConsumo += $totalShift;
             $grandTotalIngreso += $totalIngresoShift;
 
+            // Avanzar el stock al final del turno (que será el inicio del siguiente turno)
+            $nextStock = $this->applyShiftMovementsToStock($currFull, $currEmpty, $shiftMoves);
+
             $shiftData[$name] = [
                 'padomi' => $padomi,
                 'hnagv' => $hnagv,
@@ -463,13 +466,11 @@ class ReportController extends Controller
                 'total' => $totalShift,
                 'total_ingreso' => $totalIngresoShift,
                 'operators' => $shiftMoves->pluck('user.name')->unique()->filter()->values(),
-                'reserva_llenos' => $currFull->values(),
-                'almacen_vacios' => $currEmpty->values(),
+                'reserva_llenos' => $nextStock['full']->values(),
+                'almacen_vacios' => $nextStock['empty']->values(),
                 'movements' => $shiftMoves
             ];
 
-            // Avanzar el stock al final del turno (que será el inicio del siguiente turno)
-            $nextStock = $this->applyShiftMovementsToStock($currFull, $currEmpty, $shiftMoves);
             $currFull = $nextStock['full'];
             $currEmpty = $nextStock['empty'];
         }
