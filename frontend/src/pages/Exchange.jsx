@@ -281,12 +281,13 @@ const Exchange = () => {
     const cylinderMovements = ticket.cylinder_movements || [];
     const cylinderOut = cylinderMovements.find(m => m.action === 'Exit')?.cylinder || {};
     const cylinderIn = cylinderMovements.find(m => m.action === 'Entry')?.cylinder || {};
+    const attentionNum = ticket.attention_number || ticket.id;
 
     const printWindow = window.open('', '', 'width=400,height=600');
     printWindow.document.write(`
       <html>
         <head>
-          <title>Control de Atención N° ${ticket.id}</title>
+          <title>Control de Atención N° ${attentionNum}</title>
           <style>
             @page {
               size: 76mm 76mm;
@@ -376,7 +377,7 @@ const Exchange = () => {
         <body>
           <div class="ticket-container">
             <div class="ticket-header">
-              <h3>CONTROL DE ATENCIÓN N° ${ticket.id}</h3>
+              <h3>CONTROL DE ATENCIÓN N° ${attentionNum}</h3>
             </div>
             <div class="ticket-body">
               <div class="line"><span class="bold">Paciente:</span> ${patient.full_name || '-'}</div>

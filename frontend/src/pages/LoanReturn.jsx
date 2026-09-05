@@ -1,4 +1,4 @@
-﻿import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   MdBusiness, MdSave, MdAssignment, MdQrCodeScanner, MdHistory,
   MdPersonOff, MdSearch, MdWarning, MdLocalHospital, MdPersonAdd
@@ -8,6 +8,7 @@ import Select from "react-select";
 import useFetch from "../hooks/useFetch";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
+import { printReturnReceipt } from "../utils/printTemplates";
 
 const selectStyles = {
   control: (base, state) => ({
@@ -259,7 +260,7 @@ const PatientLoan = ({ shift }) => {
 ════════════════════════════════════════════ */
 const RETURN_REASONS = [
   { value: "Fallecimiento", label: "Fallecimiento del paciente" },
-  { value: "Alta medica", label: "Alta medica" },
+  { value: "Alta médica", label: "Alta médica" },
   { value: "Viaje", label: "Viaje / Cambio de domicilio" },
   { value: "Baja voluntaria", label: "Baja voluntaria" },
   { value: "Otro", label: "Otro motivo" },
@@ -279,6 +280,8 @@ const PatientReturn = ({ shift }) => {
   });
   const [successMessage, setSuccessMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
+  const [createdReturn, setCreatedReturn] = useState(null);
+  const { user } = useAuth();
 
   const loadPatientOptions = useCallback(async (inputValue) => {
     if (!inputValue || inputValue.length < 2) return [];
@@ -306,7 +309,10 @@ const PatientReturn = ({ shift }) => {
     try {
       const response = await api.get(`/cylinders?patient_id=${option.value}&per_page=50`);
       const data = response.data.data || response.data || [];
-      const assigned = data.filter(c => String(c.current_patient_id) === String(option.value));
+      const assigned = data.filter(c => 
+        String(c.current_patient_id) === String(option.value) &&
+        c.ownership_type?.name?.toUpperCase() !== "PROPIO"
+      );
       setPatientCylinders(assigned);
     } catch {
       setPatientCylinders([]);
@@ -323,7 +329,7 @@ const PatientReturn = ({ shift }) => {
     if (!formData.cylinder_id) return setErrorMessage("Selecciona el balon a devolver.");
     if (!formData.reason) return setErrorMessage("Selecciona el motivo de la devolucion.");
     try {
-      await execute({
+      const res = await execute({
         body: {
           patient_id: selectedPatient.value,
           cylinder_id: formData.cylinder_id,
@@ -334,6 +340,7 @@ const PatientReturn = ({ shift }) => {
         }
       });
       setSuccessMessage(`Devolucion registrada. Motivo: ${formData.reason}. El balon regreso a CENTRAL.`);
+      setCreatedReturn(res);
       setSelectedPatient(null);
       setPatientCylinders([]);
       setFormData({ cylinder_id: "", reason: "", return_status: "empty", shift: shift || "Morning", notes: "" });
@@ -455,6 +462,41 @@ const PatientReturn = ({ shift }) => {
             </div>
             <div className="absolute inset-0 bg-gradient-to-r from-rose-500 to-red-600 opacity-0 group-hover:opacity-20 transition-opacity" />
           </button>
+        </div>
+      )}
+
+      {/* MODAL IMPRIMIR CONSTANCIA */}
+      {createdReturn && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl p-6 max-w-md w-full border border-slate-100 space-y-6">
+            <div className="text-center space-y-2">
+              <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-3xl font-bold border border-emerald-100 shadow-sm animate-bounce">
+                ✓
+              </div>
+              <h3 className="text-xl font-black text-slate-800">¡Devolución Registrada!</h3>
+              <p className="text-slate-500 text-sm">Operación N° {createdReturn.id}</p>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/60 text-xs text-slate-700 space-y-3 font-mono shadow-inner">
+              <div className="border-b pb-2 text-center font-bold text-slate-600 tracking-wider">RESUMEN DE CONSTANCIA</div>
+              <div className="space-y-1">
+                <div><span className="font-sans font-bold text-slate-400">Paciente:</span> {createdReturn.patient?.full_name}</div>
+                <div><span className="font-sans font-bold text-slate-400">Motivo:</span> {createdReturn.reason || createdReturn.notes}</div>
+              </div>
+              <div className="border-t border-dashed pt-2">
+                <div className="flex justify-between">
+                  <span>BALÓN DEVUELTO: <strong className="font-bold text-slate-800">{createdReturn.cylinder_movements?.[0]?.cylinder?.serial_number}</strong></span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button type="button" onClick={() => setCreatedReturn(null)} className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition-all text-sm border border-slate-200/50">Cerrar</button>
+              <button type="button" onClick={() => { printReturnReceipt(createdReturn, user); setCreatedReturn(null); }} className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold transition-all text-sm shadow-md shadow-rose-100 flex items-center justify-center gap-1.5">
+                <MdLocalHospital className="text-lg" /> Imprimir
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </form>

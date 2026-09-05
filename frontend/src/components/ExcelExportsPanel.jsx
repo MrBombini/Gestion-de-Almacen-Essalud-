@@ -10,10 +10,12 @@ import {
     MdVisibility,
     MdInventory,
     MdNavigateBefore,
-    MdNavigateNext
+    MdNavigateNext,
+    MdWaterDrop
 } from 'react-icons/md';
 import { format } from 'date-fns';
 import api from '../services/api';
+import useFetch from '../hooks/useFetch';
 import Modal from './Modal';
 import { 
     exportSupplierReport, 
@@ -21,8 +23,11 @@ import {
     exportPadomiPatientReport, 
     exportIpressReport, 
     exportTrasiegosReport,
-    exportCylindersInventoryReport
+    exportCylindersInventoryReport,
+    exportLiquidReadingsReport,
+    exportLiquidRefillsReport
 } from '../utils/excelExportService';
+import { isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns';
 
 const PREVIEW_PER_PAGE = 20;
 
@@ -36,8 +41,22 @@ const ExcelExportsPanel = () => {
       patient: false,
       ipress: false,
       trasiegos: false,
-      inventory: false
+      inventory: false,
+      liquid_readings: false,
+      liquid_refills: false
   });
+
+  // Filtros específicos para el Inventario General
+  const [inventoryLocation, setInventoryLocation] = useState('ALL');
+  const [inventoryOwnership, setInventoryOwnership] = useState('');
+  const [inventoryStatus, setInventoryStatus] = useState('');
+  const [inventorySupplier, setInventorySupplier] = useState('');
+
+  const { data: ownershipTypes } = useFetch('/ownership-types?per_page=all');
+  const { data: suppliers } = useFetch('/suppliers?per_page=all');
+  
+  const ownershipTypesList = Array.isArray(ownershipTypes) ? ownershipTypes : (ownershipTypes?.data || []);
+  const suppliersList = Array.isArray(suppliers) ? suppliers : (suppliers?.data || []);
 
   // Modal Preview States
   const [previewModal, setPreviewModal] = useState(false);
@@ -65,10 +84,40 @@ const ExcelExportsPanel = () => {
       try {
           if (type === 'inventory') {
               const res = await api.get('/cylinders', {
-                  params: { per_page: 'all' }
+                  params: { 
+                      per_page: 'all',
+                      location: inventoryLocation !== 'ALL' ? inventoryLocation : undefined,
+                      ownership_type_id: inventoryOwnership || undefined,
+                      status: inventoryStatus || undefined,
+                      supplier_id: inventorySupplier || undefined
+                  }
               });
               const rawData = res.data.data || res.data || [];
               setPreviewData(rawData);
+              setPreviewType(type);
+              setPreviewModal(true);
+              return;
+          }
+
+          if (type === 'liquid_readings' || type === 'liquid_refills') {
+              const endpoint = type === 'liquid_readings' ? '/daily-readings' : '/liquid/refills';
+              const res = await api.get(endpoint);
+              const rawData = res.data.data || res.data || [];
+              
+              const dateField = type === 'liquid_readings' ? 'reading_date' : 'refilled_at';
+              const data = rawData.filter(item => {
+                  if (!startDate || !endDate) return true;
+                  if (!item[dateField]) return false;
+                  // Handle potential date-time strings by extracting the date part
+                  const dateStr = item[dateField].split('T')[0];
+                  const itemDate = parseISO(dateStr);
+                  return isWithinInterval(itemDate, {
+                      start: startOfDay(parseISO(startDate)),
+                      end: endOfDay(parseISO(endDate))
+                  });
+              });
+              
+              setPreviewData(data);
               setPreviewType(type);
               setPreviewModal(true);
               return;
@@ -133,6 +182,8 @@ const ExcelExportsPanel = () => {
       else if (previewType === 'ipress') await exportIpressReport(previewData, getDateRangeText());
       else if (previewType === 'trasiegos') await exportTrasiegosReport(previewData, getDateRangeText());
       else if (previewType === 'inventory') await exportCylindersInventoryReport(previewData, getDateRangeText());
+      else if (previewType === 'liquid_readings') await exportLiquidReadingsReport(previewData, getDateRangeText());
+      else if (previewType === 'liquid_refills') await exportLiquidRefillsReport(previewData, getDateRangeText());
       
       setPreviewModal(false);
   };
@@ -145,6 +196,8 @@ const ExcelExportsPanel = () => {
           case 'ipress': return 'Reporte de Centros Asistenciales (Periferia)';
           case 'trasiegos': return 'Reporte de Trasiegos / Recargas';
           case 'inventory': return 'Inventario General de Cilindros';
+          case 'liquid_readings': return 'Resumen Diario de Lecturas (Oxígeno Líquido)';
+          case 'liquid_refills': return 'Reporte de Recargas de Cisterna (Oxígeno Líquido)';
           default: return 'Vista Previa de Exportación';
       }
   };
@@ -248,6 +301,78 @@ const ExcelExportsPanel = () => {
               </div>
           </div>
 
+          {/* Filtros de Inventario General */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-4 mb-4">
+                  <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+                      <MdInventory className="text-xl" />
+                  </div>
+                  <div>
+                      <h3 className="font-bold text-slate-800 text-lg">Filtros para Inventario General</h3>
+                      <p className="text-slate-500 text-sm">Opcional. Estos filtros se aplican únicamente a la exportación del &quot;Inventario General (Físico Actual)&quot;.</p>
+                  </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="space-y-1.5">
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide">Ubicación</label>
+                      <select 
+                          value={inventoryLocation} 
+                          onChange={(e) => setInventoryLocation(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-medium text-slate-700"
+                      >
+                          <option value="ALL">TODAS</option>
+                          <option value="CENTRAL">CENTRAL</option>
+                          <option value="HOSPITALIZACION">HOSPITALIZACIÓN</option>
+                          <option value="PADOMI">PADOMI</option>
+                          <option value="ALMACEN">ALMACÉN</option>
+                          <option value="PROVEEDOR">PROVEEDOR</option>
+                          <option value="PERIFERIE/CENTROS MEDICOS">PERIFERIE/CENTROS MEDICOS</option>
+                      </select>
+                  </div>
+                  <div className="space-y-1.5">
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide">Propiedad</label>
+                      <select 
+                          value={inventoryOwnership} 
+                          onChange={(e) => setInventoryOwnership(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-medium text-slate-700"
+                      >
+                          <option value="">TODAS</option>
+                          {ownershipTypesList.map(o => (
+                              <option key={o.id} value={o.id}>{o.name}</option>
+                          ))}
+                      </select>
+                  </div>
+                  <div className="space-y-1.5">
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide">Proveedor / Modelo</label>
+                      <select 
+                          value={inventorySupplier} 
+                          onChange={(e) => setInventorySupplier(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-medium text-slate-700"
+                      >
+                          <option value="">TODOS</option>
+                          {suppliersList.map(s => (
+                              <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                      </select>
+                  </div>
+                  <div className="space-y-1.5">
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide">Estado</label>
+                      <select 
+                          value={inventoryStatus} 
+                          onChange={(e) => setInventoryStatus(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-medium text-slate-700"
+                      >
+                          <option value="">TODOS</option>
+                          <option value="full">LLENOS</option>
+                          <option value="empty">VACÍOS</option>
+                          <option value="in_use">EN USO</option>
+                          <option value="in_transit">EN TRÁNSITO</option>
+                      </select>
+                  </div>
+              </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <ReportCard 
                   title="Proveedor Externo"
@@ -255,17 +380,17 @@ const ExcelExportsPanel = () => {
                   icon={MdLocalShipping}
                   loading={loadingStates.supplier}
                   onClick={() => fetchPreviewData('supplier')}
-                  bgColor="bg-cyan-50"
-                  textColor="text-cyan-600"
+                  bgColor="bg-blue-50"
+                  textColor="text-blue-600"
               />
               <ReportCard 
                   title="Hospitalización HNAGV"
                   description="Reporte exclusivo de ubicación y rotación de cilindros en los servicios hospitalarios internos del HNAGV."
-                  icon={MdLocationOn}
+                  icon={MdLocalHospital}
                   loading={loadingStates.location}
                   onClick={() => fetchPreviewData('location')}
-                  bgColor="bg-blue-50"
-                  textColor="text-blue-600"
+                  bgColor="bg-indigo-50"
+                  textColor="text-indigo-600"
               />
               <ReportCard 
                   title="Pacientes PADOMI"
@@ -277,17 +402,17 @@ const ExcelExportsPanel = () => {
                   textColor="text-purple-600"
               />
               <ReportCard 
-                  title="Centro Asistencial (Periferia)"
-                  description="Reporte mensualizado exclusivo de canjes y abastecimiento de cilindros a postas y centros médicos de la red."
-                  icon={MdLocalHospital}
+                  title="Centros Asistenciales (Periferia)"
+                  description="Reporte exclusivo de canjes de red, entregas y recepción de cilindros llenos/vacíos a las Ipress."
+                  icon={MdLocationOn}
                   loading={loadingStates.ipress}
                   onClick={() => fetchPreviewData('ipress')}
                   bgColor="bg-rose-50"
                   textColor="text-rose-600"
               />
               <ReportCard 
-                  title="Trasiegos / Recargas"
-                  description="Reporte exclusivo de recargas por decantación realizadas en la planta de trasiego para pacientes y servicios."
+                  title="Trasiegos / Recargas (Cascada)"
+                  description="Reporte de recargas internas mediante decantación (Trasiego), detallando merma y operador."
                   icon={MdSyncAlt}
                   loading={loadingStates.trasiegos}
                   onClick={() => fetchPreviewData('trasiegos')}
@@ -295,13 +420,31 @@ const ExcelExportsPanel = () => {
                   textColor="text-amber-600"
               />
               <ReportCard 
-                  title="Inventario General de Cilindros"
-                  description="Reporte de stock consolidado con código, código referencia, propiedad, modelo, estado y ubicación actual."
+                  title="Inventario General (Físico Actual)"
+                  description="Reporte del estado actual de todos los cilindros. Exporta la base de datos en tiempo real (ignora las fechas seleccionadas arriba)."
                   icon={MdInventory}
                   loading={loadingStates.inventory}
                   onClick={() => fetchPreviewData('inventory')}
                   bgColor="bg-emerald-50"
                   textColor="text-emerald-600"
+              />
+              <ReportCard 
+                  title="O2 Líquido: Lecturas"
+                  description="Reporte diario de lecturas de niveles del tanque criogénico y medidor de flujo."
+                  icon={MdWaterDrop}
+                  loading={loadingStates.liquid_readings}
+                  onClick={() => fetchPreviewData('liquid_readings')}
+                  bgColor="bg-blue-50"
+                  textColor="text-blue-600"
+              />
+              <ReportCard 
+                  title="O2 Líquido: Recargas"
+                  description="Reporte de recargas de oxígeno líquido provenientes de la cisterna del proveedor externo."
+                  icon={MdLocalShipping}
+                  loading={loadingStates.liquid_refills}
+                  onClick={() => fetchPreviewData('liquid_refills')}
+                  bgColor="bg-cyan-50"
+                  textColor="text-cyan-600"
               />
           </div>
 
@@ -358,6 +501,74 @@ const ExcelExportsPanel = () => {
                                             <td className="px-4 py-3 font-medium text-indigo-700">{item.location || 'CENTRAL'}</td>
                                             <td className="px-4 py-3 text-slate-600 text-xs max-w-xs truncate">{getCylinderAssignmentDetail(item)}</td>
                                             <td className="px-4 py-3 text-slate-700 font-bold">{item.capacity || 0} m³</td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    ) : previewType === 'liquid_readings' ? (
+                        <table className="w-full text-left text-sm whitespace-nowrap">
+                            <thead className="bg-slate-100 text-slate-600 uppercase text-xs font-bold sticky top-0">
+                                <tr>
+                                    <th className="px-4 py-3">Nº</th>
+                                    <th className="px-4 py-3">Fecha Lectura</th>
+                                    <th className="px-4 py-3">Turno</th>
+                                    <th className="px-4 py-3">Nivel Tanque</th>
+                                    <th className="px-4 py-3">Flujómetro</th>
+                                    <th className="px-4 py-3">Registrado Por</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200">
+                                {paginatedPreview.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="6" className="px-4 py-8 text-center text-slate-400">
+                                            No hay lecturas registradas.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    paginatedPreview.map((item, index) => (
+                                        <tr key={item.id || index} className="hover:bg-blue-50/50 transition-colors">
+                                            <td className="px-4 py-3 text-slate-400 font-medium">{(previewPage - 1) * PREVIEW_PER_PAGE + index + 1}</td>
+                                            <td className="px-4 py-3 font-bold text-slate-800">{item.reading_date || '-'}</td>
+                                            <td className="px-4 py-3 text-slate-600 font-semibold">{item.shift?.toUpperCase() || '-'}</td>
+                                            <td className="px-4 py-3 font-medium text-blue-700">{item.tank_level || '0'} mmH2O</td>
+                                            <td className="px-4 py-3 text-slate-700 font-bold">{item.flow_meter_reading || '0'} m3</td>
+                                            <td className="px-4 py-3 text-slate-600">{item.user?.name || item.user_name || '-'}</td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    ) : previewType === 'liquid_refills' ? (
+                        <table className="w-full text-left text-sm whitespace-nowrap">
+                            <thead className="bg-slate-100 text-slate-600 uppercase text-xs font-bold sticky top-0">
+                                <tr>
+                                    <th className="px-4 py-3">Nº</th>
+                                    <th className="px-4 py-3">Fecha Recarga</th>
+                                    <th className="px-4 py-3">Proveedor</th>
+                                    <th className="px-4 py-3">Guía</th>
+                                    <th className="px-4 py-3">Cantidad</th>
+                                    <th className="px-4 py-3">Nivel Antes</th>
+                                    <th className="px-4 py-3">Nivel Después</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200">
+                                {paginatedPreview.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="7" className="px-4 py-8 text-center text-slate-400">
+                                            No hay recargas registradas.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    paginatedPreview.map((item, index) => (
+                                        <tr key={item.id || index} className="hover:bg-blue-50/50 transition-colors">
+                                            <td className="px-4 py-3 text-slate-400 font-medium">{(previewPage - 1) * PREVIEW_PER_PAGE + index + 1}</td>
+                                            <td className="px-4 py-3 font-bold text-slate-800">{item.refilled_at || '-'}</td>
+                                            <td className="px-4 py-3 text-slate-600 font-semibold">{item.supplier_name || 'PRAXAIR / LINDE'}</td>
+                                            <td className="px-4 py-3 font-medium text-slate-700">{item.guide_number || '-'}</td>
+                                            <td className="px-4 py-3 text-emerald-700 font-bold">{item.ticket_quantity || '0'} Kg</td>
+                                            <td className="px-4 py-3 text-slate-600">{item.tank_level_before || '0'}</td>
+                                            <td className="px-4 py-3 text-blue-700 font-bold">{item.tank_level_after || '0'}</td>
                                         </tr>
                                     ))
                                 )}

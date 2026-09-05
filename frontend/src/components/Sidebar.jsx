@@ -16,7 +16,8 @@ import {
   MdAirlineSeatFlat,
   MdSwapCalls,
   MdClose,
-  MdSyncAlt
+  MdSyncAlt,
+  MdSettingsBackupRestore
 } from 'react-icons/md';
 import { FaGasPump, FaBedPulse } from 'react-icons/fa6';
 
@@ -121,6 +122,10 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
               <MdBusiness className="text-lg" />
               <span>Préstamos / Terceros</span>
             </NavLink>
+            <NavLink to="/inventory/return-control" className={navLinkClass} onClick={closeSidebarMobile}>
+              <MdSettingsBackupRestore className="text-lg" />
+              <span>Control Devoluciones</span>
+            </NavLink>
           </div>
 
           {/* SECCIÓN: OXÍGENO LÍQUIDO */}
@@ -165,6 +170,10 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           <div>
             <p className="px-4 text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Reportes</p>
 
+            <NavLink to="/reports/control-format" className={navLinkClass} onClick={closeSidebarMobile}>
+              <MdAssignment className="text-lg" />
+              <span>Formatos de Control</span>
+            </NavLink>
             <NavLink to="/reports/consumption" className={navLinkClass} onClick={closeSidebarMobile}>
               <MdInsertChartOutlined className="text-lg" />
               <span>Dashboard de Consumo</span>

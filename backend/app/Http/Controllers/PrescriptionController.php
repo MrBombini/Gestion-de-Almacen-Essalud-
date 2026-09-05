@@ -7,11 +7,15 @@ use Illuminate\Http\Request;
 
 class PrescriptionController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $prescriptions = Prescription::with(['patient', 'service'])
-            ->orderBy('id', 'desc')
-            ->get();
+        $query = Prescription::with(['patient', 'service'])->orderBy('id', 'desc');
+        
+        if ($request->has('patient_id')) {
+            $query->where('patient_id', $request->query('patient_id'));
+        }
+        
+        $prescriptions = $query->get();
         return response()->json($prescriptions);
     }
 

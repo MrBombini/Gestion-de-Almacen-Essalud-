@@ -18,23 +18,12 @@ function ExecutiveConsumptionReport() {
   const [reportData, setReportData] = useState(null);
   const [error, setError] = useState('');
 
-  // Estado editable para Oxígeno Líquido
-  const [editableLiquid, setEditableLiquid] = useState(null);
-  const [isSavingLiquid, setIsSavingLiquid] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState('');
-  const [saveError, setSaveError] = useState('');
-
   const fetchReport = async () => {
     setLoading(true);
     setError('');
-    setSaveSuccess('');
-    setSaveError('');
     try {
       const response = await api.get(`/reports/executive-consumption?date=${date}`);
       setReportData(response.data);
-      if (response.data && response.data.liquido) {
-        setEditableLiquid(JSON.parse(JSON.stringify(response.data.liquido)));
-      }
     } catch (err) {
       console.error(err);
       setError('Error al cargar el reporte gerencial.');
@@ -49,86 +38,11 @@ function ExecutiveConsumptionReport() {
     fetchReport();
   }, [date]);
 
-  // Manejador reactivo para recalcular valores matemáticos en vivo
-  const handleLiquidFieldChange = (section, field, rawValue) => {
-    const value = rawValue === '' ? '' : parseFloat(rawValue) || 0;
-    const factor = 55.9;
-
-    setEditableLiquid(prev => {
-      if (!prev) return prev;
-      const updated = JSON.parse(JSON.stringify(prev));
-      updated[section][field] = value;
-
-      // 1. Recálculo de Saldo Inicial
-      if (section === 'saldo_inicial' && field === 'lectura_actual') {
-        const val = parseFloat(value) || 0;
-        updated.saldo_inicial.saldo_inicial_m3 = (val * factor).toFixed(2);
-        updated.reserva.nivel_anterior = val;
-      }
-
-      // 2. Recálculo de Consumo de Flujómetro
-      if (section === 'consumo') {
-        const ant = parseFloat(field === 'lectura_anterior' ? value : updated.consumo.lectura_anterior) || 0;
-        const act = parseFloat(field === 'lectura_actual' ? value : updated.consumo.lectura_actual) || 0;
-        const diff = Math.max(0, act - ant);
-        updated.consumo.consumo_m3 = diff.toFixed(2);
-        updated.consumo.consumo_hora = diff > 0 ? (diff / 24).toFixed(6) : 0;
-      }
-
-      // 3. Recálculo de Ingreso de Cisterna
-      if (section === 'ingreso') {
-        const ini = parseFloat(field === 'inicial' ? value : updated.ingreso.inicial) || 0;
-        const fin = parseFloat(field === 'final' ? value : updated.ingreso.final) || 0;
-        const diff = Math.max(0, fin - ini);
-        updated.ingreso.diferencia = diff.toFixed(2);
-        updated.ingreso.recargado_m3 = (diff * factor).toFixed(2);
-      }
-
-      // 4. Recálculo de Reserva y Proyección
-      const currentNivel = parseFloat(section === 'reserva' && field === 'nivel_actual' ? value : updated.reserva.nivel_actual) || 0;
-      const reservaM3 = currentNivel * factor;
-      updated.reserva.reserva_m3 = reservaM3.toFixed(2);
-
-      const consumoM3 = parseFloat(updated.consumo.consumo_m3) || 0;
-      if (consumoM3 > 0 && reservaM3 > 0) {
-        updated.reserva.proyeccion_dias = (reservaM3 / consumoM3).toFixed(4);
-      } else {
-        updated.reserva.proyeccion_dias = 0;
-      }
-
-      return updated;
-    });
-  };
-
-  const handleSaveLiquid = async () => {
-    if (!editableLiquid) return;
-    setIsSavingLiquid(true);
-    setSaveSuccess('');
-    setSaveError('');
-    try {
-      const response = await api.post('/reports/executive-consumption/save', {
-        date,
-        liquid: editableLiquid
-      });
-      setSaveSuccess('¡Datos de oxígeno líquido guardados correctamente!');
-      setTimeout(() => setSaveSuccess(''), 4000);
-    } catch (err) {
-      console.error(err);
-      setSaveError(err.response?.data?.message || 'Error al guardar los datos de oxígeno líquido.');
-    } finally {
-      setIsSavingLiquid(false);
-    }
-  };
-
   const handleExportExcel = async () => {
     if (!reportData) return;
     try {
       const dateText = date.split('-').reverse().join('/');
-      const fullReport = {
-        ...reportData,
-        liquido: editableLiquid || reportData.liquido
-      };
-      await exportExecutiveConsumptionReport(fullReport, dateText);
+      await exportExecutiveConsumptionReport(reportData, dateText);
     } catch (error) {
       console.error('Error exportando Excel:', error);
       alert('Hubo un error al generar el archivo Excel.');
@@ -152,7 +66,7 @@ function ExecutiveConsumptionReport() {
     );
   }
 
-  const liquid = editableLiquid || (reportData ? reportData.liquido : null);
+  const liquid = reportData ? reportData.liquido : null;
 
   return (
     <div className="p-4 md:p-6 pb-20 max-w-[1400px] mx-auto bg-gray-50 min-h-screen">
@@ -180,22 +94,6 @@ function ExecutiveConsumptionReport() {
         .data-table td { border: 1px solid #e5e7eb; padding: 5px 6px; text-align: center; color: #333; }
         .data-table td.text-left { text-align: left; }
         .double-border-bottom { border-bottom: 3px double #b33979; }
-        .bg-yellow-100 { background-color: #fef08a !important; }
-        .input-liquid-editable {
-          background-color: #fef08a;
-          border: 1px solid #f59e0b;
-          border-radius: 4px;
-          text-align: center;
-          font-weight: bold;
-          color: #000;
-          outline: none;
-          width: 80px;
-          padding: 2px 4px;
-        }
-        .input-liquid-editable:focus {
-          border-color: #3b82f6;
-          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-        }
       `}</style>
 
       {/* Barra de Filtros y Acciones */}
@@ -222,15 +120,6 @@ function ExecutiveConsumptionReport() {
           </button>
 
           <button
-            onClick={handleSaveLiquid}
-            disabled={isSavingLiquid || !editableLiquid}
-            className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all"
-            title="Guardar datos editados de oxígeno líquido"
-          >
-            <MdSave className="text-lg" /> {isSavingLiquid ? 'Guardando...' : 'Guardar Líquido'}
-          </button>
-
-          <button
             onClick={handleExportExcel}
             disabled={!reportData}
             className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors"
@@ -248,19 +137,7 @@ function ExecutiveConsumptionReport() {
         </div>
       </div>
 
-      {/* Alertas de Guardado */}
-      {saveSuccess && (
-        <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl flex items-center gap-2 text-sm font-bold print:hidden">
-          <MdCheckCircle className="text-xl text-emerald-600 shrink-0" />
-          {saveSuccess}
-        </div>
-      )}
-      {saveError && (
-        <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl flex items-center gap-2 text-sm font-bold print:hidden">
-          <MdErrorOutline className="text-xl text-rose-600 shrink-0" />
-          {saveError}
-        </div>
-      )}
+
 
       {reportData && (
         <div className="report-container bg-white shadow-xl border border-gray-200" id="printable-report" ref={reportRef}>
@@ -419,7 +296,13 @@ function ExecutiveConsumptionReport() {
                     </tr>
                     <tr className="double-border-bottom">
                       <td className="text-left font-bold bg-gray-50">TOTAL M3</td>
-                      <td colSpan="3" className="text-center font-bold text-sm text-blue-700">{reportData.gaseoso.reserva_llenos.total_m3}</td>
+                      <td className="text-center font-bold text-sm text-blue-700">{reportData.gaseoso.reserva_llenos.total_m3}</td>
+                      <td className="text-right font-bold bg-gray-50 text-[10px] leading-tight">PROYEC. DIAS</td>
+                      <td className="text-center font-bold text-sm text-indigo-900 bg-yellow-50">
+                        {parseFloat(reportData.gaseoso.consumo.total_m3) > 0 
+                          ? (parseFloat(reportData.gaseoso.reserva_llenos.total_m3) / parseFloat(reportData.gaseoso.consumo.total_m3)).toFixed(2) 
+                          : 0}
+                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -523,15 +406,7 @@ function ExecutiveConsumptionReport() {
                       <tbody>
                         <tr className="double-border-bottom">
                           <td className="font-semibold">{liquid.saldo_inicial.lectura_anterior}</td>
-                          <td className="bg-yellow-100 font-bold p-1">
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={liquid.saldo_inicial.lectura_actual ?? ''}
-                              onChange={(e) => handleLiquidFieldChange('saldo_inicial', 'lectura_actual', e.target.value)}
-                              className="input-liquid-editable"
-                            />
-                          </td>
+                          <td className="font-semibold">{liquid.saldo_inicial.lectura_actual}</td>
                           <td className="font-bold text-sm text-indigo-900">{liquid.saldo_inicial.saldo_inicial_m3}</td>
                         </tr>
                       </tbody>
@@ -552,24 +427,8 @@ function ExecutiveConsumptionReport() {
                       </thead>
                       <tbody>
                         <tr className="double-border-bottom">
-                          <td className="bg-yellow-100 font-bold p-1">
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={liquid.consumo.lectura_anterior ?? ''}
-                              onChange={(e) => handleLiquidFieldChange('consumo', 'lectura_anterior', e.target.value)}
-                              className="input-liquid-editable"
-                            />
-                          </td>
-                          <td className="bg-yellow-100 font-bold p-1">
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={liquid.consumo.lectura_actual ?? ''}
-                              onChange={(e) => handleLiquidFieldChange('consumo', 'lectura_actual', e.target.value)}
-                              className="input-liquid-editable"
-                            />
-                          </td>
+                          <td className="font-semibold">{liquid.consumo.lectura_anterior}</td>
+                          <td className="font-semibold">{liquid.consumo.lectura_actual}</td>
                           <td className="font-bold text-sm text-red-600">{liquid.consumo.consumo_m3}</td>
                           <td className="font-mono text-xs">{liquid.consumo.consumo_hora}</td>
                         </tr>
@@ -591,26 +450,8 @@ function ExecutiveConsumptionReport() {
                       </thead>
                       <tbody>
                         <tr className="double-border-bottom">
-                          <td className="bg-yellow-100 font-bold p-1">
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={liquid.ingreso.inicial ?? ''}
-                              onChange={(e) => handleLiquidFieldChange('ingreso', 'inicial', e.target.value)}
-                              className="input-liquid-editable"
-                              placeholder="0.00"
-                            />
-                          </td>
-                          <td className="bg-yellow-100 font-bold p-1">
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={liquid.ingreso.final ?? ''}
-                              onChange={(e) => handleLiquidFieldChange('ingreso', 'final', e.target.value)}
-                              className="input-liquid-editable"
-                              placeholder="0.00"
-                            />
-                          </td>
+                          <td className="font-semibold">{liquid.ingreso.inicial}</td>
+                          <td className="font-semibold">{liquid.ingreso.final}</td>
                           <td className="font-bold">{liquid.ingreso.diferencia}</td>
                           <td className="font-bold text-sm text-emerald-700">{liquid.ingreso.recargado_m3}</td>
                         </tr>
@@ -633,15 +474,7 @@ function ExecutiveConsumptionReport() {
                       <tbody>
                         <tr className="double-border-bottom">
                           <td className="font-semibold">{liquid.reserva.nivel_anterior}</td>
-                          <td className="bg-yellow-100 font-bold p-1">
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={liquid.reserva.nivel_actual ?? ''}
-                              onChange={(e) => handleLiquidFieldChange('reserva', 'nivel_actual', e.target.value)}
-                              className="input-liquid-editable"
-                            />
-                          </td>
+                          <td className="font-semibold">{liquid.reserva.nivel_actual}</td>
                           <td className="font-bold text-sm text-blue-700">{liquid.reserva.reserva_m3}</td>
                           <td className="font-bold text-sm text-indigo-900">{liquid.reserva.proyeccion_dias}</td>
                         </tr>

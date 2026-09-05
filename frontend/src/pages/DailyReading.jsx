@@ -22,6 +22,12 @@ const DailyReading = () => {
   const [successMessage, setSuccessMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
 
+  // ── Paginación ──
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+  const totalPages = Math.ceil(readingsList.length / itemsPerPage);
+  const currentReadings = readingsList.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   // ── Estado de edición inline ──
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
@@ -202,9 +208,9 @@ const DailyReading = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {readingsList.length === 0 ? (
+                  {currentReadings.length === 0 ? (
                     <tr><td colSpan="5" className="px-6 py-10 text-center text-slate-400">No hay lecturas registradas.</td></tr>
-                  ) : readingsList.map(r => (
+                  ) : currentReadings.map(r => (
                     editingId === r.id ? (
                       /* ── FILA EN MODO EDICIÓN ── */
                       <tr key={r.id} className="bg-amber-50 border-l-4 border-amber-400">
@@ -286,6 +292,34 @@ const DailyReading = () => {
                 </tbody>
               </table>
             </div>
+            
+            {/* Controles de paginación */}
+            {totalPages > 1 && (
+              <div className="flex justify-between items-center mt-4 px-2">
+                <span className="text-xs text-slate-500 font-medium">
+                  Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, readingsList.length)} de {readingsList.length}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button 
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors font-medium shadow-sm"
+                  >
+                    Anterior
+                  </button>
+                  <div className="px-3 py-1.5 bg-blue-50 text-blue-700 font-bold text-sm rounded-lg">
+                    {currentPage} / {totalPages}
+                  </div>
+                  <button 
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors font-medium shadow-sm"
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

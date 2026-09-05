@@ -664,8 +664,7 @@ class InventoryMovementController extends Controller
             'cylinders.*' => ['exists:cylinders,id'],
             'notes' => ['nullable', 'string']
         ]);
-
-        return DB::transaction(function () use ($validated) {
+        return DB::transaction(function () use ($validated, $request) {
             $movement = InventoryMovement::create([
                 'type'               => 'WarehouseTransfer',
                 'reference_document' => $validated['direction'],

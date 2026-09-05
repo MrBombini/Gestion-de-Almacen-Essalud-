@@ -21,8 +21,10 @@ import Reports from './pages/Reports';
 import OwnershipTypes from './pages/OwnershipTypes';
 import Authorities from './pages/Authorities';
 import LoanReturn from './pages/LoanReturn';
+import ReturnControl from './pages/ReturnControl';
 import TicketControl from './pages/Reports/TicketControl';
 import SupplierReport from './pages/Reports/SupplierReport';
+import ControlFormat from './pages/Reports/ControlFormat';
 import PeripheryReport from './pages/Reports/PeripheryReport';
 import CylinderTracking from './pages/CylinderTracking';
 import UnifiedMovements from './pages/Reports/UnifiedMovements';
@@ -56,6 +58,7 @@ function App() {
             <Route path="/inventory/exchange" element={<Exchange />} />
             <Route path="/inventory/decanting" element={<Decanting />} />
             <Route path="/inventory/loan-return" element={<LoanReturn />} />
+            <Route path="/inventory/return-control" element={<ReturnControl />} />
             <Route path="/inventory/supplier" element={<SupplierMovement />} />
             <Route path="/inventory/periphery" element={<PeripheryExchange />} />
             <Route path="/inventory/warehouse-transfer" element={<WarehouseTransfer />} />
@@ -64,6 +67,7 @@ function App() {
             <Route path="/liquid/refill" element={<LiquidRefill />} />
 
             <Route path="/reports/ticketcontrol" element={<TicketControl />} />
+            <Route path="/reports/control-format" element={<ControlFormat />} />
             <Route path="/reports/supplier" element={<SupplierReport />} />
             <Route path="/reports/periphery" element={<PeripheryReport />} />
             <Route path="/reports/consumption" element={<ConsumptionDashboard />} />

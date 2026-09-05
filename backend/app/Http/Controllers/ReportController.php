@@ -38,14 +38,40 @@ class ReportController extends Controller
             } elseif (isset($map[$keyFall]) && $map[$keyFall]['total'] > 0) {
                 $map[$keyFall]['total'] += $delta;
             } else {
-                // Si ninguno tiene, forzar negativo en la preferida para que luego se cape a 0 si es necesario
-                if (!isset($map[$keyPref])) {
-                    $map[$keyPref] = [
-                        'location' => $preferredLocation, 'capacity' => $cap, 'ownership_type_id' => $own,
-                        'supplier_id' => $sup, 'ownership_type' => $cyl->ownershipType, 'supplier' => $cyl->supplier, 'total' => 0
-                    ];
+                // BUG FIX: Búsqueda flexible. Si la llave exacta (que incluye IDs de propiedad/proveedor) no coincide, 
+                // buscar cualquier registro con la misma capacidad y ubicación que tenga stock disponible.
+                $found = false;
+                
+                // Intento 1: Misma ubicación preferida y capacidad
+                foreach ($map as $k => &$item) {
+                    if ($item['location'] === $preferredLocation && (int)$item['capacity'] === $cap && $item['total'] > 0) {
+                        $item['total'] += $delta;
+                        $found = true;
+                        break;
+                    }
                 }
-                $map[$keyPref]['total'] += $delta;
+                
+                // Intento 2: Ubicación fallback y misma capacidad
+                if (!$found) {
+                    foreach ($map as $k => &$item) {
+                        if ($item['location'] === $fallbackLocation && (int)$item['capacity'] === $cap && $item['total'] > 0) {
+                            $item['total'] += $delta;
+                            $found = true;
+                            break;
+                        }
+                    }
+                }
+
+                // Si ninguno tiene (stock agotado físicamente o no registrado), forzar negativo en la preferida
+                if (!$found) {
+                    if (!isset($map[$keyPref])) {
+                        $map[$keyPref] = [
+                            'location' => $preferredLocation, 'capacity' => $cap, 'ownership_type_id' => $own,
+                            'supplier_id' => $sup, 'ownership_type' => $cyl->ownershipType, 'supplier' => $cyl->supplier, 'total' => 0
+                        ];
+                    }
+                    $map[$keyPref]['total'] += $delta;
+                }
             }
         }
     }
@@ -260,7 +286,19 @@ class ReportController extends Controller
                 $sup = (int) ($cyl->supplier_id ?? 0);
                 $key = "{$loc}|{$cap}|{$own}|{$sup}";
 
+                // BUG FIX: Si es una salida hacia paciente/servicio/periferia, OBLIGATORIAMENTE asumimos que el balón estaba LLENO al salir
+                $isConsumerExit = in_array($move->type ?? '', ['PatientDelivery', 'ServiceDelivery', 'ServiceBulkExchange', 'PeripheryExchange']);
+                $isSupplierReturn = in_array($move->type ?? '', ['SupplierReturn']);
+
                 $isFull = in_array($status, ['full', 'lleno', 'in_use']);
+
+                if ($action === 'exit' || $action === 'salida') {
+                    if ($isConsumerExit) {
+                        $isFull = true;
+                    } elseif ($isSupplierReturn) {
+                        $isFull = false;
+                    }
+                }
 
                 if ($action === 'transfer' && $cm->inventoryMovement) {
                     $direction = $cm->inventoryMovement->reference_document;
@@ -1082,6 +1120,7 @@ class ReportController extends Controller
                     'barcode' => $cm->cylinder?->barcode ?: '',
                     'capacity' => $cm->cylinder?->capacity ?: 0,
                     'ownership_type' => $cm->cylinder?->ownershipType?->name ?: 'S/D',
+                    'supplier' => $cm->cylinder?->supplier?->name ?: 'S/D',
                 ],
                 'location' => [
                     'type' => $locationType,
@@ -1134,6 +1173,7 @@ class ReportController extends Controller
                     'barcode' => $dec->cylinder?->barcode ?: '',
                     'capacity' => $dec->cylinder?->capacity ?: 0,
                     'ownership_type' => $dec->cylinder?->ownershipType?->name ?: 'S/D',
+                    'supplier' => $dec->cylinder?->supplier?->name ?: 'S/D',
                 ],
                 'location' => [
                     'type' => $locationType,
@@ -1395,17 +1435,20 @@ class ReportController extends Controller
         // ==========================================
         // 6. LÍQUIDO - RECUPERACIÓN / PERSISTENCIA
         // ==========================================
-        $snapshot = \App\Models\DailySnapshot::where('date', $date)->first();
-        $savedLiquid = ($snapshot && isset($snapshot->snapshot_data['liquid'])) ? $snapshot->snapshot_data['liquid'] : null;
-
-        if ($savedLiquid) {
-            $liquidoFinal = $savedLiquid;
-        } else {
             // Lectura del día anterior para saldo inicial y consumo
             $previousReading = \App\Models\DailyReading::where('reading_date', '<', $date)
                 ->orderBy('reading_date', 'desc')
                 ->orderBy('id', 'desc')
                 ->first();
+                
+            // Lectura de dos días antes
+            $twoDaysAgoReading = null;
+            if ($previousReading) {
+                $twoDaysAgoReading = \App\Models\DailyReading::where('reading_date', '<', $previousReading->reading_date)
+                    ->orderBy('reading_date', 'desc')
+                    ->orderBy('id', 'desc')
+                    ->first();
+            }
             
             $dayReadings = \App\Models\DailyReading::where('reading_date', $date)
                 ->orderBy('id', 'asc')
@@ -1414,9 +1457,10 @@ class ReportController extends Controller
             $firstReading = $dayReadings->first();
             $lastReading = $dayReadings->last();
 
+            $prevPrevLevel = $twoDaysAgoReading ? (float) $twoDaysAgoReading->tank_level : 0;
             $prevLevel = $previousReading ? (float) $previousReading->tank_level : 0;
-            $currLevelInitial = $firstReading ? (float) $firstReading->tank_level : ($prevLevel > 0 ? $prevLevel : 264.6);
-            $currLevelFinal = $lastReading ? (float) $lastReading->tank_level : $currLevelInitial;
+            // Si hoy no hay lectura, nivel actual = nivel de ayer
+            $currLevelFinal = $lastReading ? (float) $lastReading->tank_level : ($prevLevel > 0 ? $prevLevel : 264.6);
 
             $prevFlow = $previousReading ? (float) $previousReading->flow_meter_reading : 0;
             $currFlow = $lastReading ? (float) $lastReading->flow_meter_reading : ($firstReading ? (float) $firstReading->flow_meter_reading : $prevFlow);
@@ -1427,7 +1471,8 @@ class ReportController extends Controller
 
             $factor = 55.9;
 
-            $saldoInicialM3 = round($currLevelInitial * $factor, 2);
+            // SALDO INICIAL: LECTURA ANTERIOR = dos días antes, LECTURA ACTUAL = ayer
+            $saldoInicialM3 = round($prevLevel * $factor, 2);
 
             $consumoM3 = max(0, round($currFlow - $prevFlow, 2));
             $consumoHora = $consumoM3 > 0 ? round($consumoM3 / 24, 6) : 0;
@@ -1435,35 +1480,35 @@ class ReportController extends Controller
             $refillDiff = max(0, round($refillAfter - $refillBefore, 2));
             $refillM3 = round($refillDiff * $factor, 2);
 
+            // RESERVA: NIVEL ACTUAL = hoy
             $reservaM3 = round($currLevelFinal * $factor, 2);
             $proyeccionDias = $consumoM3 > 0 ? round($reservaM3 / $consumoM3, 4) : 0;
 
-            $liquidoFinal = [
-                'saldo_inicial' => [
-                    'lectura_anterior' => $prevLevel,
-                    'lectura_actual' => $currLevelInitial,
-                    'saldo_inicial_m3' => $saldoInicialM3
-                ],
-                'consumo' => [
-                    'lectura_anterior' => $prevFlow,
-                    'lectura_actual' => $currFlow,
-                    'consumo_m3' => $consumoM3,
-                    'consumo_hora' => $consumoHora
-                ],
-                'ingreso' => [
-                    'inicial' => $refillBefore,
-                    'final' => $refillAfter,
-                    'diferencia' => $refillDiff,
-                    'recargado_m3' => $refillM3
-                ],
-                'reserva' => [
-                    'nivel_anterior' => $currLevelInitial,
-                    'nivel_actual' => $currLevelFinal,
-                    'reserva_m3' => $reservaM3,
-                    'proyeccion_dias' => $proyeccionDias
-                ]
-            ];
-        }
+        $liquidoFinal = [
+            'saldo_inicial' => [
+                'lectura_anterior' => $prevPrevLevel,
+                'lectura_actual' => $prevLevel,
+                'saldo_inicial_m3' => $saldoInicialM3
+            ],
+            'consumo' => [
+                'lectura_anterior' => $prevFlow,
+                'lectura_actual' => $currFlow,
+                'consumo_m3' => $consumoM3,
+                'consumo_hora' => $consumoHora
+            ],
+            'ingreso' => [
+                'inicial' => $refillBefore,
+                'final' => $refillAfter,
+                'diferencia' => $refillDiff,
+                'recargado_m3' => $refillM3
+            ],
+            'reserva' => [
+                'nivel_anterior' => $prevLevel,
+                'nivel_actual' => $currLevelFinal,
+                'reserva_m3' => $reservaM3,
+                'proyeccion_dias' => $proyeccionDias
+            ]
+        ];
 
         return response()->json([
             'date' => $date,
@@ -1478,33 +1523,5 @@ class ReportController extends Controller
         ]);
     }
 
-    /**
-     * Guardar datos editados de Oxígeno Líquido para una fecha específica
-     */
-    public function saveExecutiveLiquid(Request $request)
-    {
-        $validated = $request->validate([
-            'date' => 'required|date',
-            'liquid' => 'required|array',
-            'liquid.saldo_inicial' => 'required|array',
-            'liquid.consumo' => 'required|array',
-            'liquid.ingreso' => 'required|array',
-            'liquid.reserva' => 'required|array',
-        ]);
 
-        $date = $validated['date'];
-        $liquid = $validated['liquid'];
-
-        $snapshot = \App\Models\DailySnapshot::firstOrNew(['date' => $date]);
-        $currentData = $snapshot->snapshot_data ?? [];
-        $currentData['liquid'] = $liquid;
-        $snapshot->snapshot_data = $currentData;
-        $snapshot->save();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Datos de Oxígeno Líquido guardados exitosamente.',
-            'liquid' => $liquid
-        ]);
-    }
 }

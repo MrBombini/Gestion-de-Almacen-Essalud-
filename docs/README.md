@@ -10,6 +10,7 @@ Sistema de información para la gestión integral del inventario de gases medici
 
 | Documento | Descripción |
 |-----------|-------------|
+| [Requisitos Funcionales](./functional_requirements.md) | Listado completo de funciones y alcances del sistema |
 | [Arquitectura del Proyecto](./architecture.md) | Stack tecnológico, estructura de carpetas y flujo de datos |
 | [Modelos de Base de Datos](./database.md) | Esquema relacional completo, tablas y relaciones |
 | [Documentación de la API](./api/README.md) | Índice general de todos los endpoints |

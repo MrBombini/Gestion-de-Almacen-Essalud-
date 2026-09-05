@@ -10,7 +10,6 @@ import {
 import useFetch from '../hooks/useFetch';
 import KardexAttentionTable from '../components/KardexAttentionTable';
 import ConsumptionDashboardTable from '../components/ConsumptionDashboardTable';
-
 const Reports = () => {
   const [activeTab, setActiveTab] = useState('kardex');
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));

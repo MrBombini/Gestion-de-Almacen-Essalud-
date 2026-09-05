@@ -16,7 +16,9 @@ Este módulo es el **corazón del sistema**. Registra todos los movimientos de b
 | `Decanting` | `POST /inventory/decanting` | Trasiego de oxígeno líquido a balón pequeño |
 | `SupplierMovement` | `POST /inventory/supplier` | Movimiento con proveedor (entrada llenos / salida vacíos) |
 | `ServiceBulkExchange` | `POST /inventory/periphery-exchange` | Intercambio masivo para servicios periféricos |
-| `SupplierEntry` | `POST /inventory/supplier-entry` | Alias de SupplierMovement para entradas |
+| `PatientLoan` | `POST /inventory/patient-loan` | Préstamo de balón a paciente sin entregar uno a cambio |
+| `PatientReturn` | `POST /inventory/patient-return` | Devolución definitiva de balón por paciente |
+| `WarehouseTransfer` | `POST /inventory/warehouse-transfer` | Traslado interno entre Almacén Central y áreas hospitalarias |
 
 ---
 

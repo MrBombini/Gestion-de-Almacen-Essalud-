@@ -112,7 +112,7 @@ export const exportSupplierReport = async (data, dateRangeText) => {
             codigo: item.cylinder?.serial_number,
             modelo: item.cylinder?.ownership_type || 'PRAXAIR',
             capacidad: item.cylinder?.capacity,
-            propiedad: item.cylinder?.ownership_type,
+            propiedad: item.cylinder?.supplier || item.location?.name,
             proveedor: item.location?.name,
             guia: item.reference_document,
             producto: 'OXIGENO MEDICINAL',
@@ -206,7 +206,7 @@ export const exportLocationReport = async (data, dateRangeText) => {
             ubicacion: base.location?.detail || base.location?.name,
             lleno_codigo: lleno,
             modelo1: modelo1 || mainCylinder?.ownership_type,
-            propiedad: mainCylinder?.ownership_type,
+            propiedad: mainCylinder?.supplier,
             capacidad: mainCylinder?.capacity,
             vacio_codigo: vacio,
             modelo2: modelo2 || (vacio ? mainCylinder?.ownership_type : ''),
@@ -293,7 +293,7 @@ export const exportPadomiPatientReport = async (data, dateRangeText) => {
             lleno: salida ? salida.cylinder?.serial_number : '',
             modelo: mainCylinder?.ownership_type,
             capacidad: mainCylinder?.capacity,
-            propiedad: mainCylinder?.ownership_type,
+            propiedad: mainCylinder?.supplier,
             vacio: ingreso ? ingreso.cylinder?.serial_number : '',
         });
     });
@@ -314,7 +314,8 @@ export const exportIpressReport = async (data, dateRangeText) => {
         { header: 'FECHA', key: 'fecha', width: 12 },
         { header: 'IPRESS', key: 'ipress', width: 25 },
         { header: 'UBICACIÓN', key: 'ubicacion', width: 25 },
-        { header: 'B. LLENO CODIGO', key: 'codigo', width: 18 },
+        { header: 'ACCIÓN', key: 'accion', width: 12 },
+        { header: 'CÓDIGO DE BALÓN', key: 'codigo', width: 18 },
         { header: 'MODELO', key: 'modelo', width: 15 },
         { header: 'CAP.', key: 'cap', width: 10 },
         { header: 'PROPIEDAD', key: 'propiedad', width: 18 },
@@ -322,23 +323,24 @@ export const exportIpressReport = async (data, dateRangeText) => {
     ];
 
     worksheet.getRow(5).values = worksheet.columns.map(c => c.header);
-    applyHeaderStyles(worksheet, 5, 9);
+    applyHeaderStyles(worksheet, 5, 10);
 
     data.forEach((item, index) => {
         worksheet.addRow({
             nro: index + 1,
             fecha: item.date ? format(new Date(item.date), 'dd/MM/yyyy') : '',
             ipress: item.location?.name,
-            ubicacion: item.location?.name,
+            ubicacion: item.action === 'Ingreso' ? 'CENTRAL' : item.location?.name,
+            accion: item.action,
             codigo: item.cylinder?.serial_number,
             modelo: item.cylinder?.ownership_type,
             cap: item.cylinder?.capacity,
-            propiedad: item.cylinder?.ownership_type,
+            propiedad: item.cylinder?.supplier,
             modalidad: item.type || 'INTERCAMBIO',
         });
     });
 
-    applyDataStyles(worksheet, 6, data.length, 9);
+    applyDataStyles(worksheet, 6, data.length, 10);
     const buffer = await workbook.xlsx.writeBuffer();
     saveAs(new Blob([buffer]), `Reporte_IPRESS_${dateRangeText.replace(/\//g, '-')}.xlsx`);
 };
@@ -567,8 +569,17 @@ export const exportExecutiveConsumptionReport = async (reportData, dateText) => 
     worksheet.getRow(rowG).values = ['TOTAL UND', reportData.gaseoso.reserva_llenos.total_und['10'], reportData.gaseoso.reserva_llenos.total_und['8'], reportData.gaseoso.reserva_llenos.total_und['6']];
     rowG++;
     worksheet.getRow(rowG).getCell('A').value = 'TOTAL M3';
-    worksheet.mergeCells(`B${rowG}:D${rowG}`);
     worksheet.getCell(`B${rowG}`).value = reportData.gaseoso.reserva_llenos.total_m3;
+    
+    worksheet.getCell(`C${rowG}`).value = 'PROYEC. DIAS';
+    worksheet.getCell(`C${rowG}`).font = { bold: true, size: 8 };
+    
+    const consumoTotalGas = parseFloat(reportData.gaseoso.consumo.total_m3) || 0;
+    const reservaTotalGas = parseFloat(reportData.gaseoso.reserva_llenos.total_m3) || 0;
+    const proyGas = consumoTotalGas > 0 ? (reservaTotalGas / consumoTotalGas).toFixed(2) : 0;
+    
+    worksheet.getCell(`D${rowG}`).value = parseFloat(proyGas);
+    worksheet.getCell(`D${rowG}`).font = { bold: true, color: { argb: 'FF0000FF' } };
     
     applyGrid(1, rowG-4, 4, rowG);
 
@@ -695,6 +706,9 @@ export const exportCylindersInventoryReport = async (cylindersData, dateText) =>
             capacidad: `${item.capacity || 0} m³`,
             gas: item.gas_type || 'OXÍGENO MEDICINAL',
         });
+        const r = index + 6;
+        const doc = worksheet.getRow(r).getCell(9).value;
+        if (!doc) worksheet.getRow(r).getCell(9).value = 'S/D';
     });
 
     applyDataStyles(worksheet, 6, cylindersData.length, 10);
@@ -702,3 +716,82 @@ export const exportCylindersInventoryReport = async (cylindersData, dateText) =>
     saveAs(new Blob([buffer]), `Inventario_Cilindros_${dateText.replace(/\//g, '-')}.xlsx`);
 };
 
+// =========================================================
+// REPORTES DE OXÍGENO LÍQUIDO
+// =========================================================
+
+export const exportLiquidReadingsReport = async (data, dateRangeText) => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Lecturas Oxígeno Líquido');
+
+    applyBaseStyles(worksheet, 'REPORTE DIARIO DE LECTURAS DE OXÍGENO LÍQUIDO', '', dateRangeText);
+
+    worksheet.columns = [
+        { header: 'FECHA LECTURA', key: 'fecha_lectura', width: 20 },
+        { header: 'TURNO', key: 'turno', width: 15 },
+        { header: 'NIVEL TANQUE (mmH2O)', key: 'nivel', width: 25 },
+        { header: 'LECTURA FLUJÓMETRO (m3)', key: 'flujometro', width: 25 },
+        { header: 'REGISTRADO POR', key: 'operario', width: 25 },
+        { header: 'FECHA REGISTRO', key: 'creado', width: 25 },
+    ];
+
+    applyHeaderStyles(worksheet, 5, 6);
+
+    data.forEach(item => {
+        const rawCreated = item.created_at ? new Date(item.created_at) : null;
+        const formattedCreated = rawCreated ? `${rawCreated.toLocaleDateString()} ${rawCreated.toLocaleTimeString()}` : '-';
+        worksheet.addRow({
+            fecha_lectura: item.reading_date || '-',
+            turno: item.shift?.toUpperCase() || '-',
+            nivel: item.tank_level || '0',
+            flujometro: item.flow_meter_reading || '0',
+            operario: item.user?.name || item.user_name || '-',
+            creado: formattedCreated
+        });
+    });
+
+    applyDataStyles(worksheet, 6, data.length, 6);
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(new Blob([buffer]), `Lecturas_O2_Liquido_${dateRangeText.replace(/ /g, '_')}.xlsx`);
+};
+
+export const exportLiquidRefillsReport = async (data, dateRangeText) => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Recargas Oxígeno Líquido');
+
+    applyBaseStyles(worksheet, 'REPORTE DE RECARGAS DE OXÍGENO LÍQUIDO (CISTERNA)', '', dateRangeText);
+
+    worksheet.columns = [
+        { header: 'FECHA RECARGA', key: 'fecha_recarga', width: 20 },
+        { header: 'PROVEEDOR', key: 'proveedor', width: 25 },
+        { header: 'Nº GUÍA / TICKET', key: 'guia', width: 20 },
+        { header: 'CANT. TICKET (Kg)', key: 'cantidad', width: 20 },
+        { header: 'PESO INICIAL', key: 'peso_ini', width: 15 },
+        { header: 'PESO FINAL', key: 'peso_fin', width: 15 },
+        { header: 'NIVEL ANTES', key: 'nivel_antes', width: 15 },
+        { header: 'NIVEL DESPUÉS', key: 'nivel_despues', width: 15 },
+        { header: 'OPERARIO', key: 'operario', width: 25 },
+    ];
+
+    applyHeaderStyles(worksheet, 5, 9);
+
+    data.forEach(item => {
+        worksheet.addRow({
+            fecha_recarga: item.refilled_at || '-',
+            proveedor: item.supplier_name || 'PRAXAIR / LINDE',
+            guia: item.guide_number || '-',
+            cantidad: item.ticket_quantity || '-',
+            peso_ini: item.initial_weight || '-',
+            peso_fin: item.final_weight || '-',
+            nivel_antes: item.tank_level_before || '-',
+            nivel_despues: item.tank_level_after || '-',
+            operario: item.operator_name || '-'
+        });
+    });
+
+    applyDataStyles(worksheet, 6, data.length, 9);
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(new Blob([buffer]), `Recargas_O2_Liquido_${dateRangeText.replace(/ /g, '_')}.xlsx`);
+};
