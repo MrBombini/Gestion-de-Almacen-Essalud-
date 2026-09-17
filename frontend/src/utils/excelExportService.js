@@ -218,6 +218,91 @@ export const exportLocationReport = async (data, dateRangeText) => {
     saveAs(new Blob([buffer]), `Reporte_Ubicacion_${dateRangeText.replace(/\//g, '-')}.xlsx`);
 };
 
+export const exportPadomiExchangeReport = async (data, dateRangeText) => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Intercambios PADOMI');
+
+    applyBaseStyles(worksheet, 'REPORTE DE INTERCAMBIOS DE OXÍGENO - PACIENTES PADOMI', '', dateRangeText);
+
+    worksheet.columns = [
+        // BALON LLENO
+        { header: 'FECHA MOV.', key: 'fecha', width: 15 },
+        { header: 'CÓDIGO LLENO (LLEVÓ)', key: 'lleno_codigo', width: 22 },
+        { header: 'CAPACIDAD', key: 'capacidad', width: 12 },
+        { header: 'PROPIEDAD', key: 'propiedad', width: 15 },
+        { header: 'MODELO', key: 'modelo', width: 15 },
+        // PACIENTE Y RECETA
+        { header: 'DNI', key: 'dni', width: 15 },
+        { header: 'PACIENTE', key: 'paciente', width: 35 },
+        { header: 'DIRECCIÓN', key: 'direccion', width: 40 },
+        { header: 'TELÉFONO', key: 'telefono', width: 15 },
+        { header: 'DIAGNÓSTICO', key: 'diagnostico', width: 25 },
+        { header: 'MÉDICO TRATANTE', key: 'medico', width: 25 },
+        { header: 'FLUJO (L/min)', key: 'flujo', width: 15 },
+        { header: 'HORAS/DÍA', key: 'horas', width: 15 },
+        { header: 'VENCIMIENTO RECETA', key: 'vencimiento', width: 20 },
+        // BALON VACIO
+        { header: 'CÓDIGO VACÍO (DEVOLVIÓ)', key: 'vacio_codigo', width: 25 },
+    ];
+
+    worksheet.getRow(5).values = worksheet.columns.map(c => c.header);
+    applyHeaderStyles(worksheet, 5, 15);
+
+    // Pintar los headers para separar secciones
+    const headerRow = worksheet.getRow(5);
+    // Balon lleno (1 al 5)
+    for(let i=1; i<=5; i++) {
+        headerRow.getCell(i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9EAD3' } }; // verde claro
+    }
+    // Paciente y receta (6 al 14)
+    for(let i=6; i<=14; i++) {
+        headerRow.getCell(i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC9DAF8' } }; // azul claro
+    }
+    // Balon vacio (15)
+    headerRow.getCell(15).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF4CCCC' } }; // rojo claro
+
+    data.forEach(mov => {
+        let lleno = null;
+        let vacio = null;
+
+        if (mov.cylinder_movements) {
+            mov.cylinder_movements.forEach(cm => {
+                if (cm.action === 'Exit') lleno = cm.cylinder;
+                if (cm.action === 'Entry') vacio = cm.cylinder;
+            });
+        }
+
+        const p = mov.patient || {};
+        const rx = mov.prescription || {};
+
+        worksheet.addRow({
+            fecha: mov.movement_at ? format(new Date(mov.movement_at), 'dd/MM/yyyy HH:mm') : '',
+            
+            lleno_codigo: lleno?.serial_number || '-',
+            capacidad: lleno?.capacity || '-',
+            propiedad: lleno?.supplier?.name || '-',
+            modelo: lleno?.ownership_type?.name || '-',
+
+            dni: p.dni || '-',
+            paciente: p.full_name || '-',
+            direccion: p.address || '-',
+            telefono: p.phone_number || '-',
+
+            diagnostico: rx.diagnosis || '-',
+            medico: rx.prescribing_doctor || '-',
+            flujo: rx.flow_rate || '-',
+            horas: rx.hours_per_day || '-',
+            vencimiento: rx.expires_at ? format(new Date(rx.expires_at), 'dd/MM/yyyy') : '-',
+
+            vacio_codigo: vacio?.serial_number || '-'
+        });
+    });
+
+    applyDataStyles(worksheet, 6, data.length, 15);
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(new Blob([buffer]), `Intercambios_PADOMI_${dateRangeText.replace(/\//g, '-')}.xlsx`);
+};
+
 export const exportPadomiPatientReport = async (data, dateRangeText) => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Pacientes');

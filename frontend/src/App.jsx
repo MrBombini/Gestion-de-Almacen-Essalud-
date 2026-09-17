@@ -34,6 +34,7 @@ import PatientAlertsReport from './pages/Reports/PatientAlertsReport';
 import KardexResume from './pages/KardexResume';
 import HospitalizationControl from './pages/Reports/HospitalizationControl';
 import ExecutiveConsumptionReport from './pages/ExecutiveConsumptionReport';
+import PadomiExchanges from './pages/PadomiExchanges';
 
 
 function App() {
@@ -77,7 +78,9 @@ function App() {
             <Route path="/reports/hospitalization-control" element={<HospitalizationControl />} />
             <Route path="/reports/cylinder-tracking" element={<CylinderTracking />} />
             <Route path="/reports/unified-search" element={<UnifiedMovements />} />
+            <Route path="/reports/unified-search" element={<UnifiedMovements />} />
             <Route path="/reports/executive" element={<ExecutiveConsumptionReport />} />
+            <Route path="/reports/padomi-exchanges" element={<PadomiExchanges />} />
 
             <Route path="/admin/reports" element={<Reports />} />
             <Route path="/admin/users" element={<Users />} />

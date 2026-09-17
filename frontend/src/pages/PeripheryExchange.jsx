@@ -3,6 +3,7 @@ import { MdLocalHospital, MdSave, MdHistory, MdSwapCalls, MdAssignment, MdQrCode
 import AsyncSelect from 'react-select/async';
 import useFetch from '../hooks/useFetch';
 import { useAuth } from '../context/AuthContext';
+import useRemoteDraft from '../hooks/useRemoteDraft';
 import api from '../services/api';
 
 const PeripheryExchange = () => {
@@ -11,41 +12,41 @@ const PeripheryExchange = () => {
   // Mantenemos solo el useFetch para guardar la transacción
   const { execute, loading: actionLoading } = useFetch('/inventory/periphery-exchange', 'POST', null, false);
 
-  const [formData, setFormData] = useState({
-    service_id: '',
-    reference_document: '',
-    shift: shift || 'Morning',
-    cylinders_in: [],  // Array de objetos seleccionados (isMulti)
-    cylinders_out: [], // Array de objetos seleccionados (isMulti)
-    notes: ''
-  });
+  const initialDraft = {
+    formData: {
+      service_id: '',
+      reference_document: '',
+      shift: shift || 'Morning',
+      cylinders_in: [],
+      cylinders_out: [],
+      notes: ''
+    },
+    selectedServiceOption: null
+  };
 
-  const [selectedServiceOption, setSelectedServiceOption] = useState(null);
+  const { draftData, setDraftData, clearDraft, saveStatus, isLoaded } = useRemoteDraft('periphery_exchange', initialDraft);
+
   const [successMessage, setSuccessMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
-  const [restoredDraft, setRestoredDraft] = useState(false);
 
-  useEffect(() => {
-    const saved = localStorage.getItem('periphery_exchange_draft');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.formData.service_id || parsed.formData.reference_document || parsed.formData.cylinders_in?.length > 0 || parsed.formData.cylinders_out?.length > 0) {
-          setFormData(parsed.formData);
-          if (parsed.selectedServiceOption) setSelectedServiceOption(parsed.selectedServiceOption);
-          setRestoredDraft(true);
-        }
-      } catch (e) {
-        console.error('Error parsing draft', e);
-      }
-    }
-  }, []);
+  // Derivar formData y selectedServiceOption del draft
+  const formData = draftData?.formData || initialDraft.formData;
+  const selectedServiceOption = draftData?.selectedServiceOption || initialDraft.selectedServiceOption;
 
-  useEffect(() => {
-    if (formData.service_id || formData.reference_document || formData.cylinders_in.length > 0 || formData.cylinders_out.length > 0) {
-      localStorage.setItem('periphery_exchange_draft', JSON.stringify({ formData, selectedServiceOption }));
-    }
-  }, [formData, selectedServiceOption]);
+  // Funciones para actualizar el draft en lugar de setState
+  const setFormData = (newData) => {
+    setDraftData(prev => ({
+      ...prev,
+      formData: typeof newData === 'function' ? newData(prev.formData) : newData
+    }));
+  };
+
+  const setSelectedServiceOption = (newOption) => {
+    setDraftData(prev => ({
+      ...prev,
+      selectedServiceOption: newOption
+    }));
+  };
 
   // ==========================================
   // CARGA ASÍNCRONA DE SERVICIOS (PERIFERIE)
@@ -139,19 +140,7 @@ const PeripheryExchange = () => {
       });
 
       setSuccessMessage('¡Canje de red registrado con éxito!');
-      localStorage.removeItem('periphery_exchange_draft');
-      setRestoredDraft(false);
-      
-      // Limpieza post-guardado
-      setFormData({
-        service_id: '',
-        reference_document: '',
-        shift: shift || 'Morning',
-        cylinders_in: [],
-        cylinders_out: [],
-        notes: ''
-      });
-      setSelectedServiceOption(null);
+      await clearDraft();
     } catch (err) {
       setErrorMessage(err.response?.data?.message || 'Error en el registro.');
     }
@@ -203,15 +192,29 @@ const PeripheryExchange = () => {
         </div>
       )}
 
-      {restoredDraft && !successMessage && (
-        <div className="p-4 bg-indigo-50 border-l-4 border-indigo-500 text-indigo-700 rounded-xl font-medium flex justify-between items-center animate-fade-in">
-          <span>Se ha recuperado un registro pendiente (Borrador).</span>
-          <button type="button" onClick={() => {
-            localStorage.removeItem('periphery_exchange_draft');
-            setFormData({ service_id: '', reference_document: '', shift: shift || 'Morning', cylinders_in: [], cylinders_out: [], notes: '' });
-            setSelectedServiceOption(null);
-            setRestoredDraft(false);
-          }} className="px-3 py-1 bg-indigo-200 hover:bg-indigo-300 text-indigo-800 rounded-lg text-sm font-bold transition-colors">
+      {isLoaded && !successMessage && (
+        <div className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl animate-fade-in justify-between">
+          <div className="flex items-center gap-3">
+            <span className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${
+              saveStatus === 'saving' ? 'bg-amber-100 text-amber-700' :
+              saveStatus === 'saved' ? 'bg-emerald-100 text-emerald-700' :
+              saveStatus === 'error' ? 'bg-red-100 text-red-700' :
+              'bg-slate-100 text-slate-500'
+            }`}>
+              {saveStatus === 'saving' ? 'Guardando en la nube...' :
+               saveStatus === 'saved' ? 'Guardado en la nube' :
+               saveStatus === 'error' ? 'Error al guardar' :
+               'Borrador sincronizado'}
+            </span>
+            <span className="text-sm font-medium text-slate-500">
+              Carrito de Periferia
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => clearDraft()}
+            className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-bold transition-colors"
+          >
             Descartar Borrador
           </button>
         </div>

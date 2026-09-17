@@ -3,6 +3,7 @@ import { MdSave, MdSyncAlt, MdAssignment } from 'react-icons/md';
 import AsyncSelect from 'react-select/async';
 import useFetch from '../hooks/useFetch';
 import { useAuth } from '../context/AuthContext';
+import useRemoteDraft from '../hooks/useRemoteDraft';
 import api from '../services/api';
 
 const WarehouseTransfer = () => {
@@ -10,11 +11,24 @@ const WarehouseTransfer = () => {
   
   const { execute, loading: actionLoading } = useFetch('/inventory/warehouse-transfer', 'POST', null, false);
 
-  const [formData, setFormData] = useState({
-    direction: 'CENTRAL_TO_ALMACEN',
-    cylinders: [],
-    notes: ''
-  });
+  const initialDraft = {
+    formData: {
+      direction: 'CENTRAL_TO_ALMACEN',
+      cylinders: [],
+      notes: ''
+    }
+  };
+
+  const { draftData, setDraftData, clearDraft, saveStatus, isLoaded } = useRemoteDraft('warehouse_transfer', initialDraft);
+
+  const formData = draftData?.formData || initialDraft.formData;
+
+  const setFormData = (newData) => {
+    setDraftData(prev => ({
+      ...prev,
+      formData: typeof newData === 'function' ? newData(prev.formData) : newData
+    }));
+  };
 
   const [successMessage, setSuccessMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
@@ -69,13 +83,7 @@ const WarehouseTransfer = () => {
       });
 
       setSuccessMessage('¡Traslado interno registrado con éxito!');
-      
-      // Limpieza de formulario
-      setFormData({
-        direction: formData.direction,
-        cylinders: [],
-        notes: ''
-      });
+      await clearDraft();
     } catch (err) {
       setErrorMessage(err.response?.data?.message || 'Error en el registro del traslado.');
     }
@@ -124,6 +132,34 @@ const WarehouseTransfer = () => {
       {(successMessage || errorMessage) && (
         <div className={`p-4 rounded-xl font-medium border-l-4 animate-fade-in ${successMessage ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-red-50 border-red-500 text-red-700'}`}>
           {successMessage || errorMessage}
+        </div>
+      )}
+
+      {isLoaded && !successMessage && (
+        <div className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl animate-fade-in justify-between mb-4 mt-2">
+          <div className="flex items-center gap-3">
+            <span className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${
+              saveStatus === 'saving' ? 'bg-amber-100 text-amber-700' :
+              saveStatus === 'saved' ? 'bg-emerald-100 text-emerald-700' :
+              saveStatus === 'error' ? 'bg-red-100 text-red-700' :
+              'bg-slate-100 text-slate-500'
+            }`}>
+              {saveStatus === 'saving' ? 'Guardando en la nube...' :
+               saveStatus === 'saved' ? 'Guardado en la nube' :
+               saveStatus === 'error' ? 'Error al guardar' :
+               'Borrador sincronizado'}
+            </span>
+            <span className="text-sm font-medium text-slate-500">
+              Carrito de Traslado Interno
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => clearDraft()}
+            className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-bold transition-colors"
+          >
+            Descartar Borrador
+          </button>
         </div>
       )}
 

@@ -3,6 +3,7 @@ import { MdSave, MdLibraryAdd, MdHistory, MdAssignment, MdLocalShipping } from '
 import AsyncSelect from 'react-select/async';
 import useFetch from '../hooks/useFetch';
 import { useAuth } from '../context/AuthContext';
+import useRemoteDraft from '../hooks/useRemoteDraft';
 import api from '../services/api';
 
 const SupplierMovement = () => {
@@ -11,41 +12,40 @@ const SupplierMovement = () => {
   // Mantenemos solo el useFetch para guardar la transacción
   const { execute, loading: actionLoading } = useFetch('/inventory/supplier', 'POST', null, false);
 
-  const [formData, setFormData] = useState({
-    supplier_id: '',
-    reference_document: '',
-    shift: shift || 'Morning',
-    cylinders_in: [],  // Array de objetos { value, label }
-    cylinders_out: [], // Array de objetos { value, label }
-    notes: ''
-  });
+  const initialDraft = {
+    formData: {
+      supplier_id: '',
+      reference_document: '',
+      shift: shift || 'Morning',
+      cylinders_in: [],
+      cylinders_out: [],
+      notes: ''
+    },
+    selectedSupplierOption: null
+  };
 
-  const [selectedSupplierOption, setSelectedSupplierOption] = useState(null);
+  const { draftData, setDraftData, clearDraft, saveStatus, isLoaded } = useRemoteDraft('supplier_movement', initialDraft);
+
+  const formData = draftData?.formData || initialDraft.formData;
+  const selectedSupplierOption = draftData?.selectedSupplierOption || initialDraft.selectedSupplierOption;
+
   const [successMessage, setSuccessMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
-  const [restoredDraft, setRestoredDraft] = useState(false);
 
-  useEffect(() => {
-    const saved = localStorage.getItem('supplier_movement_draft');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.formData.supplier_id || parsed.formData.reference_document || parsed.formData.cylinders_in?.length > 0 || parsed.formData.cylinders_out?.length > 0) {
-          setFormData(parsed.formData);
-          if (parsed.selectedSupplierOption) setSelectedSupplierOption(parsed.selectedSupplierOption);
-          setRestoredDraft(true);
-        }
-      } catch (e) {
-        console.error('Error parsing draft', e);
-      }
-    }
-  }, []);
+  // Funciones para actualizar el draft en lugar de setState
+  const setFormData = (newData) => {
+    setDraftData(prev => ({
+      ...prev,
+      formData: typeof newData === 'function' ? newData(prev.formData) : newData
+    }));
+  };
 
-  useEffect(() => {
-    if (formData.supplier_id || formData.reference_document || formData.cylinders_in.length > 0 || formData.cylinders_out.length > 0) {
-      localStorage.setItem('supplier_movement_draft', JSON.stringify({ formData, selectedSupplierOption }));
-    }
-  }, [formData, selectedSupplierOption]);
+  const setSelectedSupplierOption = (newOption) => {
+    setDraftData(prev => ({
+      ...prev,
+      selectedSupplierOption: newOption
+    }));
+  };
 
   // ==========================================
   // CARGA ASÍNCRONA DE PROVEEDORES
@@ -121,19 +121,7 @@ const SupplierMovement = () => {
       });
 
       setSuccessMessage('¡Movimiento de proveedor registrado con éxito!');
-      localStorage.removeItem('supplier_movement_draft');
-      setRestoredDraft(false);
-      
-      // Limpieza de formulario y selects
-      setFormData({
-        supplier_id: '',
-        reference_document: '',
-        shift: shift || 'Morning',
-        cylinders_in: [],
-        cylinders_out: [],
-        notes: ''
-      });
-      setSelectedSupplierOption(null);
+      await clearDraft();
     } catch (err) {
       setErrorMessage(err.response?.data?.message || 'Error en el registro.');
     }
@@ -185,15 +173,29 @@ const SupplierMovement = () => {
         </div>
       )}
 
-      {restoredDraft && !successMessage && (
-        <div className="p-4 bg-amber-50 border-l-4 border-amber-500 text-amber-700 rounded-xl font-medium flex justify-between items-center animate-fade-in">
-          <span>Se ha recuperado un registro pendiente (Borrador).</span>
-          <button type="button" onClick={() => {
-            localStorage.removeItem('supplier_movement_draft');
-            setFormData({ supplier_id: '', reference_document: '', shift: shift || 'Morning', cylinders_in: [], cylinders_out: [], notes: '' });
-            setSelectedSupplierOption(null);
-            setRestoredDraft(false);
-          }} className="px-3 py-1 bg-amber-200 hover:bg-amber-300 text-amber-800 rounded-lg text-sm font-bold transition-colors">
+      {isLoaded && !successMessage && (
+        <div className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl animate-fade-in justify-between">
+          <div className="flex items-center gap-3">
+            <span className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${
+              saveStatus === 'saving' ? 'bg-amber-100 text-amber-700' :
+              saveStatus === 'saved' ? 'bg-emerald-100 text-emerald-700' :
+              saveStatus === 'error' ? 'bg-red-100 text-red-700' :
+              'bg-slate-100 text-slate-500'
+            }`}>
+              {saveStatus === 'saving' ? 'Guardando en la nube...' :
+               saveStatus === 'saved' ? 'Guardado en la nube' :
+               saveStatus === 'error' ? 'Error al guardar' :
+               'Borrador sincronizado'}
+            </span>
+            <span className="text-sm font-medium text-slate-500">
+              Carrito de Proveedor
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => clearDraft()}
+            className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-bold transition-colors"
+          >
             Descartar Borrador
           </button>
         </div>

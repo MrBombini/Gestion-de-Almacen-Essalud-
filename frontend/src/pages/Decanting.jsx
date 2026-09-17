@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { formatDate } from '../utils/dateUtils';
 import { MdSave, MdCompress, MdPropaneTank, MdLocalHospital, MdPerson, MdEdit, MdWarning, MdInfo } from 'react-icons/md';
 import Modal from '../components/Modal';
 import AsyncSelect from 'react-select/async';
 import useFetch from '../hooks/useFetch';
 import { useAuth } from '../context/AuthContext';
+import useRemoteDraft from '../hooks/useRemoteDraft';
 import { format } from 'date-fns';
 import api from '../services/api';
 
@@ -12,20 +14,48 @@ const Decanting = () => {
 
   const { execute, loading: actionLoading } = useFetch('/inventory/decanting', 'POST', null, false);
 
-  const [formData, setFormData] = useState({
-    service_id: '',
-    patient_id: '',
-    prescription_id: '',
-    cylinder_id: '',
-    refilled_amount: ''
-  });
+  const initialDraft = {
+    formData: {
+      service_id: '',
+      patient_id: '',
+      prescription_id: '',
+      cylinder_id: '',
+      refilled_amount: ''
+    },
+    selectedCylinderOption: null,
+    detectedDestination: null,
+    prescriptionAlert: null
+  };
 
-  const [selectedCylinderOption, setSelectedCylinderOption] = useState(null);
-  
-  // States para mostrar la información del destino detectado automáticamente
-  const [detectedDestination, setDetectedDestination] = useState(null); // { type: 'service' | 'patient', name: '...', patientObject: ... }
-  
-  const [prescriptionAlert, setPrescriptionAlert] = useState(null);
+  const { draftData, setDraftData, clearDraft, saveStatus, isLoaded } = useRemoteDraft('decanting', initialDraft);
+
+  const formData = draftData?.formData || initialDraft.formData;
+  const selectedCylinderOption = draftData?.selectedCylinderOption || initialDraft.selectedCylinderOption;
+  const detectedDestination = draftData?.detectedDestination || initialDraft.detectedDestination;
+  const prescriptionAlert = draftData?.prescriptionAlert || initialDraft.prescriptionAlert;
+
+  const setFormData = (newData) => {
+    setDraftData(prev => ({
+      ...prev,
+      formData: typeof newData === 'function' ? newData(prev.formData) : newData
+    }));
+  };
+
+  const setSelectedCylinderOption = (newOption) => {
+    setDraftData(prev => ({ ...prev, selectedCylinderOption: newOption }));
+  };
+
+  const setDetectedDestination = (newData) => {
+    setDraftData(prev => ({ 
+      ...prev, 
+      detectedDestination: typeof newData === 'function' ? newData(prev.detectedDestination) : newData 
+    }));
+  };
+
+  const setPrescriptionAlert = (newAlert) => {
+    setDraftData(prev => ({ ...prev, prescriptionAlert: newAlert }));
+  };
+
   const [successMessage, setSuccessMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
 
@@ -90,7 +120,7 @@ const Decanting = () => {
       setFormData(prev => ({ ...prev, prescription_id: validPrescription.id }));
       setPrescriptionAlert({
         type: 'success',
-        message: `Receta activa (Expira: ${validPrescription.expires_at}). Dosis: ${validPrescription.dosage}`
+        message: `Receta activa (Expira: ${formatDate(validPrescription.expires_at)}). Dosis: ${validPrescription.dosage}`
       });
     } else {
       setFormData(prev => ({ ...prev, prescription_id: '' }));
@@ -204,12 +234,7 @@ const Decanting = () => {
       });
 
       setSuccessMessage('¡Recarga de balón registrada con éxito!');
-      
-      // Limpieza total
-      setFormData({ service_id: '', patient_id: '', prescription_id: '', cylinder_id: '', refilled_amount: '' });
-      setSelectedCylinderOption(null);
-      setDetectedDestination(null);
-      setPrescriptionAlert(null);
+      await clearDraft();
 
     } catch (err) {
       setErrorMessage(err.response?.data?.message || 'Error al registrar el trasiego. Verifica los datos.');
@@ -243,8 +268,36 @@ const Decanting = () => {
         </div>
       </div>
 
-      {successMessage && <div className="bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-md text-emerald-700 font-medium text-sm sm:text-base">{successMessage}</div>}
-      {errorMessage && <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md text-red-700 font-medium text-sm sm:text-base">{errorMessage}</div>}
+      {isLoaded && !successMessage && (
+        <div className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl animate-fade-in justify-between mb-4 mt-2">
+          <div className="flex items-center gap-3">
+            <span className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${
+              saveStatus === 'saving' ? 'bg-amber-100 text-amber-700' :
+              saveStatus === 'saved' ? 'bg-emerald-100 text-emerald-700' :
+              saveStatus === 'error' ? 'bg-red-100 text-red-700' :
+              'bg-slate-100 text-slate-500'
+            }`}>
+              {saveStatus === 'saving' ? 'Guardando en la nube...' :
+               saveStatus === 'saved' ? 'Guardado en la nube' :
+               saveStatus === 'error' ? 'Error al guardar' :
+               'Borrador sincronizado'}
+            </span>
+            <span className="text-sm font-medium text-slate-500">
+              Carrito de Trasiego
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => clearDraft()}
+            className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-bold transition-colors"
+          >
+            Descartar Borrador
+          </button>
+        </div>
+      )}
+
+      {successMessage && <div className="bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-md text-emerald-700 font-medium text-sm sm:text-base mb-4 mt-2">{successMessage}</div>}
+      {errorMessage && <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md text-red-700 font-medium text-sm sm:text-base mb-4 mt-2">{errorMessage}</div>}
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <form onSubmit={handleSubmit} onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }} className="divide-y divide-slate-100">
@@ -373,7 +426,7 @@ const Decanting = () => {
                   <span className="font-bold text-slate-700">{rx.dosage} L/min · {rx.usage_time} hrs</span>
                 </div>
                 <div className="text-slate-500 break-words">
-                  Autorización: {rx.authorization_date || '—'} · Vence: <span className={rx.days_remaining < 0 ? 'text-red-600 font-bold' : ''}>{rx.expires_at || '—'}</span>
+                  Autorización: {formatDate(rx.authorization_date)} · Vence: <span className={rx.days_remaining < 0 ? 'text-red-600 font-bold' : ''}>{formatDate(rx.expires_at)}</span>
                 </div>
                 {rx.promissory_note && <div className="text-slate-400">Pagaré: {rx.promissory_note}</div>}
               </div>
