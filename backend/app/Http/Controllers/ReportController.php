@@ -38,29 +38,12 @@ class ReportController extends Controller
             } elseif (isset($map[$keyFall]) && $map[$keyFall]['total'] > 0) {
                 $map[$keyFall]['total'] += $delta;
             } else {
-                // BUG FIX: Búsqueda flexible. Si la llave exacta (que incluye IDs de propiedad/proveedor) no coincide, 
-                // buscar cualquier registro con la misma capacidad y ubicación que tenga stock disponible.
+                // BUG FIX: Anteriormente había una "Búsqueda flexible" que buscaba CUALQUIER registro 
+                // con la misma capacidad si la llave exacta no tenía stock. Eso causaba que si el stock
+                // de Praxair era 0, se le restara a Essalud, descuadrando otra marca.
+                // Ahora, SIEMPRE se resta de su propia llave (aunque quede en negativo temporalmente),
+                // para que el descuadre sea evidente en la marca correcta.
                 $found = false;
-                
-                // Intento 1: Misma ubicación preferida y capacidad
-                foreach ($map as $k => &$item) {
-                    if ($item['location'] === $preferredLocation && (int)$item['capacity'] === $cap && $item['total'] > 0) {
-                        $item['total'] += $delta;
-                        $found = true;
-                        break;
-                    }
-                }
-                
-                // Intento 2: Ubicación fallback y misma capacidad
-                if (!$found) {
-                    foreach ($map as $k => &$item) {
-                        if ($item['location'] === $fallbackLocation && (int)$item['capacity'] === $cap && $item['total'] > 0) {
-                            $item['total'] += $delta;
-                            $found = true;
-                            break;
-                        }
-                    }
-                }
 
                 // Si ninguno tiene (stock agotado físicamente o no registrado), forzar negativo en la preferida
                 if (!$found) {
@@ -1272,6 +1255,38 @@ class ReportController extends Controller
         ])->values();
 
         return response()->json($sorted);
+    }
+
+    /**
+     * REPORTE: Intercambios PADOMI
+     */
+    public function padomiExchanges(Request $request)
+    {
+        $perPageParam = $request->query('per_page', 20);
+        $perPage = ($perPageParam === 'all') ? 500 : (int) $perPageParam;
+
+        $startDate = $request->query('start_date');
+        $endDate = $request->query('end_date');
+
+        $query = InventoryMovement::with([
+            'patient',
+            'prescription',
+            'cylinderMovements.cylinder.ownershipType',
+            'cylinderMovements.cylinder.supplier'
+        ])
+        ->where('type', 'Exchange')
+        ->whereNotNull('patient_id')
+        ->orderBy('movement_at', 'desc');
+
+        if ($startDate && $endDate) {
+            $start = Carbon::parse($startDate)->startOfDay();
+            $end = Carbon::parse($endDate)->endOfDay();
+            $query->whereBetween('movement_at', [$start, $end]);
+        }
+
+        $exchanges = $query->paginate($perPage);
+
+        return response()->json($exchanges);
     }
 
     /**

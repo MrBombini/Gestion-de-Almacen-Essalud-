@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/dateUtils';
 import { MdSwapHoriz, MdSave, MdPerson, MdLocalHospital, MdPropaneTank, MdHotel, MdWarning, MdSettingsInputComponent, MdPrint, MdEdit } from 'react-icons/md';
 import AsyncSelect from 'react-select/async';
 import Select from 'react-select';
 import useFetch from '../hooks/useFetch';
 import { useAuth } from '../context/AuthContext';
+import useRemoteDraft from '../hooks/useRemoteDraft';
 import { format } from 'date-fns';
 import Modal from '../components/Modal';
 import api from '../services/api';
@@ -14,30 +16,47 @@ const Exchange = () => {
   const { data: patients, loading: loadingP, refetch: refetchP } = useFetch('/patients');
   const { data: services, loading: loadingS } = useFetch('/services');
   const { data: cylinders, loading: loadingC, refetch: refetchC } = useFetch('/cylinders?per_page=all');
-  const [selectedPatientOption, setSelectedPatientOption] = useState(null);
-  const [selectedCylOutOption, setSelectedCylOutOption] = useState(null);
-  const [selectedCylInOption, setSelectedCylInOption] = useState(null);
+  const initialDraft = {
+    formData: {
+      patient_id: '',
+      service_id: '',
+      bed_id: '',
+      prescription_id: '',
+      cylinder_in: '',
+      cylinder_out: '',
+      notes: ''
+    },
+    destinationType: 'service',
+    operationType: 'Exchange',
+    selectedPatientOption: null,
+    selectedCylOutOption: null,
+    selectedCylInOption: null,
+    selectedPatientData: null
+  };
+
+  const { draftData, setDraftData, clearDraft, saveStatus, isLoaded } = useRemoteDraft('exchange', initialDraft);
+
+  const formData = draftData?.formData || initialDraft.formData;
+  const destinationType = draftData?.destinationType || initialDraft.destinationType;
+  const operationType = draftData?.operationType || initialDraft.operationType;
+  const selectedPatientOption = draftData?.selectedPatientOption || initialDraft.selectedPatientOption;
+  const selectedCylOutOption = draftData?.selectedCylOutOption || initialDraft.selectedCylOutOption;
+  const selectedCylInOption = draftData?.selectedCylInOption || initialDraft.selectedCylInOption;
+  const selectedPatientData = draftData?.selectedPatientData || initialDraft.selectedPatientData;
+
+  const setFormData = (newData) => setDraftData(prev => ({ ...prev, formData: typeof newData === 'function' ? newData(prev.formData) : newData }));
+  const setDestinationType = (newData) => setDraftData(prev => ({ ...prev, destinationType: typeof newData === 'function' ? newData(prev.destinationType) : newData }));
+  const setOperationType = (newData) => setDraftData(prev => ({ ...prev, operationType: typeof newData === 'function' ? newData(prev.operationType) : newData }));
+  const setSelectedPatientOption = (newData) => setDraftData(prev => ({ ...prev, selectedPatientOption: typeof newData === 'function' ? newData(prev.selectedPatientOption) : newData }));
+  const setSelectedCylOutOption = (newData) => setDraftData(prev => ({ ...prev, selectedCylOutOption: typeof newData === 'function' ? newData(prev.selectedCylOutOption) : newData }));
+  const setSelectedCylInOption = (newData) => setDraftData(prev => ({ ...prev, selectedCylInOption: typeof newData === 'function' ? newData(prev.selectedCylInOption) : newData }));
+  const setSelectedPatientData = (newData) => setDraftData(prev => ({ ...prev, selectedPatientData: typeof newData === 'function' ? newData(prev.selectedPatientData) : newData }));
 
   const { execute, loading: actionLoading } = useFetch('/inventory/exchange', 'POST', null, false);
 
   const patientsList = Array.isArray(patients) ? patients : (patients?.data || []);
   const servicesList = Array.isArray(services) ? services : (services?.data || []);
   const cylindersList = Array.isArray(cylinders) ? cylinders : (cylinders?.data || []);
-
-  const [destinationType, setDestinationType] = useState('service');
-  const [operationType, setOperationType] = useState('Exchange'); // 'Exchange', 'Assignment', 'Return'
-
-  const [formData, setFormData] = useState({
-    patient_id: '',
-    service_id: '',
-    bed_id: '',
-    prescription_id: '',
-    cylinder_in: '',
-    cylinder_out: '',
-    notes: ''
-  });
-
-  const [selectedPatientData, setSelectedPatientData] = useState(null);
   const [prescriptionAlert, setPrescriptionAlert] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
@@ -251,6 +270,8 @@ const Exchange = () => {
       });
 
       setSuccessMessage('¡Intercambio registrado con éxito!');
+      await clearDraft();
+      
       if (destinationType === 'patient' && response) {
         setCreatedMovement(response);
       }
@@ -460,6 +481,34 @@ const Exchange = () => {
       {(successMessage || errorMessage) && (
         <div className={`p-4 rounded-xl font-medium border-l-4 animate-fade-in ${successMessage ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-red-50 border-red-500 text-red-700'}`}>
           {successMessage || errorMessage}
+        </div>
+      )}
+
+      {isLoaded && !successMessage && (
+        <div className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl animate-fade-in justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <span className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${
+              saveStatus === 'saving' ? 'bg-amber-100 text-amber-700' :
+              saveStatus === 'saved' ? 'bg-emerald-100 text-emerald-700' :
+              saveStatus === 'error' ? 'bg-red-100 text-red-700' :
+              'bg-slate-100 text-slate-500'
+            }`}>
+              {saveStatus === 'saving' ? 'Guardando en la nube...' :
+               saveStatus === 'saved' ? 'Guardado en la nube' :
+               saveStatus === 'error' ? 'Error al guardar' :
+               'Borrador sincronizado'}
+            </span>
+            <span className="text-sm font-medium text-slate-500">
+              Carrito de Canje
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => clearDraft()}
+            className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-bold transition-colors"
+          >
+            Descartar Borrador
+          </button>
         </div>
       )}
 
@@ -710,7 +759,7 @@ const Exchange = () => {
                   <span className="font-bold text-slate-700">{rx.dosage} L/min · {rx.usage_time} hrs</span>
                 </div>
                 <div className="text-slate-500 break-words">
-                  Autorización: {rx.authorization_date || '—'} · Vence: <span className={rx.days_remaining < 0 ? 'text-red-600 font-bold' : ''}>{rx.expires_at || '—'}</span>
+                  Autorización: {formatDate(rx.authorization_date)} · Vence: <span className={rx.days_remaining < 0 ? 'text-red-600 font-bold' : ''}>{formatDate(rx.expires_at)}</span>
                   {rx.days_remaining !== null && rx.days_remaining !== undefined && (
                     <span className={`ml-1 sm:ml-2 font-semibold ${rx.days_remaining < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                       ({rx.days_remaining < 0 ? `Vencida hace ${Math.abs(rx.days_remaining)}d` : rx.days_remaining === 0 ? 'Vence hoy' : `${rx.days_remaining}d restantes`})

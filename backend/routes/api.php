@@ -16,6 +16,7 @@ use App\Http\Controllers\OwnershipTypeController;
 use App\Http\Controllers\DailyReadingController;
 use App\Http\Controllers\PrescriptionController;
 use App\Http\Controllers\AuthorityController;
+use App\Http\Controllers\UserDraftController;
 
 /*
 |--------------------------------------------------------------------------
@@ -45,6 +46,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::middleware(['role:Operator,Administrator,Engineer'])->group(function () {
         
         Route::get('/dashboard/stats', [ReportController::class, 'dashboardStats']);
+
+        // User Drafts
+        Route::get('/drafts/{module}', [UserDraftController::class, 'show']);
+        Route::post('/drafts/{module}', [UserDraftController::class, 'store']);
+        Route::delete('/drafts/{module}', [UserDraftController::class, 'destroy']);
 
         // Catalogs (CRUD)
         Route::apiResource('patients', PatientController::class);
@@ -96,6 +102,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::get('/daily-kardex', [ReportController::class, 'dailyKardex']);
             Route::get('/consumption-dashboard', [ReportController::class, 'dailyConsumptionDashboard']);
             Route::get('/kardex', [ReportController::class, 'kardexGeneral']);
+            Route::get('/padomi-exchanges', [ReportController::class, 'padomiExchanges']);
             Route::get('/patient-alerts', [ReportController::class, 'patientAlerts']);
             Route::get('/hospitalization-control', [ReportController::class, 'hospitalizationControl']);
             Route::get('/executive-consumption', [ReportController::class, 'executiveConsumption']);

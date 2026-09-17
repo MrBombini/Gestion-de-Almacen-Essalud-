@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatDate } from '../utils/dateUtils';
 import { MdTimeline, MdSave, MdWaterDrop, MdSpeed, MdHistory, MdDelete, MdEdit, MdClose } from 'react-icons/md';
 import useFetch from '../hooks/useFetch';
 import { useAuth } from '../context/AuthContext';
@@ -256,7 +257,7 @@ const DailyReading = () => {
                       /* ── FILA NORMAL ── */
                       <tr key={r.id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-4 py-4 whitespace-nowrap">
-                          <div className="text-sm font-bold text-slate-800">{r.reading_date}</div>
+                          <div className="text-sm font-bold text-slate-800">{formatDate(r.reading_date)}</div>
                           <div className="text-[10px] font-medium text-slate-400 uppercase tracking-tighter">
                             Turno: {shiftLabel(r.shift)}
                           </div>

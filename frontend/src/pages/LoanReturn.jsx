@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { formatDate } from '../utils/dateUtils';
 import {
   MdBusiness, MdSave, MdAssignment, MdQrCodeScanner, MdHistory,
   MdPersonOff, MdSearch, MdWarning, MdLocalHospital, MdPersonAdd
@@ -155,7 +156,7 @@ const PatientLoan = ({ shift }) => {
 
   const prescriptionOptions = prescriptions.map(p => ({
     value: p.id,
-    label: `Receta #${p.id} - Vence: ${p.expires_at}`
+    label: `Receta #${p.id} - Vence: ${formatDate(p.expires_at)}`
   }));
 
   return (

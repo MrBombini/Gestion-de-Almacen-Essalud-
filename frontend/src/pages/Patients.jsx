@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/dateUtils';
 import { MdAdd, MdEdit, MdDelete, MdSearch, MdLocationOn, MdPhone, MdAssignment, MdClose, MdHistory, MdWarning } from 'react-icons/md';
 import { FaBedPulse } from 'react-icons/fa6';
 import useFetch from '../hooks/useFetch';
@@ -233,7 +234,7 @@ const Patients = () => {
                                                             {activeRx.days_remaining < 0 && <MdWarning className="shrink-0" />}
                                                             <span className="truncate">
                                                               {activeRx.days_remaining === null ? (
-                                                                  `Vence: ${activeRx.expires_at || 'No vence'}`
+                                                                  `Vence: ${formatDate(activeRx.expires_at) || 'No vence'}`
                                                               ) : activeRx.days_remaining < 0 ? (
                                                                   `Vencida hace ${Math.abs(activeRx.days_remaining)} días`
                                                               ) : activeRx.days_remaining === 0 ? (
@@ -403,7 +404,7 @@ const Patients = () => {
                                     <span className="font-bold text-slate-700">{rx.dosage} L/min · {rx.usage_time} hrs</span>
                                 </div>
                                 <div className="text-slate-500 break-words">
-                                    Autorización: {rx.authorization_date || '—'} · Vence: <span className={rx.days_remaining < 0 ? 'text-red-600 font-bold' : ''}>{rx.expires_at || '—'}</span>
+                                    Autorización: {formatDate(rx.authorization_date)} · Vence: <span className={rx.days_remaining < 0 ? 'text-red-600 font-bold' : ''}>{formatDate(rx.expires_at)}</span>
                                     {rx.days_remaining !== null && (
                                         <span className={`ml-1 sm:ml-2 font-semibold ${rx.days_remaining < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                                             ({rx.days_remaining < 0 ? `Vencida hace ${Math.abs(rx.days_remaining)}d` : rx.days_remaining === 0 ? 'Vence hoy' : `${rx.days_remaining}d restantes`})
