@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { MdPrint, MdDownload, MdSearch, MdLocalHospital, MdNavigateBefore, MdNavigateNext, MdOutlineClear } from 'react-icons/md';
 import useFetch from '../../hooks/useFetch';
+import { printPeripheryGuide } from '../../utils/printTemplates';
 
 const PeripheryReport = () => {
   const [startDate, setStartDate] = useState('');
@@ -89,44 +90,11 @@ const PeripheryReport = () => {
   const totalFullM3 = fullCylindersOut.reduce((sum, item) => sum + item.capacity, 0);
 
   // ==========================================
-  // FUNCTION 1: PRINT (A4 Landscape)
+  // FUNCTION 1: PRINT (Formato A4 Estándar)
   // ==========================================
   const handlePrint = () => {
-    if (!reportRef.current) return;
-    const printContent = reportRef.current.innerHTML;
-    const printWindow = window.open('', '', 'width=1000,height=800');
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Reporte Periferia UPS</title>
-          <style>
-            @page { 
-              size: A4 landscape; 
-              margin: 8mm; 
-            }
-            body { 
-              font-family: Arial, sans-serif; 
-              margin: 0; 
-              padding: 0;
-              color: #000;
-              font-size: 11px;
-            }
-            .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
-            .no-border { border: none !important; }
-            .border-bottom { border-bottom: 1px solid #000; }
-          </style>
-        </head>
-        <body>
-          ${printContent}
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 250);
+    if (!selectedReport) return;
+    printPeripheryGuide(selectedReport);
   };
 
   // ==========================================

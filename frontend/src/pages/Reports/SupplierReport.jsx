@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { MdPrint, MdDownload, MdSearch, MdLocalShipping, MdNavigateBefore, MdNavigateNext, MdOutlineClear } from 'react-icons/md';
 import useFetch from '../../hooks/useFetch';
+import { printSupplierGuide } from '../../utils/printTemplates';
 
 const SupplierReport = () => {
   const [startDate, setStartDate] = useState('');
@@ -89,49 +90,11 @@ const SupplierReport = () => {
   const totalIngresosM3 = ingresos.reduce((sum, item) => sum + item.capacity, 0);
 
   // ==========================================
-  // FUNCIÓN 1: IMPRIMIR (Formato A4 Horizontal)
+  // FUNCIÓN 1: IMPRIMIR (Formato A4 Estándar)
   // ==========================================
   const handlePrint = () => {
-    if (!reportRef.current) return;
-    const printContent = reportRef.current.innerHTML;
-    const printWindow = window.open('', '', 'width=1000,height=800');
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Reporte Ingreso y Salida</title>
-          <style>
-            @page { 
-              size: A4 landscape; 
-              margin: 8mm; 
-            }
-            body { 
-              font-family: Arial, sans-serif; 
-              margin: 0; 
-              padding: 0;
-              color: #000;
-              font-size: 11px;
-            }
-            .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
-            .report-subtitle { text-align: center; color: #43a047; font-weight: bold; font-size: 18px; margin-bottom: 20px; }
-            table { width: 100%; border-collapse: collapse; text-align: left; }
-            th, td { border: 1px solid #000; padding: 4px 6px; }
-            .bold { font-weight: bold; }
-            .no-border-bottom { border-bottom: none; }
-            .signatures { margin-top: 50px; width: 100%; text-align: center; }
-            .sign-box { border-top: 1px solid #000; width: 60%; margin: 0 auto; padding-top: 5px; text-align: left;}
-          </style>
-        </head>
-        <body>
-          ${printContent}
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 250);
+    if (!selectedReport) return;
+    printSupplierGuide(selectedReport);
   };
 
   // ==========================================
