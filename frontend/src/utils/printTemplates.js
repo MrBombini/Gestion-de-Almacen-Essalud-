@@ -307,4 +307,335 @@ export const printControlFormat = (patient) => {
   printWindow.document.close();
   printWindow.focus();
 };
+
+export const printSupplierGuide = (mov, currentUser) => {
+  if (!mov) return;
+
+  const movementDate = mov.movement_at || mov.created_at || new Date().toISOString();
+  const dateObj = new Date(movementDate);
+  const formattedDate = dateObj.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const formattedTime = dateObj.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+
+  const operatorName = mov.user?.name || currentUser?.name || 'Operario de Almacén';
+  const supplierName = mov.supplier?.name || mov.supplier_name || 'PROVEEDOR GENERAL';
+  const refDoc = mov.reference_document || `MOV-${mov.id}`;
+
+  const cylinderMovements = mov.cylinder_movements || [];
+  
+  // Salidas (Vacíos a proveedor)
+  const salidas = cylinderMovements
+    .filter(cm => cm.action === 'Exit' || cm.action === 'OUT')
+    .map(cm => ({
+      code: cm.cylinder?.serial_number || 'N/A',
+      brand: cm.cylinder?.supplier?.name || cm.cylinder?.ownership_type?.name || 'PRAXAIR',
+      capacity: 0
+    }));
+
+  // Ingresos (Llenos de proveedor)
+  const ingresos = cylinderMovements
+    .filter(cm => cm.action === 'Entry' || cm.action === 'IN')
+    .map(cm => ({
+      code: cm.cylinder?.serial_number || 'N/A',
+      brand: cm.cylinder?.supplier?.name || cm.cylinder?.ownership_type?.name || 'PRAXAIR',
+      capacity: parseFloat(cm.cylinder?.capacity) || 0
+    }));
+
+  const maxRows = Math.max(salidas.length, ingresos.length, 6);
+  const totalIngresosM3 = ingresos.reduce((sum, item) => sum + item.capacity, 0);
+
+  const printWindow = window.open('', '', 'width=950,height=900');
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Guía de Proveedores A4</title>
+        <style>
+          @page { size: A4 portrait; margin: 12mm 15mm; }
+          * { box-sizing: border-box; }
+          body { 
+            font-family: Arial, Helvetica, sans-serif; 
+            color: #000; 
+            font-size: 11px; 
+            margin: 0; 
+            padding: 0;
+            width: 100%;
+            max-width: 185mm;
+            margin: 0 auto;
+          }
+          .header { text-align: center; margin-bottom: 15px; border-bottom: 2px solid #15803d; padding-bottom: 8px; }
+          .title-main { font-size: 20px; font-weight: bold; color: #15803d; margin: 0; text-transform: uppercase; }
+          .title-sub { font-size: 13px; font-weight: bold; color: #16a34a; margin: 3px 0 0 0; text-transform: uppercase; }
+          
+          .info-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+          .info-table td { padding: 4px 6px; font-size: 11px; }
+          .lbl { font-weight: bold; width: 140px; }
+          .val { font-weight: bold; text-transform: uppercase; border-bottom: 1px dashed #666; }
+
+          table.data-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; table-layout: fixed; }
+          table.data-table th, table.data-table td { border: 1px solid #000; padding: 4px 6px; font-size: 10px; word-wrap: break-word; }
+          table.data-table th { background-color: #f1f5f9; font-weight: bold; text-align: center; font-size: 10.5px; }
+
+          .section-head { background-color: #e2e8f0 !important; font-size: 11px !important; text-transform: uppercase; font-weight: bold; }
+          .text-center { text-align: center; }
+          .font-bold { font-weight: bold; }
+
+          .signatures { display: flex; justify-content: space-between; margin-top: 45px; padding: 0 20px; }
+          .sig-block { width: 42%; text-align: center; }
+          .sig-line { border-top: 1px solid #000; padding-top: 5px; font-weight: bold; margin-top: 40px; font-size: 10.5px; }
+          .footer { margin-top: 25px; text-align: right; font-size: 9px; color: #666; font-family: monospace; }
+        </style>
+      </head>
+      <body onload="window.print(); window.onafterprint = function(){ window.close(); }">
+        
+        <div class="header">
+          <div class="title-main">GLAES SAC / ESSALUD</div>
+          <div class="title-sub">INGRESO Y SALIDA DE CILINDROS - PROVEEDORES</div>
+        </div>
+
+        <table class="info-table">
+          <tr>
+            <td class="lbl">PROVEEDOR:</td>
+            <td class="val">${supplierName}</td>
+            <td class="lbl" style="width: 110px;">GUÍA / DOC:</td>
+            <td class="val">${refDoc}</td>
+          </tr>
+          <tr>
+            <td class="lbl">OPERARIO ATENCIÓN:</td>
+            <td class="val">${operatorName}</td>
+            <td class="lbl">FECHA Y HORA:</td>
+            <td class="val">${formattedDate} ${formattedTime}</td>
+          </tr>
+        </table>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th colSpan="4" class="section-head" style="width: 50%;">SALIDA DE CILINDROS (VACÍOS)</th>
+              <th colSpan="4" class="section-head" style="width: 50%;">INGRESO DE CILINDROS (LLENOS)</th>
+            </tr>
+            <tr>
+              <th style="width: 20%;">MARCA/PROP.</th>
+              <th style="width: 18%;">CÓDIGO</th>
+              <th style="width: 6%;">UND</th>
+              <th style="width: 6%;">M3</th>
+              
+              <th style="width: 20%;">MARCA/PROP.</th>
+              <th style="width: 18%;">CÓDIGO</th>
+              <th style="width: 6%;">UND</th>
+              <th style="width: 6%;">M3</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${Array.from({ length: maxRows }).map((_, i) => `
+              <tr>
+                <td>${salidas[i]?.brand || ''}</td>
+                <td class="text-center font-bold">${salidas[i]?.code || ''}</td>
+                <td class="text-center">${salidas[i] ? '1' : ''}</td>
+                <td class="text-center">0</td>
+                
+                <td>${ingresos[i]?.brand || ''}</td>
+                <td class="text-center font-bold">${ingresos[i]?.code || ''}</td>
+                <td class="text-center">${ingresos[i] ? '1' : ''}</td>
+                <td class="text-center font-bold">${ingresos[i]?.capacity || ''}</td>
+              </tr>
+            `).join('')}
+            
+            <tr class="font-bold" style="background-color: #f8fafc;">
+              <td colSpan="2">TOTAL SALIDAS VACÍOS</td>
+              <td class="text-center">${salidas.length}</td>
+              <td class="text-center">0</td>
+              
+              <td colSpan="2">TOTAL INGRESOS LLENOS</td>
+              <td class="text-center">${ingresos.length}</td>
+              <td class="text-center">${totalIngresosM3}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="signatures">
+          <div class="sig-block">
+            <div class="sig-line">FIRMA Y SELLO OPERARIO ALMACÉN</div>
+            <div style="font-size: 9px; color: #555; margin-top: 2px;">${operatorName}</div>
+          </div>
+          <div class="sig-block">
+            <div class="sig-line">FIRMA Y SELLO REPARTIDOR / PROVEEDOR</div>
+            <div style="font-size: 9px; color: #555; margin-top: 2px;">${supplierName}</div>
+          </div>
+        </div>
+
+        <div class="footer">
+          Impreso el ${new Date().toLocaleDateString('es-PE')} ${new Date().toLocaleTimeString('es-PE')} - Formato A4 Estándar EsSalud
+        </div>
+
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+};
+
+export const printPeripheryGuide = (mov, currentUser) => {
+  if (!mov) return;
+
+  const movementDate = mov.movement_at || mov.created_at || new Date().toISOString();
+  const dateObj = new Date(movementDate);
+  const formattedDate = dateObj.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const formattedTime = dateObj.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+
+  const operatorName = mov.user?.name || currentUser?.name || 'Operario de Almacén';
+  const serviceName = mov.service?.name || mov.service_name || 'CENTRO PERIFÉRICO UPS';
+  const refDoc = mov.reference_document || `PER-${mov.id}`;
+
+  const cylinderMovements = mov.cylinder_movements || [];
+
+  // Salidas (Llenos a periferia)
+  const fullCylindersOut = cylinderMovements
+    .filter(cm => cm.action === 'Exit' || cm.action === 'OUT')
+    .map(cm => ({
+      code: cm.cylinder?.serial_number || 'N/A',
+      brand: cm.cylinder?.ownership_type?.name || 'ESSALUD',
+      capacity: parseFloat(cm.cylinder?.capacity) || 0
+    }));
+
+  // Ingresos (Vacíos de periferia)
+  const emptyCylindersIn = cylinderMovements
+    .filter(cm => cm.action === 'Entry' || cm.action === 'IN')
+    .map(cm => ({
+      code: cm.cylinder?.serial_number || 'N/A',
+      brand: cm.cylinder?.ownership_type?.name || 'ESSALUD',
+      capacity: 0
+    }));
+
+  const maxRows = Math.max(fullCylindersOut.length, emptyCylindersIn.length, 6);
+  const totalFullM3 = fullCylindersOut.reduce((sum, item) => sum + item.capacity, 0);
+
+  const printWindow = window.open('', '', 'width=950,height=900');
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Guía Canje Periferia A4</title>
+        <style>
+          @page { size: A4 portrait; margin: 12mm 15mm; }
+          * { box-sizing: border-box; }
+          body { 
+            font-family: Arial, sans-serif; 
+            color: #000; 
+            font-size: 11px; 
+            margin: 0; 
+            padding: 0;
+            width: 100%;
+            max-width: 185mm;
+            margin: 0 auto;
+          }
+          .header { text-align: center; margin-bottom: 15px; border-bottom: 2px solid #1e40af; padding-bottom: 8px; }
+          .title-main { font-size: 20px; font-weight: bold; color: #1e40af; margin: 0; text-transform: uppercase; }
+          .title-sub { font-size: 13px; font-weight: bold; color: #2563eb; margin: 3px 0 0 0; text-transform: uppercase; }
+          
+          .info-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+          .info-table td { padding: 4px 6px; font-size: 11px; }
+          .lbl { font-weight: bold; width: 140px; }
+          .val { font-weight: bold; text-transform: uppercase; border-bottom: 1px dashed #666; }
+
+          table.data-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; table-layout: fixed; }
+          table.data-table th, table.data-table td { border: 1px solid #000; padding: 4px 6px; font-size: 10px; word-wrap: break-word; }
+          table.data-table th { background-color: #f1f5f9; font-weight: bold; text-align: center; font-size: 10.5px; }
+
+          .section-head { background-color: #dbeafe !important; color: #1e3a8a; font-size: 11px !important; text-transform: uppercase; font-weight: bold; }
+          .text-center { text-align: center; }
+          .font-bold { font-weight: bold; }
+
+          .signatures { display: flex; justify-content: space-between; margin-top: 45px; padding: 0 20px; }
+          .sig-block { width: 42%; text-align: center; }
+          .sig-line { border-top: 1px solid #000; padding-top: 5px; font-weight: bold; margin-top: 40px; font-size: 10.5px; }
+          .footer { margin-top: 25px; text-align: right; font-size: 9px; color: #666; font-family: monospace; }
+        </style>
+      </head>
+      <body onload="window.print(); window.onafterprint = function(){ window.close(); }">
+        
+        <div class="header">
+          <div class="title-main">ATENCIÓN DE ÓXIGENO MEDICINAL - ESSALUD</div>
+          <div class="title-sub">GUÍA DE CANJE DE RED (PERIFERIA - U.P.S.)</div>
+        </div>
+
+        <table class="info-table">
+          <tr>
+            <td class="lbl">CENTRO MÉDICO (U.P.S.):</td>
+            <td class="val">${serviceName}</td>
+            <td class="lbl" style="width: 110px;">GUÍA / DOC:</td>
+            <td class="val">${refDoc}</td>
+          </tr>
+          <tr>
+            <td class="lbl">OPERARIO ATENCIÓN:</td>
+            <td class="val">${operatorName}</td>
+            <td class="lbl">FECHA Y HORA:</td>
+            <td class="val">${formattedDate} ${formattedTime}</td>
+          </tr>
+        </table>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th colSpan="4" class="section-head" style="width: 50%;">SALIDA DE CILINDROS (LLENOS)</th>
+              <th colSpan="4" class="section-head" style="width: 50%;">INGRESO DE CILINDROS (VACÍOS)</th>
+            </tr>
+            <tr>
+              <th style="width: 20%;">PROPIEDAD</th>
+              <th style="width: 18%;">CÓDIGO</th>
+              <th style="width: 6%;">UND</th>
+              <th style="width: 6%;">M3</th>
+              
+              <th style="width: 20%;">PROPIEDAD</th>
+              <th style="width: 18%;">CÓDIGO</th>
+              <th style="width: 6%;">UND</th>
+              <th style="width: 6%;">M3</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${Array.from({ length: maxRows }).map((_, i) => `
+              <tr>
+                <td>${fullCylindersOut[i]?.brand || ''}</td>
+                <td class="text-center font-bold">${fullCylindersOut[i]?.code || ''}</td>
+                <td class="text-center">${fullCylindersOut[i] ? '1' : ''}</td>
+                <td class="text-center font-bold">${fullCylindersOut[i]?.capacity || ''}</td>
+                
+                <td>${emptyCylindersIn[i]?.brand || ''}</td>
+                <td class="text-center font-bold">${emptyCylindersIn[i]?.code || ''}</td>
+                <td class="text-center">${emptyCylindersIn[i] ? '1' : ''}</td>
+                <td class="text-center">0</td>
+              </tr>
+            `).join('')}
+            
+            <tr class="font-bold" style="background-color: #f8fafc;">
+              <td colSpan="2">TOTAL SALIDAS LLENOS</td>
+              <td class="text-center">${fullCylindersOut.length}</td>
+              <td class="text-center">${totalFullM3}</td>
+              
+              <td colSpan="2">TOTAL INGRESOS VACÍOS</td>
+              <td class="text-center">${emptyCylindersIn.length}</td>
+              <td class="text-center">0</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="signatures">
+          <div class="sig-block">
+            <div class="sig-line">FIRMA Y SELLO OPERARIO ALMACÉN</div>
+            <div style="font-size: 9px; color: #555; margin-top: 2px;">${operatorName}</div>
+          </div>
+          <div class="sig-block">
+            <div class="sig-line">FIRMA Y SELLO RESPONSABLE U.P.S.</div>
+            <div style="font-size: 9px; color: #555; margin-top: 2px;">${serviceName}</div>
+          </div>
+        </div>
+
+        <div class="footer">
+          Impreso el ${new Date().toLocaleDateString('es-PE')} ${new Date().toLocaleTimeString('es-PE')} - Formato A4 Estándar EsSalud
+        </div>
+
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+};
+
   

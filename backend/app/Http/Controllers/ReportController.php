@@ -1258,25 +1258,46 @@ class ReportController extends Controller
     }
 
     /**
-     * REPORTE: Intercambios PADOMI
+     * REPORTE: Intercambios y Balones Actuales de Pacientes PADOMI
      */
     public function padomiExchanges(Request $request)
     {
-        $perPageParam = $request->query('per_page', 20);
-        $perPage = ($perPageParam === 'all') ? 500 : (int) $perPageParam;
-
+        $perPageParam = $request->query('per_page', 'all');
+        $search = $request->query('search');
+        $patientId = $request->query('patient_id');
         $startDate = $request->query('start_date');
         $endDate = $request->query('end_date');
+        $latestOnly = $request->boolean('latest_only', true);
 
         $query = InventoryMovement::with([
             'patient',
             'prescription',
             'cylinderMovements.cylinder.ownershipType',
             'cylinderMovements.cylinder.supplier'
-        ])
-        ->where('type', 'Exchange')
-        ->whereNotNull('patient_id')
-        ->orderBy('movement_at', 'desc');
+        ])->whereNotNull('patient_id');
+
+        if ($latestOnly) {
+            // Subconsulta para obtener la última ID de movimiento por paciente
+            $latestIds = InventoryMovement::whereNotNull('patient_id')
+                ->whereIn('type', ['Exchange', 'PatientLoan', 'PatientReturn'])
+                ->selectRaw('MAX(id) as max_id')
+                ->groupBy('patient_id');
+
+            $query->whereIn('id', $latestIds);
+        } else {
+            $query->whereIn('type', ['Exchange', 'PatientLoan', 'PatientReturn']);
+        }
+
+        if ($patientId) {
+            $query->where('patient_id', $patientId);
+        }
+
+        if ($search) {
+            $query->whereHas('patient', function ($q) use ($search) {
+                $q->where('full_name', 'like', "%{$search}%")
+                  ->orWhere('dni', 'like', "%{$search}%");
+            });
+        }
 
         if ($startDate && $endDate) {
             $start = Carbon::parse($startDate)->startOfDay();
@@ -1284,7 +1305,14 @@ class ReportController extends Controller
             $query->whereBetween('movement_at', [$start, $end]);
         }
 
-        $exchanges = $query->paginate($perPage);
+        $query->orderBy('movement_at', 'desc');
+
+        if ($perPageParam === 'all') {
+            $exchanges = $query->get();
+        } else {
+            $perPage = (int) $perPageParam;
+            $exchanges = $query->paginate($perPage);
+        }
 
         return response()->json($exchanges);
     }
