@@ -9,21 +9,31 @@ const PadomiExchanges = () => {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [latestOnly, setLatestOnly] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
 
-  const fetchData = async () => {
+  const fetchData = async (page = 1) => {
     try {
       setLoading(true);
       const res = await api.get('/reports/padomi-exchanges', {
         params: {
           search: searchTerm,
           latest_only: latestOnly ? 1 : 0,
-          per_page: 'all'
+          page: page,
+          per_page: 15
         }
       });
       if (res.data && res.data.data) {
         setData(res.data.data);
+        setCurrentPage(res.data.current_page || 1);
+        setLastPage(res.data.last_page || 1);
+        setTotalRecords(res.data.total || 0);
       } else {
         setData(res.data || []);
+        setCurrentPage(1);
+        setLastPage(1);
+        setTotalRecords(res.data?.length || 0);
       }
     } catch (err) {
       console.error(err);
@@ -34,21 +44,29 @@ const PadomiExchanges = () => {
   };
 
   useEffect(() => {
-    fetchData();
+    fetchData(1);
   }, [latestOnly]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    fetchData();
+    fetchData(1);
   };
 
   const handleExport = async () => {
-    if (!data || data.length === 0) {
-      alert('No hay datos para exportar.');
-      return;
+    try {
+      const res = await api.get('/reports/padomi-exchanges', {
+        params: { search: searchTerm, latest_only: latestOnly ? 1 : 0, per_page: 'all' }
+      });
+      const exportData = res.data?.data || res.data || [];
+      if (!exportData || exportData.length === 0) {
+        alert('No hay datos para exportar.');
+        return;
+      }
+      const reportTitle = latestOnly ? 'Último Balón Actual por Paciente' : 'Histórico de Intercambios PADOMI';
+      await exportPadomiExchangeReport(exportData, reportTitle);
+    } catch (err) {
+      alert('Error al obtener datos para exportar.');
     }
-    const reportTitle = latestOnly ? 'Último Balón Actual por Paciente' : 'Histórico de Intercambios PADOMI';
-    await exportPadomiExchangeReport(data, reportTitle);
   };
 
   return (
@@ -110,7 +128,7 @@ const PadomiExchanges = () => {
 
       {/* Resumen de Total de Pacientes Registrados */}
       <div className="flex items-center justify-between bg-blue-50/60 border border-blue-100 rounded-xl px-5 py-3 text-xs font-bold text-blue-800">
-        <span>Mostrando {data.length} pacientes / registros registrados</span>
+        <span>Mostrando {data.length} de {totalRecords} registros</span>
         <span className="bg-blue-600 text-white px-3 py-1 rounded-full uppercase tracking-wider text-[10px]">
           {latestOnly ? 'Último Movimiento por Paciente' : 'Histórico General'}
         </span>
@@ -223,6 +241,31 @@ const PadomiExchanges = () => {
             </tbody>
           </table>
         </div>
+        
+        {/* Paginación */}
+        {lastPage > 1 && (
+          <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border-t border-slate-200">
+            <span className="text-xs font-semibold text-slate-500">
+              Página {currentPage} de {lastPage}
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => fetchData(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Anterior
+              </button>
+              <button
+                onClick={() => fetchData(currentPage + 1)}
+                disabled={currentPage === lastPage}
+                className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Siguiente
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
