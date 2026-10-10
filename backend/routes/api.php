@@ -17,6 +17,7 @@ use App\Http\Controllers\DailyReadingController;
 use App\Http\Controllers\PrescriptionController;
 use App\Http\Controllers\AuthorityController;
 use App\Http\Controllers\UserDraftController;
+use App\Http\Controllers\HospitalizationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -106,6 +107,15 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::get('/patient-alerts', [ReportController::class, 'patientAlerts']);
             Route::get('/hospitalization-control', [ReportController::class, 'hospitalizationControl']);
             Route::get('/executive-consumption', [ReportController::class, 'executiveConsumption']);
+        });
+
+        // Hospitalization Module
+        Route::prefix('hospitalization')->group(function () {
+            Route::get('/cylinders', [HospitalizationController::class, 'index']);
+            Route::post('/readings', [HospitalizationController::class, 'storeReading']);
+            Route::get('/readings/{cylinderId}', [HospitalizationController::class, 'readingHistory']);
+            Route::post('/bed-transfer', [HospitalizationController::class, 'bedTransfer']);
+            Route::get('/bed-transfer/{cylinderId}', [HospitalizationController::class, 'transferHistory']);
         });
         
     });

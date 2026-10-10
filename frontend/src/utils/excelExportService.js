@@ -817,25 +817,28 @@ export const exportLiquidReadingsReport = async (data, dateRangeText) => {
         { header: 'NIVEL TANQUE (mmH2O)', key: 'nivel', width: 25 },
         { header: 'LECTURA FLUJÓMETRO (m3)', key: 'flujometro', width: 25 },
         { header: 'REGISTRADO POR', key: 'operario', width: 25 },
-        { header: 'FECHA REGISTRO', key: 'creado', width: 25 },
     ];
 
-    applyHeaderStyles(worksheet, 5, 6);
+    applyHeaderStyles(worksheet, 5, 5);
+
+    const SHIFT_LABELS = { MORNING: 'MAÑANA', AFTERNOON: 'TARDE', NIGHT: 'NOCHE' };
 
     data.forEach(item => {
-        const rawCreated = item.created_at ? new Date(item.created_at) : null;
-        const formattedCreated = rawCreated ? `${rawCreated.toLocaleDateString()} ${rawCreated.toLocaleTimeString()}` : '-';
+        const safeDate = item.reading_date ? item.reading_date.substring(0, 10) : '';
+        const rawDate = safeDate
+            ? format(new Date(safeDate + 'T12:00:00'), 'dd/MM/yyyy')
+            : '-';
+        const shiftKey = item.shift?.toUpperCase() || '';
         worksheet.addRow({
-            fecha_lectura: item.reading_date || '-',
-            turno: item.shift?.toUpperCase() || '-',
+            fecha_lectura: rawDate,
+            turno: SHIFT_LABELS[shiftKey] || shiftKey || '-',
             nivel: item.tank_level || '0',
             flujometro: item.flow_meter_reading || '0',
             operario: item.user?.name || item.user_name || '-',
-            creado: formattedCreated
         });
     });
 
-    applyDataStyles(worksheet, 6, data.length, 6);
+    applyDataStyles(worksheet, 6, data.length, 5);
 
     const buffer = await workbook.xlsx.writeBuffer();
     saveAs(new Blob([buffer]), `Lecturas_O2_Liquido_${dateRangeText.replace(/ /g, '_')}.xlsx`);

@@ -7,9 +7,15 @@ use Illuminate\Http\Request;
 
 class BedController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(Bed::with('service')->get());
+        $query = Bed::with('service')->withoutTrashed();
+
+        if ($request->filled('service_id')) {
+            $query->where('service_id', $request->service_id);
+        }
+
+        return response()->json($query->orderBy('bed_number')->get());
     }
 
     public function store(Request $request)
