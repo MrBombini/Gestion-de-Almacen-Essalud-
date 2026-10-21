@@ -110,14 +110,28 @@ const PeripheryExchange = () => {
         }
       });
 
-      return filteredData.map(c => ({
-        value: c.id,
-        label: `${c.serial_number} (${Number(c.capacity)}m³) [${c.ownership_type?.name || 'S/D'}]`
-      }));
+      return filteredData.map(c => {
+        const barcodeTag = c.barcode ? ` [BC: ${c.barcode}]` : '';
+        return {
+          value: c.id,
+          label: `${c.serial_number}${barcodeTag} (${Number(c.capacity)}m³) [${c.ownership_type?.name || 'S/D'}]`,
+          serial_number: c.serial_number,
+          barcode: c.barcode
+        };
+      });
     } catch (error) {
       console.error('Error buscando cilindros:', error);
       return [];
     }
+  };
+
+  const cylinderFilterOption = (candidate, input) => {
+    if (!input) return true;
+    const cleanInput = input.trim().toLowerCase();
+    const label = (candidate.label || '').toLowerCase();
+    const sn = (candidate.data?.serial_number || '').toLowerCase();
+    const bc = (candidate.data?.barcode || '').toLowerCase();
+    return label.includes(cleanInput) || sn.includes(cleanInput) || bc.includes(cleanInput);
   };
 
   const handleSubmit = async (e) => {
@@ -286,13 +300,14 @@ const PeripheryExchange = () => {
               cacheOptions
               defaultOptions
               loadOptions={(val) => loadCylinderOptions(val, 'IN')}
+              filterOption={cylinderFilterOption}
               styles={customStyles}
               isDisabled={!formData.service_id} // No puede entregar si no se seleccionó el hospital primero
-              placeholder={!formData.service_id ? "Seleccione hospital primero" : "-- Buscar balones recibidos --"}
+              placeholder={!formData.service_id ? "Seleccione hospital primero" : "-- Buscar o escanear balones recibidos --"}
               value={formData.cylinders_in}
               onChange={(s) => setFormData({...formData, cylinders_in: s || []})}
               closeMenuOnSelect={false}
-              noOptionsMessage={({ inputValue }) => !inputValue ? "Sugerencias cargando..." : "No se encontró el balón o no pertenece a este hospital."}
+              noOptionsMessage={({ inputValue }) => !inputValue ? "Escriba o escanee para buscar..." : "No se encontró el balón o no pertenece a este hospital."}
             />
             <div className="mt-4 p-4 bg-slate-50 rounded-xl border border-dashed border-slate-300 flex items-center justify-between">
                <span className="text-sm text-slate-600 font-medium">Balones ingresados:</span>
@@ -314,12 +329,13 @@ const PeripheryExchange = () => {
               cacheOptions
               defaultOptions
               loadOptions={(val) => loadCylinderOptions(val, 'OUT')}
+              filterOption={cylinderFilterOption}
               styles={customStyles}
-              placeholder="-- Buscar balones para enviar --"
+              placeholder="-- Buscar o escanear balones para enviar --"
               value={formData.cylinders_out}
               onChange={(s) => setFormData({...formData, cylinders_out: s || []})}
               closeMenuOnSelect={false}
-              noOptionsMessage={({ inputValue }) => !inputValue ? "Sugerencias cargando..." : "No se encontró balón o no cumple los requisitos (8-10m³, Lleno)."}
+              noOptionsMessage={({ inputValue }) => !inputValue ? "Escriba o escanee para buscar..." : "No se encontró balón o no cumple los requisitos (8-10m³, Lleno)."}
             />
             <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-dashed border-blue-300 flex items-center justify-between">
                <span className="text-sm text-blue-700 font-medium">Balones salientes:</span>

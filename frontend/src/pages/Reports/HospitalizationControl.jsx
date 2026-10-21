@@ -815,8 +815,10 @@ const HospitalizationControl = () => {
   // ── Filtros ──
   const filteredData = localData.filter(cyl => {
     const matchService  = !selectedService || cyl.current_service?.name === selectedService;
-    const matchBed      = !selectedBed || String(cyl.current_bed?.bed_number) === selectedBed;
-    const matchCylinder = !searchCylinder || cyl.serial_number?.toLowerCase().includes(searchCylinder.toLowerCase());
+    const term = searchCylinder.trim().toLowerCase();
+    const matchCylinder = !term || 
+      cyl.serial_number?.toLowerCase().includes(term) ||
+      (cyl.barcode && String(cyl.barcode).toLowerCase().includes(term));
     return matchService && matchBed && matchCylinder;
   });
 
@@ -1035,11 +1037,11 @@ const HospitalizationControl = () => {
               </select>
             </div>
             <div className="flex-1">
-              <label className="block text-xs font-bold text-slate-600 mb-1">Buscar Cilindro:</label>
+              <label className="block text-xs font-bold text-slate-600 mb-1">Buscar Cilindro / Código de Barras:</label>
               <input
                 type="text"
-                placeholder="Ej. SN-1234"
-                className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-blue-500 uppercase"
+                placeholder="Escanear código de barras o ingresar serie..."
+                className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-blue-500 uppercase font-mono"
                 value={searchCylinder}
                 onChange={e => setSearchCylinder(e.target.value)}
               />

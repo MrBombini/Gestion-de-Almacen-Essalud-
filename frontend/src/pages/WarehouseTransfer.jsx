@@ -42,21 +42,35 @@ const WarehouseTransfer = () => {
       
       const params = { location, per_page: 30 };
       
-      if (inputValue && inputValue.length >= 2) {
-        params.search = inputValue;
+      if (inputValue && inputValue.trim().length >= 1) {
+        params.search = inputValue.trim();
       }
 
       const response = await api.get('/cylinders', { params });
       const data = response.data.data || response.data || [];
 
-      return data.map(c => ({
-        value: c.id,
-        label: `${c.serial_number} | ${c.ownership_type?.name || 'S/D'} | ${Number(c.capacity)}m³ | ${c.status === 'full' ? 'Lleno' : 'Vacío'}`
-      }));
+      return data.map(c => {
+        const barcodeTag = c.barcode ? ` [BC: ${c.barcode}]` : '';
+        return {
+          value: c.id,
+          label: `${c.serial_number}${barcodeTag} | ${c.ownership_type?.name || 'S/D'} | ${Number(c.capacity)}m³ | ${c.status === 'full' ? 'Lleno' : 'Vacío'}`,
+          serial_number: c.serial_number,
+          barcode: c.barcode
+        };
+      });
     } catch (error) {
       console.error('Error buscando cilindros:', error);
       return [];
     }
+  };
+
+  const cylinderFilterOption = (candidate, input) => {
+    if (!input) return true;
+    const cleanInput = input.trim().toLowerCase();
+    const label = (candidate.label || '').toLowerCase();
+    const sn = (candidate.data?.serial_number || '').toLowerCase();
+    const bc = (candidate.data?.barcode || '').toLowerCase();
+    return label.includes(cleanInput) || sn.includes(cleanInput) || bc.includes(cleanInput);
   };
 
   // Limpiar seleccionados al cambiar dirección
@@ -210,12 +224,13 @@ const WarehouseTransfer = () => {
             cacheOptions
             defaultOptions
             loadOptions={loadCylinderOptions}
+            filterOption={cylinderFilterOption}
             styles={customStyles}
-            placeholder="-- Escribir series de los balones --"
+            placeholder="-- Buscar por serie o escanear código de barras --"
             value={formData.cylinders}
             onChange={(s) => setFormData({...formData, cylinders: s || []})}
             closeMenuOnSelect={false}
-            noOptionsMessage={({ inputValue }) => !inputValue ? "Escriba al menos 2 letras..." : "No se encontró el balón en la ubicación de origen."}
+            noOptionsMessage={({ inputValue }) => !inputValue ? "Escriba o escanee para buscar..." : "No se encontró el balón en la ubicación de origen."}
           />
           <div className="mt-4 p-4 bg-slate-50 rounded-xl border border-dashed border-slate-300 flex items-center justify-between">
               <span className="text-sm text-slate-600 font-medium">Total a mover:</span>

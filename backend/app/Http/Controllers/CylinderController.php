@@ -12,12 +12,21 @@ class CylinderController extends Controller
         $query = Cylinder::with(['supplier', 'ownershipType', 'patient.prescriptions', 'currentPatient.prescriptions', 'currentService', 'currentBed'])
             ->orderBy('created_at', 'desc');
 
-        if ($request->has('search') && $request->search != '') {
-            $search = $request->search;
+        if ($request->filled('barcode')) {
+            $barcode = trim($request->barcode);
+            $query->where('barcode', $barcode);
+        } elseif ($request->filled('search')) {
+            $search = trim($request->search);
             $query->where(function($q) use ($search) {
                 $q->where('serial_number', 'like', '%' . $search . '%')
                   ->orWhere('barcode', 'like', '%' . $search . '%');
-            });
+            })
+            ->orderByRaw("CASE 
+                WHEN barcode = ? THEN 1 
+                WHEN serial_number = ? THEN 2 
+                WHEN barcode LIKE ? THEN 3 
+                ELSE 4 
+            END", [$search, $search, $search . '%']);
         }
 
         if ($request->has('location') && $request->location !== 'ALL') {
