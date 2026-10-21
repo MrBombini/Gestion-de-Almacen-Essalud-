@@ -25,23 +25,36 @@ const CylinderTracking = () => {
   // BUSCADOR ASÍNCRONO
   // ==========================================
   const loadOptions = async (inputValue) => {
-    if (!inputValue || inputValue.length < 2) return [];
+    const search = (inputValue || '').trim();
+    if (!search || search.length < 1) return [];
 
     try {
-      const response = await api.get(`/cylinders?search=${inputValue}&per_page=20`);
+      const response = await api.get(`/cylinders?search=${encodeURIComponent(search)}&per_page=25`);
       const cylindersList = Array.isArray(response.data) ? response.data : (response.data?.data || []);
 
       return cylindersList.map(c => {
         const patientSuffix = c.patient ? ` (Paciente: ${c.patient.full_name})` : '';
+        const barcodeTag = c.barcode ? ` [BC: ${c.barcode}]` : '';
         return {
           value: c.id,
-          label: `${c.serial_number} ${c.barcode ? `(${c.barcode})` : ''} - ${c.ownership_type?.name || 'Propiedad S/D'}${patientSuffix} (${c.capacity} m³)`
+          label: `${c.serial_number}${barcodeTag} - ${c.ownership_type?.name || 'Propiedad S/D'}${patientSuffix} (${c.capacity} m³)`,
+          serial_number: c.serial_number,
+          barcode: c.barcode
         };
       });
     } catch (error) {
       console.error('Error buscando cilindros:', error);
       return [];
     }
+  };
+
+  const cylinderFilterOption = (candidate, input) => {
+    if (!input) return true;
+    const cleanInput = input.trim().toLowerCase();
+    const label = (candidate.label || '').toLowerCase();
+    const sn = (candidate.data?.serial_number || '').toLowerCase();
+    const bc = (candidate.data?.barcode || '').toLowerCase();
+    return label.includes(cleanInput) || sn.includes(cleanInput) || bc.includes(cleanInput);
   };
 
   useEffect(() => {
@@ -130,11 +143,12 @@ const CylinderTracking = () => {
           cacheOptions
           defaultOptions
           loadOptions={loadOptions}
+          filterOption={cylinderFilterOption}
           isClearable
-          placeholder="Escribe el código del balón o selecciona uno..."
+          placeholder="Escribe la serie o escanea el código de barras..."
           value={selectedOption}
           onChange={(opt) => setSelectedOption(opt)}
-          noOptionsMessage={({ inputValue }) => !inputValue ? "Escribe para buscar..." : "No se encontraron balones."}
+          noOptionsMessage={({ inputValue }) => !inputValue ? "Escribe o escanea para buscar..." : "No se encontraron balones."}
           loadingMessage={() => "Buscando..."}
           styles={selectStyles}
         />

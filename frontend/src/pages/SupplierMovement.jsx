@@ -74,8 +74,8 @@ const SupplierMovement = () => {
       
       const params = { status, location, per_page: 30 }; // Pedimos un lote moderado
       
-      if (inputValue && inputValue.length >= 2) {
-        params.search = inputValue;
+      if (inputValue && inputValue.trim().length >= 1) {
+        params.search = inputValue.trim();
       }
 
       const response = await api.get('/cylinders', { params });
@@ -89,14 +89,28 @@ const SupplierMovement = () => {
         return cap >= 6 && cap <= 10 && !isOwn;
       });
 
-      return filteredData.map(c => ({
-        value: c.id,
-        label: `${c.serial_number} | ${c.ownership_type?.name || 'S/D'} | ${Number(c.capacity)}m³ ${type === 'IN' ? '[EN PROVEEDOR]' : ''}`
-      }));
+      return filteredData.map(c => {
+        const barcodeTag = c.barcode ? ` [BC: ${c.barcode}]` : '';
+        return {
+          value: c.id,
+          label: `${c.serial_number}${barcodeTag} | ${c.ownership_type?.name || 'S/D'} | ${Number(c.capacity)}m³ ${type === 'IN' ? '[EN PROVEEDOR]' : ''}`,
+          serial_number: c.serial_number,
+          barcode: c.barcode
+        };
+      });
     } catch (error) {
       console.error('Error buscando cilindros:', error);
       return [];
     }
+  };
+
+  const cylinderFilterOption = (candidate, input) => {
+    if (!input) return true;
+    const cleanInput = input.trim().toLowerCase();
+    const label = (candidate.label || '').toLowerCase();
+    const sn = (candidate.data?.serial_number || '').toLowerCase();
+    const bc = (candidate.data?.barcode || '').toLowerCase();
+    return label.includes(cleanInput) || sn.includes(cleanInput) || bc.includes(cleanInput);
   };
 
   const handleSubmit = async (e) => {
@@ -266,12 +280,13 @@ const SupplierMovement = () => {
               cacheOptions
               defaultOptions
               loadOptions={(val) => loadCylinderOptions(val, 'OUT')}
+              filterOption={cylinderFilterOption}
               styles={customStyles}
-              placeholder="-- Escribir series para enviar --"
+              placeholder="-- Buscar por serie o escanear código de barras --"
               value={formData.cylinders_out} // isMulti acepta el array completo de objetos
               onChange={(s) => setFormData({...formData, cylinders_out: s || []})}
               closeMenuOnSelect={false}
-              noOptionsMessage={({ inputValue }) => !inputValue ? "Escriba al menos 2 letras..." : "No se encontró el balón."}
+              noOptionsMessage={({ inputValue }) => !inputValue ? "Escriba o escanee para buscar..." : "No se encontró el balón."}
             />
             <div className="mt-4 p-4 bg-slate-50 rounded-xl border border-dashed border-slate-300 flex items-center justify-between">
                <span className="text-sm text-slate-600 font-medium">Total a entregar:</span>
@@ -293,12 +308,13 @@ const SupplierMovement = () => {
               cacheOptions
               defaultOptions
               loadOptions={(val) => loadCylinderOptions(val, 'IN')}
+              filterOption={cylinderFilterOption}
               styles={customStyles}
-              placeholder="-- Escribir series recibidas --"
+              placeholder="-- Buscar por serie o escanear código de barras --"
               value={formData.cylinders_in} // isMulti acepta el array completo de objetos
               onChange={(s) => setFormData({...formData, cylinders_in: s || []})}
               closeMenuOnSelect={false}
-              noOptionsMessage={({ inputValue }) => !inputValue ? "Escriba al menos 2 letras..." : "No se encontró el balón."}
+              noOptionsMessage={({ inputValue }) => !inputValue ? "Escriba o escanee para buscar..." : "No se encontró el balón."}
             />
             <div className="mt-4 p-4 bg-emerald-50 rounded-xl border border-dashed border-emerald-300 flex items-center justify-between">
                <span className="text-sm text-emerald-700 font-medium">Total a recibir:</span>

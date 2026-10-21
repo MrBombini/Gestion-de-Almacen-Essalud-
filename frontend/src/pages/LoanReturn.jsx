@@ -108,20 +108,34 @@ const PatientLoan = ({ shift }) => {
     if (!hasValidPrescription) return [];
     try {
       let queryParams = "?status=full&location=CENTRAL&per_page=40";
-      if (inputValue && inputValue.length >= 2) {
-        queryParams += `&search=${inputValue}`;
+      if (inputValue && inputValue.trim().length >= 1) {
+        queryParams += `&search=${encodeURIComponent(inputValue.trim())}`;
       }
       const response = await api.get(`/cylinders${queryParams}`);
       const data = response.data.data || response.data || [];
       // Filtrar doble verificacion
       const filtered = data.filter(c => c.status === "full" && (c.location || "").toUpperCase() === "CENTRAL" && !c.current_patient_id);
-      return filtered.map(c => ({
-        value: c.id,
-        label: `${c.serial_number} (${Number(c.capacity)}m3) [${c.ownership_type?.name || c.ownership_type_name || "S/D"}]`
-      }));
+      return filtered.map(c => {
+        const barcodeTag = c.barcode ? ` [BC: ${c.barcode}]` : '';
+        return {
+          value: c.id,
+          label: `${c.serial_number}${barcodeTag} (${Number(c.capacity)}m3) [${c.ownership_type?.name || c.ownership_type_name || "S/D"}]`,
+          serial_number: c.serial_number,
+          barcode: c.barcode
+        };
+      });
     } catch {
       return [];
     }
+  };
+
+  const cylinderFilterOption = (candidate, input) => {
+    if (!input) return true;
+    const cleanInput = input.trim().toLowerCase();
+    const label = (candidate.label || '').toLowerCase();
+    const sn = (candidate.data?.serial_number || '').toLowerCase();
+    const bc = (candidate.data?.barcode || '').toLowerCase();
+    return label.includes(cleanInput) || sn.includes(cleanInput) || bc.includes(cleanInput);
   };
 
   const handleSubmit = async (e) => {
@@ -198,11 +212,11 @@ const PatientLoan = ({ shift }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="md:col-span-2">
               <label className="block text-sm font-bold text-slate-700 mb-2">Balon a Prestar (Solo LLENOS en CENTRAL) *</label>
-              <AsyncSelect cacheOptions loadOptions={loadCylinderOptions} styles={selectStyles}
-                placeholder="-- Buscar balon --"
+              <AsyncSelect cacheOptions loadOptions={loadCylinderOptions} filterOption={cylinderFilterOption} styles={selectStyles}
+                placeholder="-- Buscar por serie o escanear código de barras --"
                 value={formData.cylinder_id ? { value: formData.cylinder_id, label: "Balon Seleccionado" } : null}
                 onChange={(s) => setFormData(prev => ({ ...prev, cylinder_id: s?.value || "" }))}
-                noOptionsMessage={({ inputValue }) => !inputValue ? "Escribe la serie del balon..." : "No se encontro."} />
+                noOptionsMessage={({ inputValue }) => !inputValue ? "Escribe o escanea la serie del balon..." : "No se encontro."} />
             </div>
 
             <div className="md:col-span-2">

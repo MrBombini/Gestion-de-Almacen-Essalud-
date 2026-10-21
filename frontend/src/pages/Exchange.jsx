@@ -90,22 +90,35 @@ const Exchange = () => {
   const loadCylinderOptions = async (inputValue, type) => {
     // type: 'OUT' (para llenos), 'IN' (para vacíos)
     try {
-      // Ajustamos la query según si buscamos llenos o vacíos
       const status = type === 'OUT' ? 'full' : 'in_use';
-      const search = inputValue || '';
+      const search = (inputValue || '').trim();
 
-      const response = await api.get(`/cylinders?search=${search}&status=${status}&per_page=15`);
-      const data = response.data.data || response.data;
+      const response = await api.get(`/cylinders?search=${encodeURIComponent(search)}&status=${status}&per_page=30`);
+      const data = response.data.data || response.data || [];
 
-      return data.map(c => ({
-        value: c.id,
-        label: `${c.serial_number} | ${c.ownership_type?.name || 'S/D'} | ${Number(c.capacity)} m³`,
-        cylinderData: c
-      }));
+      return data.map(c => {
+        const barcodeTag = c.barcode ? ` [BC: ${c.barcode}]` : '';
+        return {
+          value: c.id,
+          label: `${c.serial_number}${barcodeTag} | ${c.ownership_type?.name || 'S/D'} | ${Number(c.capacity)} m³`,
+          serial_number: c.serial_number,
+          barcode: c.barcode,
+          cylinderData: c
+        };
+      });
     } catch (error) {
       console.error('Error buscando cilindros:', error);
       return [];
     }
+  };
+
+  const cylinderFilterOption = (candidate, input) => {
+    if (!input) return true;
+    const cleanInput = input.trim().toLowerCase();
+    const label = (candidate.label || '').toLowerCase();
+    const sn = (candidate.data?.serial_number || '').toLowerCase();
+    const bc = (candidate.data?.barcode || '').toLowerCase();
+    return label.includes(cleanInput) || sn.includes(cleanInput) || bc.includes(cleanInput);
   };
 
   const openRxEdit = (rx) => {
@@ -628,14 +641,15 @@ const Exchange = () => {
               <AsyncSelect
                 cacheOptions
                 loadOptions={(val) => loadCylinderOptions(val, 'OUT')}
+                filterOption={cylinderFilterOption}
                 isClearable
-                placeholder="-- Buscar balón lleno por serie --"
+                placeholder="-- Buscar o escanear balón lleno (serie o código de barras) --"
                 value={selectedCylOutOption}
                 onChange={(s) => {
                   setSelectedCylOutOption(s);
                   setFormData({ ...formData, cylinder_out: s?.value || '' });
                 }}
-                noOptionsMessage={({ inputValue }) => !inputValue ? "Escriba para buscar..." : "No se encontró cilindro."}
+                noOptionsMessage={({ inputValue }) => !inputValue ? "Escriba o escanee para buscar..." : "No se encontró cilindro."}
                 styles={customStyles}
               />
             </div>
@@ -645,15 +659,16 @@ const Exchange = () => {
               <AsyncSelect
                 cacheOptions
                 loadOptions={(val) => loadCylinderOptions(val, 'IN')}
+                filterOption={cylinderFilterOption}
                 isClearable
-                placeholder="-- Buscar balón vacío por serie --"
+                placeholder="-- Buscar o escanear balón vacío (serie o código de barras) --"
                 value={selectedCylInOption}
                 onChange={(s) => {
                   setSelectedCylInOption(s);
                   setFormData({ ...formData, cylinder_in: s?.value || '' });
                 }}
                 isDisabled={(destinationType === 'patient' && !formData.patient_id)}
-                noOptionsMessage={({ inputValue }) => !inputValue ? "Escriba para buscar..." : "No se encontró cilindro."}
+                noOptionsMessage={({ inputValue }) => !inputValue ? "Escriba o escanee para buscar..." : "No se encontró cilindro."}
                 styles={customStyles}
               />
               {selectedCylInOption && selectedCylInOption.cylinderData && destinationType === 'service' && formData.bed_id && (

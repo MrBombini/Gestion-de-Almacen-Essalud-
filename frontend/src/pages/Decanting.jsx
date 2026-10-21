@@ -135,23 +135,38 @@ const Decanting = () => {
   // CARGA ASÍNCRONA DE CILINDROS
   // ==========================================
   const loadCylinderOptions = async (inputValue) => {
-    if (!inputValue || inputValue.length < 2) return [];
+    const search = (inputValue || '').trim();
+    if (!search || search.length < 1) return [];
     try {
-      const response = await api.get('/cylinders', { params: { search: inputValue, per_page: 30 } });
+      const response = await api.get('/cylinders', { params: { search, per_page: 30 } });
       const data = response.data.data || response.data || [];
 
       return data
         // Solo balones que están vacíos o en uso (que es lo normal para recargar)
         .filter(c => (c.status === 'empty' || c.status === 'in_use'))
-        .map(c => ({
-          value: c.id,
-          label: `${c.serial_number} | ${c.ownership_type?.name || 'S/D'} | ${Number(c.capacity)}m³`,
-          cylinder: c
-        }));
+        .map(c => {
+          const barcodeTag = c.barcode ? ` [BC: ${c.barcode}]` : '';
+          return {
+            value: c.id,
+            label: `${c.serial_number}${barcodeTag} | ${c.ownership_type?.name || 'S/D'} | ${Number(c.capacity)}m³`,
+            serial_number: c.serial_number,
+            barcode: c.barcode,
+            cylinder: c
+          };
+        });
     } catch (error) {
       console.error('Error buscando cilindros:', error);
       return [];
     }
+  };
+
+  const cylinderFilterOption = (candidate, input) => {
+    if (!input) return true;
+    const cleanInput = input.trim().toLowerCase();
+    const label = (candidate.label || '').toLowerCase();
+    const sn = (candidate.data?.serial_number || '').toLowerCase();
+    const bc = (candidate.data?.barcode || '').toLowerCase();
+    return label.includes(cleanInput) || sn.includes(cleanInput) || bc.includes(cleanInput);
   };
 
   const handleCylinderSelect = (selectedOption) => {
@@ -316,12 +331,13 @@ const Decanting = () => {
                 <AsyncSelect
                   cacheOptions
                   loadOptions={loadCylinderOptions}
+                  filterOption={cylinderFilterOption}
                   styles={customStyles}
                   isClearable
-                  placeholder="Escanea o escribe..."
+                  placeholder="Escanea código de barras o escribe serie..."
                   value={selectedCylinderOption}
                   onChange={handleCylinderSelect}
-                  noOptionsMessage={({ inputValue }) => !inputValue ? "Escribe el código..." : "No encontrado o inactivo."}
+                  noOptionsMessage={({ inputValue }) => !inputValue ? "Escribe o escanea el código..." : "No encontrado o inactivo."}
                 />
               </div>
 

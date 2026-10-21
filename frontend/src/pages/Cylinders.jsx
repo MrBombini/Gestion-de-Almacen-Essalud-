@@ -96,9 +96,9 @@ const Cylinders = () => {
 
   useEffect(() => {
     const handler = setTimeout(() => {
-      setDebouncedSearch(searchTerm);
+      setDebouncedSearch(searchTerm.trim());
       setCurrentPage(1);
-    }, 500);
+    }, 400);
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
@@ -392,9 +392,15 @@ const Cylinders = () => {
         <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col gap-4">
           <div className="flex-1 flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm">
             <MdSearch className="text-slate-400 text-xl shrink-0" />
-            <input type="text" placeholder="Buscar por código o código de barras..." value={searchTerm}
+            <input type="text" placeholder="Buscar por código o escanear código de barras..." value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-transparent border-none outline-none text-sm w-full text-slate-700 placeholder-slate-400"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  setDebouncedSearch(e.target.value.trim());
+                  setCurrentPage(1);
+                }
+              }}
+              className="bg-transparent border-none outline-none text-sm w-full text-slate-700 placeholder-slate-400 font-mono"
             />
           </div>
           
