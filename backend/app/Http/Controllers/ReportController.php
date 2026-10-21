@@ -1190,14 +1190,16 @@ class ReportController extends Controller
 
     public function patientAlerts(Request $request)
     {
-        $threeMonthsAgo = \Carbon\Carbon::now()->subMonths(3);
+        // Margen configurable de alerta de retención en meses (por defecto 1 mes a más)
+        $months = max(1, (int)$request->query('months', 1));
+        $thresholdDate = \Carbon\Carbon::now()->subMonths($months)->endOfDay();
         $today = \Carbon\Carbon::now()->startOfDay();
 
         $cylinders = \App\Models\Cylinder::with(['currentPatient.prescriptions', 'ownershipType', 'movements.inventoryMovement'])
             ->whereNotNull('current_patient_id')
             ->where('status', 'in_use')
             ->get()
-            ->filter(function ($cylinder) use ($threeMonthsAgo, $today) {
+            ->filter(function ($cylinder) use ($thresholdDate, $today, $months) {
                 // Obtenemos el último movimiento de salida para este cilindro
                 $lastExit = collect($cylinder->movements)
                     ->where('action', 'Exit')
@@ -1208,29 +1210,43 @@ class ReportController extends Controller
 
                 if ($lastExit && $lastExit->inventoryMovement) {
                     $movement = $lastExit->inventoryMovement;
+                    $exitDate = \Carbon\Carbon::parse($movement->movement_at ?? $lastExit->created_at);
+                    $daysSince = (int) $exitDate->diffInDays(\Carbon\Carbon::now());
+                    $monthsSince = (int) $exitDate->diffInMonths(\Carbon\Carbon::now());
                     
                     // ALERTA 1: Si fue un préstamo con fecha límite vencida
                     if ($movement->type === 'PatientLoan' && !empty($movement->expected_return_date)) {
                         $expectedDate = \Carbon\Carbon::parse($movement->expected_return_date)->startOfDay();
                         if ($today->gt($expectedDate)) {
-                            // Agregar flag temporal para el frontend
                             $cylinder->alert_reason = 'Préstamo Vencido';
                             $cylinder->expected_return_date = $movement->expected_return_date;
+                            $cylinder->days_delayed = (int) $expectedDate->diffInDays($today);
+                            $cylinder->exit_date = $exitDate->toIso8601String();
                             return true;
                         }
                     }
 
-                    // ALERTA 2: Regla estándar de 3 meses retenidos
-                    $date = $movement->movement_at;
-                    if (\Carbon\Carbon::parse($date)->lt($threeMonthsAgo)) {
-                        $cylinder->alert_reason = 'Retenido > 3 meses';
+                    // ALERTA 2: Margen de retención (desde 1 mes a más)
+                    if ($exitDate->lt($thresholdDate)) {
+                        $cylinder->retention_months = $monthsSince;
+                        $cylinder->retention_days = $daysSince;
+                        $cylinder->exit_date = $exitDate->toIso8601String();
+                        $labelMonths = $monthsSince >= 1 ? $monthsSince : 1;
+                        $cylinder->alert_reason = 'Retenido > ' . $labelMonths . ' mes' . ($labelMonths > 1 ? 'es' : '');
                         return true;
                     }
                 } elseif ($lastExit) {
-                    // Si no hay InventoryMovement pero hay CylinderMovement, usamos regla de 3 meses
-                    $date = $lastExit->created_at;
-                    if (\Carbon\Carbon::parse($date)->lt($threeMonthsAgo)) {
-                        $cylinder->alert_reason = 'Retenido > 3 meses';
+                    // Si no hay InventoryMovement pero hay CylinderMovement
+                    $exitDate = \Carbon\Carbon::parse($lastExit->created_at);
+                    $daysSince = (int) $exitDate->diffInDays(\Carbon\Carbon::now());
+                    $monthsSince = (int) $exitDate->diffInMonths(\Carbon\Carbon::now());
+
+                    if ($exitDate->lt($thresholdDate)) {
+                        $cylinder->retention_months = $monthsSince;
+                        $cylinder->retention_days = $daysSince;
+                        $cylinder->exit_date = $exitDate->toIso8601String();
+                        $labelMonths = $monthsSince >= 1 ? $monthsSince : 1;
+                        $cylinder->alert_reason = 'Retenido > ' . $labelMonths . ' mes' . ($labelMonths > 1 ? 'es' : '');
                         return true;
                     }
                 }

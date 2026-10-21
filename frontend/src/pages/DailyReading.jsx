@@ -8,7 +8,7 @@ import { format } from 'date-fns';
 
 const DailyReading = () => {
   const { shift } = useAuth();
-  
+
   const { data: readings, loading, refetch } = useFetch('/daily-readings');
   const readingsList = Array.isArray(readings) ? readings : (readings?.data || []);
   const { execute, loading: actionLoading } = useFetch('/daily-readings', 'POST', null, false);
@@ -113,7 +113,7 @@ const DailyReading = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
-        
+
         {/* ── Formulario de Registro ── */}
         <div className="lg:col-span-1">
           <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -129,14 +129,14 @@ const DailyReading = () => {
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Fecha</label>
                 <input type="date" required value={formData.reading_date}
-                  onChange={(e) => setFormData({...formData, reading_date: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, reading_date: e.target.value })}
                   className="w-full px-4 py-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Turno</label>
-                <select required value={formData.shift} onChange={(e) => setFormData({...formData, shift: e.target.value})}
+                <select required value={formData.shift} onChange={(e) => setFormData({ ...formData, shift: e.target.value })}
                   className="w-full px-4 py-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm">
                   <option value="Morning">Mañana</option>
                   <option value="Afternoon">Tarde</option>
@@ -146,12 +146,12 @@ const DailyReading = () => {
 
               <div className="pt-2">
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
-                  <MdWaterDrop className="text-blue-500" /> Nivel de Tanque (inH2O)
+                  <MdWaterDrop className="text-blue-500" /> Nivel de Tanque(inH2O)
                 </label>
                 <div className="relative">
                   <input type="number" step="0.01" required placeholder="Ej: 85.5"
                     value={formData.tank_level}
-                    onChange={(e) => setFormData({...formData, tank_level: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, tank_level: e.target.value })}
                     className="w-full px-4 py-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold pr-16"
                   />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs sm:text-sm">inH2O</span>
@@ -160,12 +160,12 @@ const DailyReading = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
-                  <MdSpeed className="text-orange-500" /> Lectura Flujómetro (m³)
+                  <MdSpeed className="text-orange-500" /> Lectura Contometro (m³)
                 </label>
                 <div className="relative">
                   <input type="number" step="0.01" required placeholder="Ej: 125430.2"
                     value={formData.flow_meter_reading}
-                    onChange={(e) => setFormData({...formData, flow_meter_reading: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, flow_meter_reading: e.target.value })}
                     className="w-full px-4 py-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 font-bold pr-12"
                   />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs sm:text-sm">m³</span>
@@ -217,10 +217,10 @@ const DailyReading = () => {
                       <tr key={r.id} className="bg-amber-50 border-l-4 border-amber-400">
                         <td className="px-3 py-3">
                           <input type="date" value={editForm.reading_date}
-                            onChange={e => setEditForm({...editForm, reading_date: e.target.value})}
+                            onChange={e => setEditForm({ ...editForm, reading_date: e.target.value })}
                             className="w-full min-w-[110px] px-2 py-1 border border-amber-300 rounded text-xs outline-none focus:ring-1 focus:ring-amber-500 mb-1"
                           />
-                          <select value={editForm.shift} onChange={e => setEditForm({...editForm, shift: e.target.value})}
+                          <select value={editForm.shift} onChange={e => setEditForm({ ...editForm, shift: e.target.value })}
                             className="w-full min-w-[100px] px-2 py-1 border border-amber-300 rounded text-xs outline-none bg-white">
                             <option value="Morning">Mañana</option>
                             <option value="Afternoon">Tarde</option>
@@ -229,13 +229,13 @@ const DailyReading = () => {
                         </td>
                         <td className="px-3 py-3 text-center">
                           <input type="number" step="0.01" value={editForm.tank_level}
-                            onChange={e => setEditForm({...editForm, tank_level: e.target.value})}
+                            onChange={e => setEditForm({ ...editForm, tank_level: e.target.value })}
                             className="w-24 mx-auto px-2 py-1 border border-amber-300 rounded text-xs outline-none text-center"
                           />
                         </td>
                         <td className="px-3 py-3 text-center">
                           <input type="number" step="0.01" value={editForm.flow_meter_reading}
-                            onChange={e => setEditForm({...editForm, flow_meter_reading: e.target.value})}
+                            onChange={e => setEditForm({ ...editForm, flow_meter_reading: e.target.value })}
                             className="w-32 mx-auto px-2 py-1 border border-amber-300 rounded text-xs outline-none font-mono text-center"
                           />
                         </td>
@@ -293,7 +293,7 @@ const DailyReading = () => {
                 </tbody>
               </table>
             </div>
-            
+
             {/* Controles de paginación */}
             {totalPages > 1 && (
               <div className="flex justify-between items-center mt-4 px-2">
@@ -301,7 +301,7 @@ const DailyReading = () => {
                   Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, readingsList.length)} de {readingsList.length}
                 </span>
                 <div className="flex items-center gap-1">
-                  <button 
+                  <button
                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                     disabled={currentPage === 1}
                     className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors font-medium shadow-sm"
@@ -311,7 +311,7 @@ const DailyReading = () => {
                   <div className="px-3 py-1.5 bg-blue-50 text-blue-700 font-bold text-sm rounded-lg">
                     {currentPage} / {totalPages}
                   </div>
-                  <button 
+                  <button
                     onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                     disabled={currentPage === totalPages}
                     className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors font-medium shadow-sm"
