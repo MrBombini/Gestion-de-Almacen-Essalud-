@@ -1582,5 +1582,306 @@ class ReportController extends Controller
         ]);
     }
 
+    /**
+     * INFORME MENSUAL 1: RESUMEN — Lecturas Líquido + Consumo Gaseoso por día del mes
+     * GET /reports/monthly-summary?month=YYYY-MM
+     */
+    public function monthlySummary(Request $request)
+    {
+        $month = $request->query('month', Carbon::today()->format('Y-m'));
+
+        // Rango del mes: primer día a las 07:00 hasta primer día del siguiente mes a las 07:00
+        $monthStart = Carbon::parse($month . '-01')->setTime(7, 0, 0);
+        $monthEnd   = (clone $monthStart)->addMonth();
+
+        $daysInMonth = (int) Carbon::parse($month . '-01')->daysInMonth;
+
+        // ── TABLA IZQUIERDA: Lecturas de Oxígeno Líquido ──
+        // Obtenemos todas las lecturas del mes ordenadas cronológicamente
+        $allReadings = \App\Models\DailyReading::whereBetween('reading_date', [
+                Carbon::parse($month . '-01')->toDateString(),
+                Carbon::parse($month . '-01')->endOfMonth()->toDateString()
+            ])
+            ->orderBy('reading_date', 'asc')
+            ->orderBy('id', 'asc')
+            ->get();
+
+        // Agrupar por fecha, tomando la lectura de mayor ID (última del día)
+        $readingsByDate = [];
+        foreach ($allReadings as $r) {
+            $dateKey = Carbon::parse($r->reading_date)->toDateString();
+            $readingsByDate[$dateKey] = $r; // sobreescribe, queda la última del día
+        }
+
+        // Necesitamos la lectura justo anterior al mes para calcular el consumo del día 1
+        $prevMonthReading = \App\Models\DailyReading::where('reading_date', '<', Carbon::parse($month . '-01')->toDateString())
+            ->orderBy('reading_date', 'desc')
+            ->orderBy('id', 'desc')
+            ->first();
+
+        $liquidRows = [];
+        $totalConsumo = 0;
+        $prevFlowForMonth = $prevMonthReading ? (float) $prevMonthReading->flow_meter_reading : null;
+
+        for ($day = 1; $day <= $daysInMonth; $day++) {
+            $dateStr = Carbon::parse($month . '-01')->addDays($day - 1)->toDateString();
+            $fechaDisplay = sprintf('%02d/%02d/%s', $day, (int) substr($month, 5, 2), substr($month, 0, 4));
+
+            if (isset($readingsByDate[$dateStr])) {
+                $r = $readingsByDate[$dateStr];
+                $lecturaActual   = (float) $r->flow_meter_reading;
+                $lecturaAnterior = $prevFlowForMonth;
+                $consumo         = (float) $r->calculated_consumption;
+                $totalConsumo   += $consumo;
+                $prevFlowForMonth = $lecturaActual; // la siguiente fila usará este valor
+            } else {
+                $lecturaActual   = null;
+                $lecturaAnterior = null;
+                $consumo         = 0;
+            }
+
+            $liquidRows[] = [
+                'fecha'            => $fechaDisplay,
+                'lectura_anterior' => $lecturaAnterior,
+                'lectura_actual'   => $lecturaActual,
+                'consumo'          => $consumo,
+            ];
+        }
+
+        // Fila de totales (el Excel muestra la primera lectura del mes y la última para las columnas de lectura)
+        $firstReading = count($liquidRows) > 0 ? $liquidRows[0] : null;
+        $lastReading  = count($liquidRows) > 0 ? $liquidRows[count($liquidRows) - 1] : null;
+        $liquidRows[] = [
+            'fecha'            => '1/' . sprintf('%02d', (int) substr($month, 5, 2)) . '/' . substr($month, 0, 4),
+            'lectura_anterior' => $firstReading ? $firstReading['lectura_anterior'] : null,
+            'lectura_actual'   => $lastReading  ? $lastReading['lectura_actual']   : null,
+            'consumo'          => $totalConsumo,
+            'is_total'         => true,
+        ];
+
+        // ── TABLA DERECHA: Consumo Gaseoso por día ──
+        $movementsOfMonth = InventoryMovement::whereBetween('movement_at', [$monthStart, $monthEnd])
+            ->with(['cylinderMovements.cylinder', 'patient', 'service'])
+            ->get();
+
+        // Agrupar consumo por fecha (día operativo: 07:00 a 07:00)
+        $gasByDate = [];
+        foreach ($movementsOfMonth as $mov) {
+            // La "fecha operativa" es la del día a las 07:00 AM
+            $opDate = Carbon::parse($mov->movement_at);
+            if ($opDate->hour < 7) {
+                $opDate->subDay();
+            }
+            $dateKey = $opDate->toDateString();
+
+            if (!isset($gasByDate[$dateKey])) {
+                $gasByDate[$dateKey] = ['padomi' => 0, 'hnagv' => 0, 'periferia' => 0];
+            }
+
+            $m3Exit = $mov->cylinderMovements
+                ->where('action', 'Exit')
+                ->sum(fn($cm) => (float) ($cm->cylinder->capacity ?? 0));
+
+            if ($mov->patient_id) {
+                $gasByDate[$dateKey]['padomi'] += $m3Exit;
+            } elseif ($mov->type === 'ServiceBulkExchange') {
+                $gasByDate[$dateKey]['periferia'] += $m3Exit;
+            } elseif ($mov->service_id) {
+                $gasByDate[$dateKey]['hnagv'] += $m3Exit;
+            }
+        }
+
+        $gasRows = [];
+        $totalPadomi = 0; $totalHnagv = 0; $totalPeriferia = 0;
+
+        for ($day = 1; $day <= $daysInMonth; $day++) {
+            $dateStr = Carbon::parse($month . '-01')->addDays($day - 1)->toDateString();
+            $fechaDisplay = sprintf('%02d/%02d/%s', $day, (int) substr($month, 5, 2), substr($month, 0, 4));
+
+            $padomi   = $gasByDate[$dateStr]['padomi']   ?? 0;
+            $hnagv    = $gasByDate[$dateStr]['hnagv']    ?? 0;
+            $periferia = $gasByDate[$dateStr]['periferia'] ?? 0;
+            $total    = $padomi + $hnagv + $periferia;
+
+            $totalPadomi   += $padomi;
+            $totalHnagv    += $hnagv;
+            $totalPeriferia += $periferia;
+
+            $gasRows[] = [
+                'fecha'    => $fechaDisplay,
+                'padomi'   => $padomi,
+                'hnagv'    => $hnagv,
+                'periferia' => $periferia,
+                'total'    => $total,
+            ];
+        }
+
+        $gasRows[] = [
+            'fecha'    => '1/' . sprintf('%02d', (int) substr($month, 5, 2)) . '/' . substr($month, 0, 4),
+            'padomi'   => $totalPadomi,
+            'hnagv'    => $totalHnagv,
+            'periferia' => $totalPeriferia,
+            'total'    => $totalPadomi + $totalHnagv + $totalPeriferia,
+            'is_total' => true,
+        ];
+
+        return response()->json([
+            'month'           => $month,
+            'liquid_readings' => $liquidRows,
+            'gas_consumption' => $gasRows,
+        ]);
+    }
+
+    /**
+     * INFORME MENSUAL 2: INGRESOS — Movimientos de proveedor (Ingreso Lleno / Salida Vacío) por día del mes
+     * GET /reports/monthly-entries?month=YYYY-MM
+     */
+    public function monthlyEntries(Request $request)
+    {
+        $month = $request->query('month', Carbon::today()->format('Y-m'));
+
+        $monthStart = Carbon::parse($month . '-01')->setTime(7, 0, 0);
+        $monthEnd   = (clone $monthStart)->addMonth();
+        $daysInMonth = (int) Carbon::parse($month . '-01')->daysInMonth;
+
+        // Solo movimientos de proveedor del mes
+        $movements = InventoryMovement::whereBetween('movement_at', [$monthStart, $monthEnd])
+            ->whereIn('type', ['SupplierEntry', 'SupplierMovement'])
+            ->with(['cylinderMovements.cylinder.ownershipType', 'cylinderMovements.cylinder.supplier', 'supplier'])
+            ->get();
+
+        // Clasificar marca de balón
+        $getBrandGroup = function($cm) {
+            $ownerName = strtoupper($cm->cylinder?->ownershipType?->name ?? '');
+            $supName   = strtoupper($cm->cylinder?->supplier?->name ?? '');
+            $cap       = (int) ($cm->cylinder?->capacity ?? 0);
+
+            if (str_contains($ownerName, 'PERIFERI') || str_contains($supName, 'PERIFERI')) return 'periferie_10';
+            if (str_contains($ownerName, 'LINDE') || str_contains($supName, 'LINDE') ||
+                str_contains($ownerName, 'PRAXAIR') || str_contains($supName, 'PRAXAIR')) return 'linde_10';
+            if ($cap === 8) return 'essalud_8';
+            if ($cap === 6) return 'essalud_6';
+            return 'essalud_10'; // default ESSALUD 10m³
+        };
+
+        // Agrupar por fecha operativa y proveedor
+        $byDate = [];
+        foreach ($movements as $mov) {
+            $opDate = Carbon::parse($mov->movement_at);
+            if ($opDate->hour < 7) $opDate->subDay();
+            $dateKey = $opDate->toDateString();
+
+            $provName = $mov->supplier?->name ?? 'LINDE-PERU';
+
+            if (!isset($byDate[$dateKey])) {
+                $byDate[$dateKey] = [
+                    'dist_prov'   => $provName,
+                    'ingreso_lleno' => ['essalud_8' => 0, 'essalud_6' => 0, 'essalud_10' => 0, 'periferie_10' => 0, 'linde_10' => 0],
+                    'salida_vacio'  => ['essalud' => 0, 'linde' => 0, 'periferie' => 0],
+                    'rechazados'    => ['malogrados' => 0, 'no_aceptados' => 0],
+                ];
+            }
+
+            foreach ($mov->cylinderMovements as $cm) {
+                $action = strtolower($cm->action ?? '');
+                $status = strtolower($cm->cylinder_status ?? '');
+                $isFull  = in_array($status, ['full', 'lleno']);
+                $isEmpty = in_array($status, ['empty', 'vacio', 'vacío']);
+
+                $brand = $getBrandGroup($cm);
+
+                if ($action === 'entry' || $action === 'ingreso') {
+                    if ($isFull && isset($byDate[$dateKey]['ingreso_lleno'][$brand])) {
+                        $byDate[$dateKey]['ingreso_lleno'][$brand] += 1;
+                    }
+                } elseif ($action === 'exit' || $action === 'salida') {
+                    if ($isEmpty) {
+                        $ownerName = strtoupper($cm->cylinder?->ownershipType?->name ?? '');
+                        $supName   = strtoupper($cm->cylinder?->supplier?->name ?? '');
+                        if (str_contains($ownerName, 'LINDE') || str_contains($supName, 'LINDE') ||
+                            str_contains($ownerName, 'PRAXAIR') || str_contains($supName, 'PRAXAIR')) {
+                            $byDate[$dateKey]['salida_vacio']['linde'] += 1;
+                        } elseif (str_contains($ownerName, 'PERIFERI') || str_contains($supName, 'PERIFERI')) {
+                            $byDate[$dateKey]['salida_vacio']['periferie'] += 1;
+                        } else {
+                            $byDate[$dateKey]['salida_vacio']['essalud'] += 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Construir filas para todos los días del mes
+        $entries = [];
+        $totals  = [
+            'dist_prov' => '',
+            'ingreso_lleno' => ['essalud_8' => 0, 'essalud_6' => 0, 'essalud_10' => 0, 'periferie_10' => 0, 'linde_10' => 0],
+            'salida_vacio'  => ['essalud' => 0, 'linde' => 0, 'periferie' => 0],
+            'rechazados'    => ['malogrados' => 0, 'no_aceptados' => 0],
+            'total_ingreso_cilindros' => 0,
+            'total_salida_cilindros'  => 0,
+            'total_no_aceptados'      => 0,
+        ];
+
+        for ($day = 1; $day <= $daysInMonth; $day++) {
+            $dateStr      = Carbon::parse($month . '-01')->addDays($day - 1)->toDateString();
+            $fechaDisplay = sprintf('%02d/%02d/%s', $day, (int) substr($month, 5, 2), substr($month, 0, 4));
+
+            if (isset($byDate[$dateStr])) {
+                $d = $byDate[$dateStr];
+
+                $totalIngresoCilindros = array_sum($d['ingreso_lleno']);
+                $totalSalidaCilindros  = array_sum($d['salida_vacio']);
+                $totalNoAceptados      = array_sum($d['rechazados']);
+
+                $observacion = '';
+
+                // Acumular totales
+                foreach ($d['ingreso_lleno'] as $k => $v) $totals['ingreso_lleno'][$k] += $v;
+                foreach ($d['salida_vacio']  as $k => $v) $totals['salida_vacio'][$k]  += $v;
+                foreach ($d['rechazados']    as $k => $v) $totals['rechazados'][$k]    += $v;
+                $totals['total_ingreso_cilindros'] += $totalIngresoCilindros;
+                $totals['total_salida_cilindros']  += $totalSalidaCilindros;
+                $totals['total_no_aceptados']      += $totalNoAceptados;
+
+                $entries[] = [
+                    'fecha'                   => $fechaDisplay,
+                    'dist_prov'               => $d['dist_prov'],
+                    'ingreso_lleno'           => $d['ingreso_lleno'],
+                    'salida_vacio'            => $d['salida_vacio'],
+                    'rechazados'              => $d['rechazados'],
+                    'total_ingreso_cilindros' => $totalIngresoCilindros,
+                    'total_salida_cilindros'  => $totalSalidaCilindros,
+                    'total_no_aceptados'      => $totalNoAceptados,
+                    'observacion'             => $observacion,
+                ];
+            } else {
+                $entries[] = [
+                    'fecha'                   => $fechaDisplay,
+                    'dist_prov'               => 'LINDE-PERU',
+                    'ingreso_lleno'           => ['essalud_8' => 0, 'essalud_6' => 0, 'essalud_10' => 0, 'periferie_10' => 0, 'linde_10' => 0],
+                    'salida_vacio'            => ['essalud' => 0, 'linde' => 0, 'periferie' => 0],
+                    'rechazados'              => ['malogrados' => 0, 'no_aceptados' => 0],
+                    'total_ingreso_cilindros' => 0,
+                    'total_salida_cilindros'  => 0,
+                    'total_no_aceptados'      => 0,
+                    'observacion'             => 'NO HUBO INGRESOS NI SALIDAS',
+                ];
+            }
+        }
+
+        // Fila de totales
+        $entries[] = array_merge($totals, [
+            'fecha'      => '1/' . sprintf('%02d', (int) substr($month, 5, 2)) . '/' . substr($month, 0, 4),
+            'dist_prov'  => 'LINDE-PERU',
+            'observacion' => '',
+            'is_total'   => true,
+        ]);
+
+        return response()->json([
+            'month'   => $month,
+            'entries' => $entries,
+        ]);
+    }
 
 }

@@ -51,6 +51,8 @@ const UnifiedMovements       = lazy(() => import('./pages/Reports/UnifiedMovemen
 const ExecutiveConsumptionReport = lazy(() => import('./pages/ExecutiveConsumptionReport'));
 const PadomiExchanges        = lazy(() => import('./pages/PadomiExchanges'));
 const Kardex                 = lazy(() => import('./pages/Kardex'));
+const MonthlyResumenReport   = lazy(() => import('./pages/Reports/MonthlyResumenReport'));
+const MonthlyEntriesReport   = lazy(() => import('./pages/Reports/MonthlyEntriesReport'));
 
 // Administración
 const Reports = lazy(() => import('./pages/Reports'));
@@ -129,6 +131,8 @@ function App() {
               <Route path="/reports/unified-search"          element={<UnifiedMovements />} />
               <Route path="/reports/executive"               element={<Dashboard defaultTab="gerencial" />} />
               <Route path="/reports/padomi-exchanges"        element={<PadomiExchanges />} />
+              <Route path="/reports/monthly-resumen"          element={<MonthlyResumenReport />} />
+              <Route path="/reports/monthly-entries"          element={<MonthlyEntriesReport />} />
 
               {/* Administración */}
               <Route path="/admin/reports"              element={<Reports />} />

@@ -35,6 +35,8 @@ const PAGE_TITLES = {
   '/reports/cylinder-tracking': 'Seguimiento de Cilindros',
   '/reports/unified-search': 'Búsqueda y Exportación',
   '/reports/executive': 'Reporte Gerencial',
+  '/reports/monthly-resumen': 'Resumen Mensual (Líquido + Gaseoso)',
+  '/reports/monthly-entries': 'Ingresos Mensuales de Cilindros',
   '/admin/reports': 'Administración de Reportes',
   '/admin/users': 'Gestión de Usuarios',
 };
@@ -159,7 +161,7 @@ const MainLayout = () => {
         </header>
 
         {/* CONTENIDO DINÁMICO */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 p-4 lg:p-8">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 p-2 sm:p-4 lg:p-6">
           <div className="max-w-7xl mx-auto page-enter">
             <Outlet />
           </div>
