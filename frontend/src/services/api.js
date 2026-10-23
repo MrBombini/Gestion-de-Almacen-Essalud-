@@ -36,10 +36,10 @@ api.interceptors.response.use(
       localStorage.removeItem('current_shift'); // Tu context también usa esto
       
       // 2. LA SOLUCIÓN: Verificamos que NO estemos ya en el login
+      // Redirigir a login desde CUALQUIER ruta excepto el propio login
+      // (excluir '/' causaba que el Dashboard quedara en estado roto con token expirado)
       const currentPath = window.location.pathname;
-      if (currentPath !== '/login' && currentPath !== '/') {
-        // En vez de recargar toda la página a la fuerza, 
-        // simplemente enviamos a la URL
+      if (currentPath !== '/login') {
         window.location.replace('/login');
       }
     }

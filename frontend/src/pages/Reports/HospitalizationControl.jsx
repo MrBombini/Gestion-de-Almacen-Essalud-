@@ -815,6 +815,7 @@ const HospitalizationControl = () => {
   // ── Filtros ──
   const filteredData = localData.filter(cyl => {
     const matchService  = !selectedService || cyl.current_service?.name === selectedService;
+    const matchBed      = !selectedBed     || String(cyl.current_bed?.bed_number) === String(selectedBed);
     const term = searchCylinder.trim().toLowerCase();
     const matchCylinder = !term || 
       cyl.serial_number?.toLowerCase().includes(term) ||

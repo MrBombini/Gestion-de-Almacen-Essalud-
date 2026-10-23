@@ -17,8 +17,10 @@ const getLocalYYYYMMDD = () => {
   return (new Date(Date.now() - tzOffset)).toISOString().split('T')[0];
 };
 
-const DailyKardexReport = () => {
-  const [selectedDate, setSelectedDate] = useState(getLocalYYYYMMDD());
+const DailyKardexReport = ({ externalDate, isEmbedded = false }) => {
+  const [internalDate, setInternalDate] = useState(getLocalYYYYMMDD());
+  const selectedDate = externalDate || internalDate;
+  const setSelectedDate = setInternalDate;
 
   const { data: dailyData, loading, error, execute } = useFetch(`/reports/daily-kardex?date=${selectedDate}`, 'GET', null, false);
   const reportRef = useRef(null);
@@ -468,29 +470,41 @@ const DailyKardexReport = () => {
   };
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className={isEmbedded ? 'space-y-4' : 'space-y-6 pb-12'}>
       {/* Cabecera Responsiva */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg shrink-0">
-            <MdInsertChartOutlined className="text-2xl" />
+      {!isEmbedded ? (
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg shrink-0">
+              <MdInsertChartOutlined className="text-2xl" />
+            </div>
+            <div>
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-800">Kardex Matriz Diaria</h2>
+              <p className="text-slate-500 text-xs sm:text-sm mt-1">Control por turnos y cálculo de arrastre.</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-slate-800">Kardex Matriz Diaria</h2>
-            <p className="text-slate-500 text-xs sm:text-sm mt-1">Control por turnos y cálculo de arrastre.</p>
+          
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+            <div className="flex items-center justify-center gap-2 bg-slate-50 px-4 py-2.5 rounded-lg border border-slate-200 w-full sm:w-auto">
+              <MdDateRange className="text-slate-400 text-xl shrink-0" />
+              <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-transparent border-none outline-none text-sm font-bold text-slate-700 w-full sm:w-auto text-center sm:text-left" />
+            </div>
+            <button onClick={handleExportExcel} className="flex justify-center items-center gap-2 bg-[#1d6f42] hover:bg-green-800 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-sm w-full sm:w-auto shrink-0">
+              <MdDownload className="text-xl" /> Excel
+            </button>
           </div>
         </div>
-        
-        <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
-          <div className="flex items-center justify-center gap-2 bg-slate-50 px-4 py-2.5 rounded-lg border border-slate-200 w-full sm:w-auto">
-            <MdDateRange className="text-slate-400 text-xl shrink-0" />
-            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-transparent border-none outline-none text-sm font-bold text-slate-700 w-full sm:w-auto text-center sm:text-left" />
+      ) : (
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 rounded-2xl shadow-sm border border-slate-200 mb-2">
+          <div>
+            <h2 className="text-base font-black text-slate-800 uppercase tracking-wide">Kardex Detallado de Atención</h2>
+            <p className="text-xs text-slate-500">Matriz de 8 categorías de cilindros por turno con firmas y trazabilidad</p>
           </div>
-          <button onClick={handleExportExcel} className="flex justify-center items-center gap-2 bg-[#1d6f42] hover:bg-green-800 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-sm w-full sm:w-auto shrink-0">
-            <MdDownload className="text-xl" /> Excel
+          <button onClick={handleExportExcel} className="flex items-center gap-1.5 bg-[#1d6f42] hover:bg-green-800 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-sm">
+            <MdDownload className="text-lg" /> Descargar Excel
           </button>
         </div>
-      </div>
+      )}
 
       {/* Contenedor de la Tabla Responsiva */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden p-0 sm:p-4 lg:p-6">

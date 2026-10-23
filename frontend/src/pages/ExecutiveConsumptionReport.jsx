@@ -3,8 +3,8 @@ import api from '../services/api';
 import { exportExecutiveConsumptionReport } from '../utils/excelExportService';
 import { MdSave, MdRefresh, MdFileDownload, MdPrint, MdCheckCircle, MdErrorOutline } from 'react-icons/md';
 
-function ExecutiveConsumptionReport() {
-  const [date, setDate] = useState(() => {
+function ExecutiveConsumptionReport({ externalDate, isEmbedded = false }) {
+  const [internalDate, setInternalDate] = useState(() => {
     const today = new Date();
     const yyyy = today.getFullYear();
     let mm = today.getMonth() + 1;
@@ -13,6 +13,9 @@ function ExecutiveConsumptionReport() {
     if (mm < 10) mm = '0' + mm;
     return `${yyyy}-${mm}-${dd}`;
   });
+
+  const date = externalDate || internalDate;
+  const setDate = setInternalDate;
 
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState(null);
@@ -69,7 +72,7 @@ function ExecutiveConsumptionReport() {
   const liquid = reportData ? reportData.liquido : null;
 
   return (
-    <div className="p-4 md:p-6 pb-20 max-w-[1400px] mx-auto bg-gray-50 min-h-screen">
+    <div className={isEmbedded ? 'space-y-4' : 'p-4 md:p-6 pb-20 max-w-[1400px] mx-auto bg-gray-50 min-h-screen'}>
       <style>{`
         @media print {
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: white !important; }
@@ -97,45 +100,70 @@ function ExecutiveConsumptionReport() {
       `}</style>
 
       {/* Barra de Filtros y Acciones */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 bg-white p-4 rounded-2xl shadow-sm border border-slate-200 print:hidden">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Reporte Ejecutivo de Consumo</h1>
-          <p className="text-slate-500 text-xs sm:text-sm">Consolidado general de Oxígeno Gaseoso y Líquido (Corte 07:00 AM)</p>
-        </div>
-        
-        <div className="flex flex-wrap gap-2.5 items-center w-full md:w-auto">
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="border border-slate-300 rounded-xl shadow-sm px-3.5 py-2 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
-          />
+      {!isEmbedded ? (
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 bg-white p-4 rounded-2xl shadow-sm border border-slate-200 print:hidden">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Reporte Ejecutivo de Consumo</h1>
+            <p className="text-slate-500 text-xs sm:text-sm">Consolidado general de Oxígeno Gaseoso y Líquido (Corte 07:00 AM)</p>
+          </div>
           
-          <button
-            onClick={fetchReport}
-            className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2 rounded-xl text-sm font-bold transition-colors"
-            title="Refrescar datos"
-          >
-            <MdRefresh className="text-lg" /> Refrescar
-          </button>
+          <div className="flex flex-wrap gap-2.5 items-center w-full md:w-auto">
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="border border-slate-300 rounded-xl shadow-sm px-3.5 py-2 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+            
+            <button
+              onClick={fetchReport}
+              className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2 rounded-xl text-sm font-bold transition-colors"
+              title="Refrescar datos"
+            >
+              <MdRefresh className="text-lg" /> Refrescar
+            </button>
 
-          <button
-            onClick={handleExportExcel}
-            disabled={!reportData}
-            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors"
-          >
-            <MdFileDownload className="text-lg" /> Excel
-          </button>
+            <button
+              onClick={handleExportExcel}
+              disabled={!reportData}
+              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors"
+            >
+              <MdFileDownload className="text-lg" /> Excel
+            </button>
 
-          <button
-            onClick={() => window.print()}
-            disabled={!reportData}
-            className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-900 disabled:bg-slate-300 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors"
-          >
-            <MdPrint className="text-lg" /> Imprimir
-          </button>
+            <button
+              onClick={() => window.print()}
+              disabled={!reportData}
+              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-900 disabled:bg-slate-300 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors"
+            >
+              <MdPrint className="text-lg" /> Imprimir
+            </button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 rounded-2xl shadow-sm border border-slate-200 mb-2 print:hidden">
+          <div>
+            <h2 className="text-base font-black text-slate-800 uppercase tracking-wide">Consolidado Oficial de Consumo</h2>
+            <p className="text-xs text-slate-500">Corte oficial 07:00 AM — Dirección Médica y Logística</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportExcel}
+              disabled={!reportData}
+              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-sm transition-all"
+            >
+              <MdFileDownload className="text-lg" /> Descargar Excel
+            </button>
+            <button
+              onClick={() => window.print()}
+              disabled={!reportData}
+              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-900 disabled:bg-slate-200 disabled:text-slate-400 text-white px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-sm transition-all"
+            >
+              <MdPrint className="text-lg" /> Imprimir Formato
+            </button>
+          </div>
+        </div>
+      )}
 
 
 

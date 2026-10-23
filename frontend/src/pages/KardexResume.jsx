@@ -17,8 +17,10 @@ const getLocalYYYYMMDD = () => {
   return (new Date(Date.now() - tzOffset)).toISOString().split('T')[0];
 };
 
-const KardexResume = () => {
-  const [selectedDate, setSelectedDate] = useState(getLocalYYYYMMDD());
+const KardexResume = ({ externalDate, isEmbedded = false }) => {
+  const [internalDate, setInternalDate] = useState(getLocalYYYYMMDD());
+  const selectedDate = externalDate || internalDate;
+  const setSelectedDate = setInternalDate;
 
   // Llamada a la API de Consumo
   const { data: dashboardData, loading, error, execute } = useFetch(`/reports/consumption-dashboard?date=${selectedDate}`, 'GET', null, false);
@@ -457,27 +459,39 @@ const KardexResume = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
-            <MdInsertChartOutlined className="text-2xl" />
+      {!isEmbedded ? (
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
+              <MdInsertChartOutlined className="text-2xl" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800">Resumen Kardex (Lógica en Cascada)</h2>
+              <p className="text-slate-500 text-sm mt-1">Control secuencial de saldos por turno y validador de cuadre diario.</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-2xl font-bold text-slate-800">Resumen Kardex (Lógica en Cascada)</h2>
-            <p className="text-slate-500 text-sm mt-1">Control secuencial de saldos por turno y validador de cuadre diario.</p>
+          
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="flex items-center gap-2 bg-slate-50 px-4 py-2 rounded-lg border border-slate-200">
+              <MdDateRange className="text-slate-400 text-xl" />
+              <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-transparent border-none outline-none text-sm font-bold text-slate-700" />
+            </div>
+            <button onClick={handleExportExcel} className="flex items-center gap-2 bg-[#1d6f42] hover:bg-green-800 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-sm">
+              <MdDownload className="text-xl" /> Excel
+            </button>
           </div>
         </div>
-        
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="flex items-center gap-2 bg-slate-50 px-4 py-2 rounded-lg border border-slate-200">
-            <MdDateRange className="text-slate-400 text-xl" />
-            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-transparent border-none outline-none text-sm font-bold text-slate-700" />
+      ) : (
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 rounded-2xl shadow-sm border border-slate-200 mb-2">
+          <div>
+            <h2 className="text-base font-black text-slate-800 uppercase tracking-wide">Resumen Kardex por Turnos</h2>
+            <p className="text-xs text-slate-500">Lógica en cascada (Mañana → Tarde → Noche) con validador de cuadre</p>
           </div>
-          <button onClick={handleExportExcel} className="flex items-center gap-2 bg-[#1d6f42] hover:bg-green-800 text-white px-5 py-2.5 rounded-lg font-bold transition-colors shadow-sm">
-            <MdDownload className="text-xl" /> Excel
+          <button onClick={handleExportExcel} className="flex items-center gap-1.5 bg-[#1d6f42] hover:bg-green-800 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-sm">
+            <MdDownload className="text-lg" /> Descargar Excel
           </button>
         </div>
-      </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 overflow-x-auto">
         {loading ? (
