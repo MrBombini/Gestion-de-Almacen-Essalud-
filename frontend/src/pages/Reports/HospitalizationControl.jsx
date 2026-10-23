@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   MdLocalHospital, 
   MdPrint, 
@@ -11,7 +11,10 @@ import {
   MdWarning,
   MdErrorOutline,
   MdArrowForward,
-  MdInfo
+  MdInfo,
+  MdNotificationsActive,
+  MdAccessTime,
+  MdHourglassEmpty
 } from 'react-icons/md';
 import useFetch from '../../hooks/useFetch';
 import api from '../../services/api';
@@ -33,13 +36,114 @@ function calcEstimatedHours(pressurePsi, flowLmin, capacityM3) {
 }
 
 // ─────────────────────────────────────────────
-// Semáforo de colores por horas estimadas
+// Cálculo dinámico de autonomía en tiempo real (Countdown)
 // ─────────────────────────────────────────────
-function getTimeStyle(hours) {
-  if (hours === '' || hours === null || hours === undefined) return '';
-  if (hours <= 1)  return 'bg-red-100 text-red-700 font-black animate-pulse ring-1 ring-red-400';
-  if (hours <= 3)  return 'bg-amber-100 text-amber-700 font-bold ring-1 ring-amber-400';
-  return 'bg-green-100 text-green-700 ring-1 ring-green-400';
+export function getDynamicAutonomy(cyl, currentTime = Date.now()) {
+  if (cyl.is_editing) {
+    const psi  = parseFloat(cyl.presion_psi) || 0;
+    const lmin = parseFloat(cyl.flujo_lmin) || 0;
+    const cap  = parseFloat(cyl.capacity) || 10;
+    const estimated = psi > 0 && lmin > 0 ? calcEstimatedHours(psi, lmin, cap) : null;
+    return {
+      isEditing: true,
+      remainingHours: estimated,
+      rawRemainingHours: estimated,
+      status: 'editing',
+      display: estimated !== null ? `${estimated}h` : '—',
+      formattedTime: estimated !== null ? `${estimated}h` : '—',
+      alertLevel: 'editing'
+    };
+  }
+
+  const lastReading = cyl.last_reading;
+  if (!lastReading || lastReading.estimated_hours === undefined || lastReading.estimated_hours === null || lastReading.estimated_hours === '') {
+    return {
+      isEditing: false,
+      remainingHours: null,
+      rawRemainingHours: null,
+      status: 'no_data',
+      display: '—',
+      formattedTime: '—',
+      alertLevel: null
+    };
+  }
+
+  const initialHours = parseFloat(lastReading.initial_estimated_hours ?? lastReading.estimated_hours) || 0;
+  const readAtTime = lastReading.read_at ? new Date(lastReading.read_at).getTime() : null;
+
+  let remainingHours = initialHours;
+  let elapsedMinutes = 0;
+
+  if (readAtTime && !isNaN(readAtTime)) {
+    const elapsedMs = Math.max(0, currentTime - readAtTime);
+    const elapsedHours = elapsedMs / (1000 * 60 * 60);
+    elapsedMinutes = Math.floor(elapsedMs / (1000 * 60));
+    remainingHours = Math.max(0, initialHours - elapsedHours);
+  } else if (lastReading.remaining_hours !== undefined && lastReading.remaining_hours !== null) {
+    remainingHours = parseFloat(lastReading.remaining_hours);
+  }
+
+  const remainingRounded = Math.round(remainingHours * 10) / 10;
+  const totalMinutes = Math.floor(remainingHours * 60);
+  const hoursPart = Math.floor(totalMinutes / 60);
+  const minutesPart = totalMinutes % 60;
+
+  let formattedTime = '';
+  let status = 'ok';
+  let alertLevel = 'normal';
+
+  if (remainingHours <= 0) {
+    formattedTime = '0h (Agotado)';
+    status = 'depleted';
+    alertLevel = 'depleted';
+  } else if (remainingHours <= 1.0) {
+    formattedTime = hoursPart > 0 ? `${hoursPart}h ${minutesPart}m` : `${minutesPart} min`;
+    status = 'critical';
+    alertLevel = 'critical';
+  } else if (remainingHours <= 2.0) {
+    formattedTime = `${hoursPart}h ${minutesPart}m`;
+    status = 'warning';
+    alertLevel = 'warning';
+  } else {
+    formattedTime = `${hoursPart}h ${minutesPart}m`;
+    status = 'ok';
+    alertLevel = 'normal';
+  }
+
+  return {
+    isEditing: false,
+    initialHours,
+    remainingHours: remainingRounded,
+    rawRemainingHours: remainingHours,
+    totalMinutes,
+    formattedTime,
+    display: formattedTime,
+    status,
+    alertLevel,
+    elapsedMinutes,
+    readAt: lastReading.read_at
+  };
+}
+
+// ─────────────────────────────────────────────
+// Semáforo de colores por horas estimadas / autonomía
+// ─────────────────────────────────────────────
+function getTimeStyle(autonomyOrHours) {
+  if (typeof autonomyOrHours === 'object' && autonomyOrHours !== null) {
+    const { status, isEditing } = autonomyOrHours;
+    if (isEditing) return 'bg-blue-100 text-blue-800 ring-1 ring-blue-400 font-bold';
+    if (status === 'depleted') return 'bg-slate-900 text-rose-300 font-black animate-pulse ring-2 ring-rose-500';
+    if (status === 'critical') return 'bg-red-100 text-red-800 font-black animate-pulse ring-2 ring-red-500';
+    if (status === 'warning') return 'bg-amber-100 text-amber-800 font-black ring-2 ring-amber-400';
+    if (status === 'ok') return 'bg-emerald-50 text-emerald-800 font-bold ring-1 ring-emerald-300';
+    return '';
+  }
+  const hours = parseFloat(autonomyOrHours);
+  if (isNaN(hours)) return '';
+  if (hours <= 0)  return 'bg-slate-900 text-rose-300 font-black animate-pulse ring-2 ring-rose-500';
+  if (hours <= 1)  return 'bg-red-100 text-red-800 font-black animate-pulse ring-2 ring-red-500';
+  if (hours <= 2)  return 'bg-amber-100 text-amber-800 font-black ring-2 ring-amber-400';
+  return 'bg-emerald-50 text-emerald-800 font-bold ring-1 ring-emerald-300';
 }
 
 // ─────────────────────────────────────────────
@@ -495,7 +599,17 @@ const HospitalizationControl = () => {
   const [selectedBed, setSelectedBed]         = useState('');
   const [searchCylinder, setSearchCylinder]   = useState('');
   const [toast, setToast]                 = useState(null);
+  const [currentTime, setCurrentTime]     = useState(Date.now());
+  const [onlyAlerts, setOnlyAlerts]       = useState(false);
   const reportRef = useRef(null);
+
+  // Ticker en tiempo real: recalcula el tiempo restante automáticamente cada 30 segundos
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   const showToast = (type, title, message) => {
     setToast({ type, title, message });
@@ -526,6 +640,7 @@ const HospitalizationControl = () => {
         presion_psi: cyl.last_reading?.pressure_psi ?? '',
         flujo_lmin:  cyl.last_reading?.flow_lmin ?? '',
         tiempo_horas: cyl.last_reading?.estimated_hours ?? '',
+        is_editing: false,
       }));
       setLocalData(initialized);
     }
@@ -537,6 +652,7 @@ const HospitalizationControl = () => {
     const idx = updated.findIndex(c => c.id === id);
     if (idx === -1) return;
     updated[idx][field] = value;
+    updated[idx].is_editing = true;
 
     const psi   = parseFloat(updated[idx].presion_psi) || 0;
     const lmin  = parseFloat(updated[idx].flujo_lmin)  || 0;
@@ -561,14 +677,35 @@ const HospitalizationControl = () => {
         shift:        currentShift,
       });
       const horas = res?.data?.estimated_hours ?? cyl.tiempo_horas;
-      // Actualizar localData con las horas confirmadas por el backend
+      const savedReading = res?.data?.reading;
+
+      // Actualizar localData con la nueva lectura guardada e iniciar countdown
       setLocalData(prev => prev.map(c =>
-        c.id === cyl.id ? { ...c, tiempo_horas: horas } : c
+        c.id === cyl.id ? { 
+          ...c, 
+          tiempo_horas: horas,
+          is_editing: false,
+          last_reading: savedReading ? {
+            ...savedReading,
+            initial_estimated_hours: horas,
+            estimated_hours: horas,
+            remaining_hours: horas,
+            read_at: savedReading.read_at || new Date().toISOString(),
+          } : {
+            ...c.last_reading,
+            pressure_psi: cyl.presion_psi,
+            flow_lmin: cyl.flujo_lmin,
+            initial_estimated_hours: horas,
+            estimated_hours: horas,
+            remaining_hours: horas,
+            read_at: new Date().toISOString(),
+          }
+        } : c
       ));
       showToast(
         'success', 
         '¡Lectura Guardada Exitosamente!', 
-        `Cilindro ${cyl.serial_number}: Presión registrada. Autonomía estimada: ${horas} horas.`
+        `Cilindro ${cyl.serial_number}: Presión registrada. Autonomía calculada: ${horas} horas.`
       );
     } catch (err) {
       showToast('error', 'Error al Guardar', err?.response?.data?.message || 'Error al guardar la lectura de presión.');
@@ -624,13 +761,16 @@ const HospitalizationControl = () => {
         const serial = cyl.serial_number || '-';
         const psi = cyl.presion_psi !== '' && cyl.presion_psi !== null && cyl.presion_psi !== undefined ? cyl.presion_psi : '';
         const flujo = cyl.flujo_lmin !== '' && cyl.flujo_lmin !== null && cyl.flujo_lmin !== undefined ? cyl.flujo_lmin : '';
-        const tiempo = cyl.tiempo_horas !== '' && cyl.tiempo_horas !== null && cyl.tiempo_horas !== undefined ? `${cyl.tiempo_horas}h` : '';
+        const autonomy = getDynamicAutonomy(cyl, currentTime);
+        const tiempo = autonomy.formattedTime !== '—' ? autonomy.formattedTime : '';
 
         // Estilo de semáforo sutil para la celda de tiempo
         let timeStyle = '';
-        if (tiempo && parseFloat(cyl.tiempo_horas) <= 1) {
+        if (autonomy.status === 'depleted') {
+          timeStyle = 'background-color: #0f172a; font-weight: bold; color: #fda4af;';
+        } else if (autonomy.status === 'critical') {
           timeStyle = 'background-color: #fee2e2; font-weight: bold; color: #991b1b;';
-        } else if (tiempo && parseFloat(cyl.tiempo_horas) <= 3) {
+        } else if (autonomy.status === 'warning') {
           timeStyle = 'background-color: #fef3c7; font-weight: bold; color: #92400e;';
         } else if (tiempo) {
           timeStyle = 'background-color: #dcfce7; color: #166534;';
@@ -813,7 +953,46 @@ const HospitalizationControl = () => {
   const getLocalTime = () => new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
 
   // ── Filtros ──
+  // ── Estadísticas de urgencia y cálculos dinámicos ──
+  const autonomiesMap = useMemo(() => {
+    const map = new Map();
+    localData.forEach(c => {
+      map.set(c.id, getDynamicAutonomy(c, currentTime));
+    });
+    return map;
+  }, [localData, currentTime]);
+
+  const depletedCount = useMemo(() => {
+    return Array.from(autonomiesMap.values()).filter(a => a.alertLevel === 'depleted').length;
+  }, [autonomiesMap]);
+
+  const criticalCount = useMemo(() => {
+    return Array.from(autonomiesMap.values()).filter(a => a.alertLevel === 'critical').length;
+  }, [autonomiesMap]);
+
+  const warningCount = useMemo(() => {
+    return Array.from(autonomiesMap.values()).filter(a => a.alertLevel === 'warning').length;
+  }, [autonomiesMap]);
+
+  const totalAlerts = depletedCount + criticalCount + warningCount;
+
+  // Lista de cilindros que requieren recambio prioritario (≤ 2 horas)
+  const alertCylinders = useMemo(() => {
+    return localData
+      .map(cyl => ({
+        cyl,
+        autonomy: autonomiesMap.get(cyl.id) || getDynamicAutonomy(cyl, currentTime)
+      }))
+      .filter(item => item.autonomy.alertLevel === 'critical' || item.autonomy.alertLevel === 'warning' || item.autonomy.alertLevel === 'depleted')
+      .sort((a, b) => (a.autonomy.rawRemainingHours ?? 999) - (b.autonomy.rawRemainingHours ?? 999));
+  }, [localData, autonomiesMap, currentTime]);
+
+  // ── Filtros ──
   const filteredData = localData.filter(cyl => {
+    const autonomy = autonomiesMap.get(cyl.id) || getDynamicAutonomy(cyl, currentTime);
+    if (onlyAlerts && !(autonomy.alertLevel === 'critical' || autonomy.alertLevel === 'warning' || autonomy.alertLevel === 'depleted')) {
+      return false;
+    }
     const matchService  = !selectedService || cyl.current_service?.name === selectedService;
     const matchBed      = !selectedBed     || String(cyl.current_bed?.bed_number) === String(selectedBed);
     const term = searchCylinder.trim().toLowerCase();
@@ -846,7 +1025,7 @@ const HospitalizationControl = () => {
           <th className="border border-black p-1 bg-slate-100">MODELO</th>
           <th className="border border-black p-1 w-16 bg-slate-100 no-print">PRESIÓN (PSI)</th>
           <th className="border border-black p-1 w-16 bg-slate-100 no-print">FLUJO (L/min)</th>
-          <th className="border border-black p-1 w-20 bg-slate-100">TIEMPO (H)</th>
+          <th className="border border-black p-1 w-24 bg-slate-100">TIEMPO (RESTANTE)</th>
           <th className="border border-black p-1 bg-slate-100 no-print">ACCIONES</th>
         </tr>
       </thead>
@@ -854,6 +1033,7 @@ const HospitalizationControl = () => {
         {columnData.map((cyl, i) => {
           const globalIdx = startIndex + i;
           const isSaving  = savingId === cyl.id;
+          const autonomy  = autonomiesMap.get(cyl.id) || getDynamicAutonomy(cyl, currentTime);
           return (
             <tr key={cyl.id} className="hover:bg-slate-50 transition-colors">
               <td className="border border-black p-1">{globalIdx + 1}</td>
@@ -865,7 +1045,7 @@ const HospitalizationControl = () => {
               </td>
               {/* Click en serie → historial */}
               <td
-                className="border border-black p-1 uppercase font-mono cursor-pointer text-indigo-700 hover:underline no-print"
+                className="border border-black p-1 uppercase font-mono cursor-pointer text-indigo-700 hover:underline no-print font-bold"
                 title="Ver historial de lecturas"
                 onClick={() => setHistorialCyl(cyl)}
               >
@@ -880,7 +1060,7 @@ const HospitalizationControl = () => {
               <td className="border border-black p-0 no-print">
                 <input
                   type="number"
-                  className="w-full h-full text-center outline-none bg-transparent p-1"
+                  className="w-full h-full text-center outline-none bg-transparent p-1 font-semibold"
                   value={cyl.presion_psi}
                   onChange={e => handleInputChange(cyl.id, 'presion_psi', e.target.value)}
                   placeholder="PSI"
@@ -892,7 +1072,7 @@ const HospitalizationControl = () => {
               <td className="border border-black p-0 no-print">
                 <input
                   type="number"
-                  className="w-full h-full text-center outline-none bg-transparent p-1"
+                  className="w-full h-full text-center outline-none bg-transparent p-1 font-semibold"
                   value={cyl.flujo_lmin}
                   onChange={e => handleInputChange(cyl.id, 'flujo_lmin', e.target.value)}
                   placeholder="L/min"
@@ -901,9 +1081,28 @@ const HospitalizationControl = () => {
                 />
               </td>
 
-              {/* Tiempo estimado con semáforo */}
-              <td className={`border border-black p-1 font-bold rounded-sm ${getTimeStyle(cyl.tiempo_horas)}`}>
-                {cyl.tiempo_horas !== '' ? `${cyl.tiempo_horas}h` : '—'}
+              {/* Tiempo estimado con semáforo dinámico */}
+              <td className={`border border-black p-1 rounded-sm ${getTimeStyle(autonomy)}`}>
+                <div className="flex flex-col items-center justify-center leading-tight">
+                  <span className="text-[11px] font-black">{autonomy.display}</span>
+                  {autonomy.status === 'depleted' && (
+                    <span className="text-[8px] font-black uppercase text-rose-300">¡Agotado!</span>
+                  )}
+                  {autonomy.status === 'critical' && (
+                    <span className="text-[8px] font-black uppercase text-red-700 animate-pulse">¡Cambio Urgente!</span>
+                  )}
+                  {autonomy.status === 'warning' && (
+                    <span className="text-[8px] font-bold uppercase text-amber-800">Cambiar Balón</span>
+                  )}
+                  {autonomy.isEditing && (
+                    <span className="text-[8px] font-semibold text-blue-700">Sin guardar</span>
+                  )}
+                  {autonomy.readAt && !autonomy.isEditing && (
+                    <span className="text-[8px] opacity-65 font-medium">
+                      hace {autonomy.elapsedMinutes < 60 ? `${autonomy.elapsedMinutes}m` : `${Math.floor(autonomy.elapsedMinutes/60)}h ${autonomy.elapsedMinutes%60}m`}
+                    </span>
+                  )}
+                </div>
               </td>
 
               {/* Acciones */}
@@ -946,10 +1145,6 @@ const HospitalizationControl = () => {
     </table>
   );
 
-  // Estadísticas de urgencia
-  const critical = localData.filter(c => c.tiempo_horas !== '' && c.tiempo_horas <= 1).length;
-  const caution  = localData.filter(c => c.tiempo_horas !== '' && c.tiempo_horas > 1 && c.tiempo_horas <= 3).length;
-
   return (
     <div className="space-y-6 pb-12">
       {/* Cabecera */}
@@ -960,16 +1155,44 @@ const HospitalizationControl = () => {
           </div>
           <div>
             <h2 className="text-xl sm:text-2xl font-bold text-slate-800">Control de Hospitalización</h2>
-            <p className="text-slate-500 text-xs sm:text-sm mt-1">
-              Turno actual: <span className="font-bold text-indigo-600">{SHIFT_ES[currentShift]}</span>
-              {' · '}{localData.length} cilindros
-              {critical > 0 && <span className="ml-2 text-red-600 font-bold animate-pulse">⚠ {critical} crítico{critical > 1 ? 's' : ''}</span>}
-              {caution > 0  && <span className="ml-2 text-amber-600 font-bold">· {caution} en precaución</span>}
+            <p className="text-slate-500 text-xs sm:text-sm mt-1 flex flex-wrap items-center gap-1.5">
+              <span>Turno: <strong className="text-indigo-600">{SHIFT_ES[currentShift]}</strong></span>
+              <span>· {localData.length} cilindros</span>
+              {depletedCount > 0 && (
+                <span className="text-rose-600 font-black animate-pulse bg-rose-50 px-2 py-0.5 rounded-md">
+                  ⛔ {depletedCount} agotado{depletedCount > 1 ? 's' : ''}
+                </span>
+              )}
+              {criticalCount > 0 && (
+                <span className="text-red-600 font-bold animate-pulse bg-red-50 px-2 py-0.5 rounded-md">
+                  🚨 {criticalCount} crítico (≤ 1h)
+                </span>
+              )}
+              {warningCount > 0 && (
+                <span className="text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-md">
+                  ⚠️ {warningCount} por cambiar (1-2h)
+                </span>
+              )}
             </p>
           </div>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() => setOnlyAlerts(prev => !prev)}
+            className={`flex items-center gap-2 px-3.5 py-2.5 rounded-lg font-bold text-xs sm:text-sm transition-all shadow-sm ${
+              onlyAlerts
+                ? 'bg-red-600 text-white ring-2 ring-red-400'
+                : totalAlerts > 0
+                ? 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300'
+                : 'bg-slate-100 text-slate-500 cursor-not-allowed opacity-60'
+            }`}
+            disabled={totalAlerts === 0}
+            title={totalAlerts > 0 ? 'Filtrar balones que requieren recambio' : 'No hay balones en alerta'}
+          >
+            <MdWarning className="text-lg" />
+            <span>{onlyAlerts ? 'Ver Todos los Balones' : `Filtrar Alertas (${totalAlerts})`}</span>
+          </button>
           <button
             onClick={fetchControl}
             className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-lg font-bold transition-colors"
@@ -985,19 +1208,100 @@ const HospitalizationControl = () => {
         </div>
       </div>
 
+      {/* ── BANNER DESTACADO DE BALONES POR AGOTARSE (≤ 2 HORAS) ── */}
+      {totalAlerts > 0 && (
+        <div className="bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 p-0.5 rounded-2xl shadow-md animate-fadeIn">
+          <div className="bg-white p-4 sm:p-5 rounded-[15px]">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-red-100 text-red-600 rounded-xl animate-bounce">
+                  <MdNotificationsActive className="text-2xl" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base sm:text-lg font-black text-slate-900">
+                      Alerta de Recambio: {totalAlerts} balón{totalAlerts > 1 ? 'es' : ''} próximo{totalAlerts > 1 ? 's' : ''} a agotarse (≤ 2 horas)
+                    </h3>
+                    <span className="px-2 py-0.5 text-[10px] font-black uppercase rounded-full bg-red-100 text-red-700 border border-red-300 animate-pulse">
+                      Cambiar Balón
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    El cálculo disminuye hora por hora. Cuando falte 1 a 2 horas o menos, realice el cambio oportuno del cilindro para no interrumpir el flujo del paciente.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Chips de balones en alerta */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 mt-3 pt-3 border-t border-slate-100">
+              {alertCylinders.map(({ cyl, autonomy }) => (
+                <div
+                  key={cyl.id}
+                  onClick={() => {
+                    setSelectedService(cyl.current_service?.name || '');
+                    setSearchCylinder(cyl.serial_number || '');
+                  }}
+                  className={`p-3 rounded-xl border flex items-center justify-between gap-2.5 cursor-pointer transition-all hover:scale-[1.01] ${
+                    autonomy.status === 'depleted'
+                      ? 'bg-slate-900 border-rose-500 text-white'
+                      : autonomy.status === 'critical'
+                      ? 'bg-red-50 border-red-200 hover:bg-red-100 text-red-900'
+                      : 'bg-amber-50 border-amber-200 hover:bg-amber-100 text-amber-900'
+                  }`}
+                  title="Hacer clic para filtrar y ubicar este balón en la tabla"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-black text-xs uppercase">
+                        Cama {cyl.current_bed?.bed_number || '?'}
+                      </span>
+                      <span className={`text-[10px] truncate max-w-[110px] ${autonomy.status === 'depleted' ? 'text-slate-400' : 'text-slate-500'}`}>
+                        ({cyl.current_service?.name || 'Servicio'})
+                      </span>
+                    </div>
+                    <div className="font-mono text-[11px] font-bold opacity-90 truncate mt-0.5">
+                      {cyl.serial_number}
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <div className={`text-xs font-black px-2 py-0.5 rounded-lg ${
+                      autonomy.status === 'depleted'
+                        ? 'bg-rose-500 text-white'
+                        : autonomy.status === 'critical'
+                        ? 'bg-red-600 text-white animate-pulse'
+                        : 'bg-amber-500 text-white'
+                    }`}>
+                      {autonomy.display}
+                    </div>
+                    <div className="text-[9px] font-bold mt-0.5">
+                      {autonomy.status === 'depleted' ? '⛔ Agotado' : autonomy.status === 'critical' ? '🚨 Cambio Urgente' : '⚠️ Cambiar Balón'}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Leyenda semáforo */}
-      <div className="flex flex-wrap gap-3 text-xs font-semibold">
-        <span className="flex items-center gap-1.5 bg-red-100 text-red-700 px-3 py-1.5 rounded-full">
-          <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" /> ≤ 1h — Crítico
+      <div className="flex flex-wrap items-center gap-3 text-xs font-semibold">
+        <span className="flex items-center gap-1.5 bg-red-100 text-red-700 px-3 py-1.5 rounded-full border border-red-200">
+          <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse" /> ≤ 1h — Alerta Crítica (Cambio Urgente)
         </span>
-        <span className="flex items-center gap-1.5 bg-amber-100 text-amber-700 px-3 py-1.5 rounded-full">
-          <span className="inline-block w-2 h-2 rounded-full bg-amber-500" /> 1h–3h — Precaución
+        <span className="flex items-center gap-1.5 bg-amber-100 text-amber-800 px-3 py-1.5 rounded-full border border-amber-200">
+          <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500" /> 1h–2h — Alerta Preventiva (Cambiar Balón)
         </span>
-        <span className="flex items-center gap-1.5 bg-green-100 text-green-700 px-3 py-1.5 rounded-full">
-          <span className="inline-block w-2 h-2 rounded-full bg-green-500" /> {'> 3h'} — OK
+        <span className="flex items-center gap-1.5 bg-green-100 text-green-700 px-3 py-1.5 rounded-full border border-green-200">
+          <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500" /> {'> 2h'} — Estable (OK)
         </span>
-        <span className="text-slate-400 text-[11px] ml-2 self-center">
-          Fórmula: (Vol_L × P_bar) / (Flujo × 60)
+        <span className="flex items-center gap-1.5 bg-slate-900 text-rose-300 px-3 py-1.5 rounded-full">
+          <span className="inline-block w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" /> 0h — Agotado
+        </span>
+        <span className="text-slate-400 text-[11px] ml-auto self-center">
+          ⏱ Cuenta regresiva automática activa (actualizada cada 30 seg)
         </span>
       </div>
 

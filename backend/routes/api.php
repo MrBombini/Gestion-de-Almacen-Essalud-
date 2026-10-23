@@ -114,6 +114,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // Hospitalization Module
         Route::prefix('hospitalization')->group(function () {
             Route::get('/cylinders', [HospitalizationController::class, 'index']);
+            Route::get('/alerts', [HospitalizationController::class, 'alerts']);
             Route::post('/readings', [HospitalizationController::class, 'storeReading']);
             Route::get('/readings/{cylinderId}', [HospitalizationController::class, 'readingHistory']);
             Route::post('/bed-transfer', [HospitalizationController::class, 'bedTransfer']);
