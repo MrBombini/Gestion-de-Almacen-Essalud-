@@ -43,9 +43,55 @@ class HospitalizationController extends Controller
         return round(($volumeLitros * $pressureBar) / ($flowLmin * 60), 2);
     }
 
+    /**
+     * Calcula la autonomía restante en tiempo real a partir de una lectura.
+     *
+     * @param HospitalizationReading|null $reading
+     * @return array
+     */
+    private function getReadingAutonomy(?HospitalizationReading $reading): array
+    {
+        if (!$reading) {
+            return [
+                'initial_estimated_hours' => 0,
+                'elapsed_hours'           => 0,
+                'remaining_hours'         => 0,
+                'status'                  => 'no_data',
+                'needs_change'            => false,
+            ];
+        }
+
+        $initialHours = (float) ($reading->estimated_hours ?? 0);
+        $readAt = $reading->read_at ? Carbon::parse($reading->read_at) : Carbon::now();
+        $now = Carbon::now();
+
+        // Diferencia en segundos entre la lectura y el momento actual
+        $diffSeconds = $readAt->diffInSeconds($now, false);
+        $elapsedHours = $diffSeconds > 0 ? ($diffSeconds / 3600) : 0;
+
+        $remainingHours = max(0, round($initialHours - $elapsedHours, 2));
+
+        $status = 'ok';
+        if ($remainingHours <= 0) {
+            $status = 'depleted'; // Agotado
+        } elseif ($remainingHours <= 1.0) {
+            $status = 'critical'; // Crítico: menos de 1 hora
+        } elseif ($remainingHours <= 2.0) {
+            $status = 'warning'; // Alerta: 1 a 2 horas (cambio preventivo)
+        }
+
+        return [
+            'initial_estimated_hours' => $initialHours,
+            'elapsed_hours'           => round($elapsedHours, 2),
+            'remaining_hours'         => $remainingHours,
+            'status'                  => $status,
+            'needs_change'            => $remainingHours <= 2.0,
+        ];
+    }
+
     // =========================================================
     // GET /hospitalization/cylinders
-    // Lista cilindros en HOSPITALIZACION con su última lectura
+    // Lista cilindros en HOSPITALIZACION con su última lectura y autonomía dinámica
     // =========================================================
     public function index()
     {
@@ -61,25 +107,102 @@ class HospitalizationController extends Controller
         ->orderBy('current_bed_id')
         ->get();
 
-        // Adjuntar última lectura a cada cilindro
+        // Adjuntar última lectura a cada cilindro con cálculo dinámico
         $cylinders = $cylinders->map(function ($cyl) {
             $lastReading = HospitalizationReading::where('cylinder_id', $cyl->id)
                 ->orderByDesc('read_at')
                 ->first();
 
-            $cyl->last_reading = $lastReading ? [
-                'pressure_psi'    => $lastReading->pressure_psi,
-                'flow_lmin'       => $lastReading->flow_lmin,
-                'estimated_hours' => $lastReading->estimated_hours,
-                'shift'           => $lastReading->shift,
-                'read_at'         => $lastReading->read_at,
-                'user'            => $lastReading->user?->name,
-            ] : null;
+            if ($lastReading) {
+                $autonomy = $this->getReadingAutonomy($lastReading);
+                $cyl->last_reading = [
+                    'pressure_psi'            => $lastReading->pressure_psi,
+                    'flow_lmin'               => $lastReading->flow_lmin,
+                    'estimated_hours'         => $autonomy['remaining_hours'], // Autonomía dinámica en tiempo real
+                    'initial_estimated_hours' => $autonomy['initial_estimated_hours'],
+                    'remaining_hours'         => $autonomy['remaining_hours'],
+                    'elapsed_hours'           => $autonomy['elapsed_hours'],
+                    'status'                  => $autonomy['status'],
+                    'needs_change'            => $autonomy['needs_change'],
+                    'shift'                   => $lastReading->shift,
+                    'read_at'                 => $lastReading->read_at,
+                    'user'                    => $lastReading->user?->name,
+                ];
+            } else {
+                $cyl->last_reading = null;
+            }
 
             return $cyl;
         });
 
         return response()->json($cylinders);
+    }
+
+    // =========================================================
+    // GET /hospitalization/alerts
+    // Lista cilindros que requieren recambio urgente (autonomía ≤ 2 horas)
+    // =========================================================
+    public function alerts()
+    {
+        $cylinders = Cylinder::with([
+            'currentService',
+            'currentBed',
+            'ownershipType',
+            'supplier',
+        ])
+        ->where('location', 'HOSPITALIZACION')
+        ->whereNotNull('current_bed_id')
+        ->whereNull('deleted_at')
+        ->get();
+
+        $alertList = [];
+        $criticalCount = 0;
+        $warningCount  = 0;
+        $depletedCount = 0;
+
+        foreach ($cylinders as $cyl) {
+            $lastReading = HospitalizationReading::where('cylinder_id', $cyl->id)
+                ->orderByDesc('read_at')
+                ->first();
+
+            if (!$lastReading) {
+                continue;
+            }
+
+            $autonomy = $this->getReadingAutonomy($lastReading);
+
+            if ($autonomy['needs_change']) {
+                if ($autonomy['status'] === 'critical') $criticalCount++;
+                elseif ($autonomy['status'] === 'warning') $warningCount++;
+                elseif ($autonomy['status'] === 'depleted') $depletedCount++;
+
+                $alertList[] = [
+                    'cylinder_id'             => $cyl->id,
+                    'serial_number'           => $cyl->serial_number,
+                    'capacity'                => $cyl->capacity,
+                    'bed_number'              => $cyl->currentBed?->bed_number,
+                    'service_name'            => $cyl->currentService?->name,
+                    'pressure_psi'            => $lastReading->pressure_psi,
+                    'flow_lmin'               => $lastReading->flow_lmin,
+                    'initial_estimated_hours' => $autonomy['initial_estimated_hours'],
+                    'remaining_hours'         => $autonomy['remaining_hours'],
+                    'elapsed_hours'           => $autonomy['elapsed_hours'],
+                    'status'                  => $autonomy['status'],
+                    'read_at'                 => $lastReading->read_at,
+                ];
+            }
+        }
+
+        // Ordenar por menor tiempo restante (los más urgentes primero)
+        usort($alertList, fn($a, $b) => $a['remaining_hours'] <=> $b['remaining_hours']);
+
+        return response()->json([
+            'total_alerts'   => count($alertList),
+            'critical_count' => $criticalCount,
+            'warning_count'  => $warningCount,
+            'depleted_count' => $depletedCount,
+            'alerts'         => $alertList,
+        ]);
     }
 
     // =========================================================
@@ -117,9 +240,11 @@ class HospitalizationController extends Controller
         ]);
 
         return response()->json([
-            'message'         => 'Lectura registrada correctamente.',
-            'estimated_hours' => $estimatedHours,
-            'reading'         => $reading,
+            'message'                 => 'Lectura registrada correctamente.',
+            'estimated_hours'         => $estimatedHours,
+            'initial_estimated_hours' => $estimatedHours,
+            'remaining_hours'         => $estimatedHours,
+            'reading'                 => $reading,
         ], 201);
     }
 

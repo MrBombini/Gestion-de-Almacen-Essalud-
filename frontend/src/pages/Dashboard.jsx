@@ -21,7 +21,11 @@ import {
   MdPrint,
   MdShield,
   MdSchedule,
-  MdOutlineAir
+  MdOutlineAir,
+  MdLocalHospital,
+  MdNotificationsActive,
+  MdArrowForward,
+  MdClose
 } from 'react-icons/md';
 import { format, subDays } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -146,20 +150,26 @@ const Dashboard = ({ defaultTab }) => {
   // 2. Datos ejecutivos del día para el KPI Banner
   const [executiveData, setExecutiveData] = useState(null);
   const [resumeData, setResumeData] = useState(null);
+  const [hospAlerts, setHospAlerts] = useState(null);
   const [kpisLoading, setKpisLoading] = useState(false);
+  const [dismissHospAlert, setDismissHospAlert] = useState(false);
 
   const fetchKpis = async () => {
     setKpisLoading(true);
     try {
-      const [resExec, resResume] = await Promise.allSettled([
+      const [resExec, resResume, resHosp] = await Promise.allSettled([
         api.get(`/reports/executive-consumption?date=${selectedDate}`),
-        api.get(`/reports/consumption-dashboard?date=${selectedDate}`)
+        api.get(`/reports/consumption-dashboard?date=${selectedDate}`),
+        api.get('/hospitalization/alerts')
       ]);
       if (resExec.status === 'fulfilled') {
         setExecutiveData(resExec.value.data);
       }
       if (resResume.status === 'fulfilled') {
         setResumeData(resResume.value.data);
+      }
+      if (resHosp.status === 'fulfilled') {
+        setHospAlerts(resHosp.value.data);
       }
     } catch (err) {
       console.error('Error fetching dashboard KPIs:', err);
@@ -170,6 +180,13 @@ const Dashboard = ({ defaultTab }) => {
 
   useEffect(() => {
     fetchKpis();
+    // Polling cada 60 segundos para monitorear alertas de hospitalización en tiempo real
+    const alertInterval = setInterval(() => {
+      api.get('/hospitalization/alerts')
+        .then(r => setHospAlerts(r.data))
+        .catch(() => {});
+    }, 60000);
+    return () => clearInterval(alertInterval);
   }, [selectedDate]);
 
   const handleRefreshAll = () => {
@@ -390,6 +407,112 @@ const Dashboard = ({ defaultTab }) => {
 
         </div>
       </div>
+
+      {/* ── AVISO DE HOSPITALIZACIÓN: BALONES POR AGOTARSE (≤ 2 HORAS) ── */}
+      {hospAlerts && hospAlerts.total_alerts > 0 && !dismissHospAlert && (
+        <div className="relative overflow-hidden rounded-3xl p-0.5 bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 shadow-lg shadow-red-500/10 animate-fadeIn">
+          <div className="bg-white rounded-[23px] p-4 sm:p-5">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              
+              <div className="flex items-start sm:items-center gap-3.5">
+                <div className="p-3 bg-red-100 text-red-600 rounded-2xl shrink-0 animate-bounce">
+                  <MdNotificationsActive className="text-2xl" />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-100 text-red-700 border border-red-300 animate-pulse">
+                      Alerta Prioritaria
+                    </span>
+                    <span className="text-xs font-bold text-slate-500">
+                      Control de Oxígeno en Hospitalización
+                    </span>
+                  </div>
+                  <h2 className="text-base sm:text-lg font-black text-slate-900 mt-1">
+                    {hospAlerts.total_alerts} balón{hospAlerts.total_alerts > 1 ? 'es' : ''} de oxígeno requiere{hospAlerts.total_alerts > 1 ? 'n' : ''} cambio urgente (≤ 2 horas de autonomía)
+                  </h2>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                    Se detectaron balones asignados a camas con autonomía crítica. Se recomienda el recambio inmediato para evitar desabastecimiento.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 self-end md:self-center shrink-0">
+                <button
+                  onClick={() => navigate('/reports/hospitalization-control')}
+                  className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-red-600/20 flex items-center gap-2 active:scale-95 cursor-pointer"
+                >
+                  <MdLocalHospital className="text-base" />
+                  <span>Atender en Hospitalización</span>
+                  <MdArrowForward className="text-sm" />
+                </button>
+                <button
+                  onClick={() => setDismissHospAlert(true)}
+                  title="Ocultar aviso temporalmente"
+                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
+                >
+                  <MdClose className="text-lg" />
+                </button>
+              </div>
+
+            </div>
+
+            {/* Fila de balones críticos */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 mt-4 pt-4 border-t border-slate-100">
+              {hospAlerts.alerts?.map((al, idx) => {
+                const totalMins = Math.floor((al.remaining_hours || 0) * 60);
+                const h = Math.floor(totalMins / 60);
+                const m = totalMins % 60;
+                const timeText = al.remaining_hours <= 0 ? '0h (Agotado)' : (h > 0 ? `${h}h ${m}m` : `${m} min`);
+
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => navigate('/reports/hospitalization-control')}
+                    className={`p-3 rounded-2xl border transition-all cursor-pointer hover:shadow-sm flex items-center justify-between gap-3 ${
+                      al.status === 'depleted'
+                        ? 'bg-slate-900 border-rose-500 text-white'
+                        : al.status === 'critical'
+                        ? 'bg-rose-50 border-rose-200 hover:bg-rose-100'
+                        : 'bg-amber-50 border-amber-200 hover:bg-amber-100'
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-xs font-black uppercase ${al.status === 'depleted' ? 'text-rose-400' : 'text-slate-900'}`}>
+                          Cama {al.bed_number || '?'}
+                        </span>
+                        <span className={`text-[10px] truncate max-w-[100px] ${al.status === 'depleted' ? 'text-slate-400' : 'text-slate-500'}`}>
+                          {al.service_name || 'Hospitalización'}
+                        </span>
+                      </div>
+                      <p className={`text-[11px] font-mono font-bold truncate mt-0.5 ${al.status === 'depleted' ? 'text-slate-300' : 'text-slate-700'}`}>
+                        {al.serial_number} · {al.capacity || 10}m³
+                      </p>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <span className={`inline-block px-2 py-0.5 rounded-lg text-xs font-black ${
+                        al.status === 'depleted'
+                          ? 'bg-rose-500 text-white animate-pulse'
+                          : al.status === 'critical'
+                          ? 'bg-red-600 text-white animate-pulse'
+                          : 'bg-amber-500 text-white'
+                      }`}>
+                        {timeText}
+                      </span>
+                      <p className={`text-[9px] font-bold mt-0.5 ${
+                        al.status === 'depleted' ? 'text-rose-300' : al.status === 'critical' ? 'text-red-700' : 'text-amber-800'
+                      }`}>
+                        {al.status === 'depleted' ? 'Sin oxígeno' : al.status === 'critical' ? 'Cambio urgente' : 'Cambiar pronto'}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── 2. KPI RIBBON: TARJETAS EJECUTIVAS ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
