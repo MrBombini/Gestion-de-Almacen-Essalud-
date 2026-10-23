@@ -107,6 +107,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::get('/patient-alerts', [ReportController::class, 'patientAlerts']);
             Route::get('/hospitalization-control', [ReportController::class, 'hospitalizationControl']);
             Route::get('/executive-consumption', [ReportController::class, 'executiveConsumption']);
+            Route::get('/monthly-summary', [ReportController::class, 'monthlySummary']);
+            Route::get('/monthly-entries', [ReportController::class, 'monthlyEntries']);
         });
 
         // Hospitalization Module

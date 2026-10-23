@@ -681,22 +681,31 @@ const Cylinders = () => {
       </Modal>
 
       {/* ── MODAL PRINCIPAL: Crear / Editar cilindro ── */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? 'Editar Cilindro' : 'Nuevo Cilindro'} maxWidth="max-w-xl">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? 'Editar Cilindro' : 'Nuevo Cilindro'} maxWidth="max-w-2xl">
         <form onSubmit={handleSubmit} className="space-y-4">
 
           {/* Códigos */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Código del Balón <span className="text-red-500">*</span></label>
-              <input type="text" required value={formData.serial_number}
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1">
+                Código del Balón <span className="text-red-500">*</span>
+              </label>
+              <input 
+                type="text" 
+                required 
+                value={formData.serial_number}
                 onChange={(e) => setFormData({ ...formData, serial_number: e.target.value.toUpperCase() })}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg uppercase outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 placeholder="Ej: OX-00001"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Código de Barras <span className="text-slate-400 font-normal text-xs">(Opcional)</span></label>
-              <input type="text" value={formData.barcode}
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1">
+                Código de Barras <span className="text-slate-400 font-normal text-xs">(Opcional)</span>
+              </label>
+              <input 
+                type="text" 
+                value={formData.barcode}
                 onChange={(e) => setFormData({ ...formData, barcode: e.target.value.toUpperCase() })}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg uppercase outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 placeholder="Solo externos"
@@ -705,11 +714,15 @@ const Cylinders = () => {
           </div>
 
           {/* Gas y Capacidad */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Tipo de Gas</label>
-              <select required value={formData.gas_type} onChange={(e) => setFormData({ ...formData, gas_type: e.target.value })}
-                className="w-full px-3 py-2 border border-blue-200 bg-blue-50 font-bold text-blue-800 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1">Tipo de Gas</label>
+              <select 
+                required 
+                value={formData.gas_type} 
+                onChange={(e) => setFormData({ ...formData, gas_type: e.target.value })}
+                className="w-full px-3 py-2 border border-blue-200 bg-blue-50 font-bold text-blue-800 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              >
                 <option value="OXÍGENO MEDICINAL">OXÍGENO MEDICINAL</option>
                 <option value="NITRÓGENO">NITRÓGENO</option>
                 <option value="AIRE COMPRIMIDO">AIRE COMPRIMIDO</option>
@@ -717,8 +730,14 @@ const Cylinders = () => {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Capacidad (m³) <span className="text-red-500">*</span></label>
-              <input type="number" step="0.01" required value={formData.capacity}
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1">
+                Capacidad (m³) <span className="text-red-500">*</span>
+              </label>
+              <input 
+                type="number" 
+                step="0.01" 
+                required 
+                value={formData.capacity}
                 onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 placeholder="Ej: 10"
@@ -727,11 +746,15 @@ const Cylinders = () => {
           </div>
 
           {/* Estado y Ubicación */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Estado</label>
-              <select required value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1">Estado</label>
+              <select 
+                required 
+                value={formData.status} 
+                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              >
                 <option value="empty">VACÍO</option>
                 <option value="full">LLENO</option>
                 <option value="in_use">EN USO</option>
@@ -739,9 +762,13 @@ const Cylinders = () => {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Ubicación</label>
-              <select required value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1">Ubicación</label>
+              <select 
+                required 
+                value={formData.location} 
+                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              >
                 <option value="CENTRAL">CENTRAL</option>
                 <option value="HOSPITALIZACION">HOSPITALIZACIÓN</option>
                 <option value="PADOMI">PADOMI</option>
@@ -754,9 +781,9 @@ const Cylinders = () => {
 
           {/* Selector de servicio actual condicional a la ubicación (Solo visible si es HOSPITALIZACION o PERIFERIE) */}
           {(formData.location === 'HOSPITALIZACION' || formData.location === 'PERIFERIE/CENTROS MEDICOS') && (
-            <div className="p-4 bg-teal-50 rounded-xl border border-teal-100 mt-2">
-              <label className="block text-sm font-semibold text-teal-800 mb-2 flex items-center gap-2">
-                <MdLocationOn /> Asignación Actual (Dónde está ubicado físicamente)
+            <div className="p-3 sm:p-4 bg-teal-50 rounded-xl border border-teal-100">
+              <label className="block text-xs sm:text-sm font-semibold text-teal-800 mb-2 flex items-center gap-2">
+                <MdLocationOn className="text-teal-600 shrink-0" /> Asignación Actual (Dónde está ubicado físicamente)
               </label>
               <Select
                 options={filteredCurrentServices}
@@ -773,9 +800,9 @@ const Cylinders = () => {
 
           {/* Selector de paciente actual condicional a la ubicación (Solo PADOMI) */}
           {formData.location === 'PADOMI' && (
-            <div className="p-4 bg-purple-50 rounded-xl border border-purple-100 mt-2">
-              <label className="block text-sm font-semibold text-purple-800 mb-2 flex items-center gap-2">
-                <MdPerson /> Paciente Asignado (PADOMI)
+            <div className="p-3 sm:p-4 bg-purple-50 rounded-xl border border-purple-100">
+              <label className="block text-xs sm:text-sm font-semibold text-purple-800 mb-2 flex items-center gap-2">
+                <MdPerson className="text-purple-600 shrink-0" /> Paciente Asignado (PADOMI)
               </label>
               <Select
                 options={patientOptions}
@@ -791,74 +818,97 @@ const Cylinders = () => {
           )}
 
           {/* Fecha Prueba Hidrostática y Condición Física */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Fecha P. Hidrostática</label>
-              <input type="date" value={formData.hydrostatic_test_date}
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1">Fecha P. Hidrostática</label>
+              <input 
+                type="date" 
+                value={formData.hydrostatic_test_date}
                 onChange={(e) => setFormData({ ...formData, hydrostatic_test_date: e.target.value })}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Condición Física</label>
-              <select required value={formData.physical_condition} onChange={(e) => setFormData({ ...formData, physical_condition: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1">Condición Física</label>
+              <select 
+                required 
+                value={formData.physical_condition} 
+                onChange={(e) => setFormData({ ...formData, physical_condition: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              >
                 <option value="Good">BUENA</option>
                 <option value="Bad">DEFECTUOSA / MALA</option>
               </select>
             </div>
           </div>
 
-          {/* Proveedor */}
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center gap-1">
-              <MdBusiness className="text-slate-400" /> Proveedor / Marca
-            </label>
-            <Select
-              options={supplierOptions}
-              styles={selectStyles}
-              placeholder="Seleccionar proveedor..."
-              isClearable
-              value={supplierOptions.find(o => o.value === formData.supplier_id) || null}
-              onChange={(s) => setFormData({ ...formData, supplier_id: s?.value || '' })}
-              components={ADDABLE_COMPONENTS}
-              addLabel="+ Añadir Proveedor"
-              onAdd={openQuickSupplier}
-              menuPortalTarget={document.body}
-              menuPosition="fixed"
-            />
-          </div>
+          {/* Proveedor y Tipo de Propiedad (en grid responsive) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div>
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1 flex items-center gap-1">
+                <MdBusiness className="text-slate-400 shrink-0" /> Proveedor / Marca
+              </label>
+              <Select
+                options={supplierOptions}
+                styles={selectStyles}
+                placeholder="Seleccionar proveedor..."
+                isClearable
+                value={supplierOptions.find(o => o.value === formData.supplier_id) || null}
+                onChange={(s) => setFormData({ ...formData, supplier_id: s?.value || '' })}
+                components={ADDABLE_COMPONENTS}
+                addLabel="+ Añadir Proveedor"
+                onAdd={openQuickSupplier}
+                menuPortalTarget={document.body}
+                menuPosition="fixed"
+              />
+            </div>
 
-          {/* Tipo de Propiedad */}
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center gap-1">
-              <MdLabel className="text-slate-400" /> Tipo de Propiedad <span className="text-red-500">*</span>
-            </label>
-            <Select
-              options={ownershipOptions}
-              styles={selectStyles}
-              placeholder="Seleccionar tipo de propiedad..."
-              value={ownershipOptions.find(o => o.value === formData.ownership_type_id) || null}
-              onChange={(s) => setFormData({ ...formData, ownership_type_id: s?.value || '' })}
-              components={ADDABLE_COMPONENTS}
-              addLabel="+ Añadir Tipo de Propiedad"
-              onAdd={openQuickOwnership}
-              menuPortalTarget={document.body}
-              menuPosition="fixed"
-            />
+            <div>
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1 flex items-center gap-1">
+                <MdLabel className="text-slate-400 shrink-0" /> Tipo de Propiedad <span className="text-red-500">*</span>
+              </label>
+              <Select
+                options={ownershipOptions}
+                styles={selectStyles}
+                placeholder="Seleccionar tipo de propiedad..."
+                value={ownershipOptions.find(o => o.value === formData.ownership_type_id) || null}
+                onChange={(s) => setFormData({ ...formData, ownership_type_id: s?.value || '' })}
+                components={ADDABLE_COMPONENTS}
+                addLabel="+ Añadir Tipo de Propiedad"
+                onAdd={openQuickOwnership}
+                menuPortalTarget={document.body}
+                menuPosition="fixed"
+              />
+            </div>
           </div>
 
           {/* Paciente o Servicio */}
           {isCylinderPropio() && (
-            <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 mt-2">
-              <label className="block text-sm font-bold text-blue-700 mb-2 flex items-center gap-2"><MdPerson /> Propietario del Balón</label>
-              <div className="flex gap-4 mb-3">
+            <div className="p-3 sm:p-4 bg-blue-50 rounded-xl border border-blue-100">
+              <label className="block text-xs sm:text-sm font-bold text-blue-700 mb-2 flex items-center gap-2">
+                <MdPerson className="shrink-0" /> Propietario del Balón
+              </label>
+              <div className="flex flex-wrap gap-4 mb-3">
                 <label className="flex items-center gap-2 text-sm text-slate-700 font-medium cursor-pointer">
-                  <input type="radio" name="ownerType" value="patient" checked={ownerType === 'patient'} onChange={() => setOwnerType('patient')} className="w-4 h-4 text-blue-600 focus:ring-blue-500" />
+                  <input 
+                    type="radio" 
+                    name="ownerType" 
+                    value="patient" 
+                    checked={ownerType === 'patient'} 
+                    onChange={() => setOwnerType('patient')} 
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500" 
+                  />
                   Paciente
                 </label>
                 <label className="flex items-center gap-2 text-sm text-slate-700 font-medium cursor-pointer">
-                  <input type="radio" name="ownerType" value="service" checked={ownerType === 'service'} onChange={() => setOwnerType('service')} className="w-4 h-4 text-blue-600 focus:ring-blue-500" />
+                  <input 
+                    type="radio" 
+                    name="ownerType" 
+                    value="service" 
+                    checked={ownerType === 'service'} 
+                    onChange={() => setOwnerType('service')} 
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500" 
+                  />
                   Servicio / Periferia
                 </label>
               </div>
@@ -891,12 +941,21 @@ const Cylinders = () => {
             </div>
           )}
 
-          <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4 border-t border-slate-100 mt-6">
-            <button type="button" onClick={() => setIsModalOpen(false)} className="w-full sm:w-auto px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors text-sm order-2 sm:order-1">
+          {/* Botones de acción */}
+          <div className="sticky bottom-0 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 px-4 sm:px-6 py-3 bg-white/95 backdrop-blur-sm border-t border-slate-200 mt-6 flex flex-col-reverse sm:flex-row justify-end gap-2 z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+            <button 
+              type="button" 
+              onClick={() => setIsModalOpen(false)} 
+              className="w-full sm:w-auto px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors text-sm"
+            >
               Cancelar
             </button>
-            <button type="submit" disabled={actionLoading} className="w-full sm:w-auto px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors text-sm disabled:opacity-50 order-1 sm:order-2">
-              {actionLoading ? 'Guardando...' : 'Guardar Cilindro'}
+            <button 
+              type="submit" 
+              disabled={actionLoading} 
+              className="w-full sm:w-auto px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors text-sm disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
+            >
+              {actionLoading ? 'Guardando...' : (editingId ? 'Actualizar Cilindro' : 'Guardar Cilindro')}
             </button>
           </div>
         </form>

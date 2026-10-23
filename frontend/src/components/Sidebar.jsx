@@ -181,6 +181,8 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
         { to: '/reports/hospitalization-control', label: 'Control Hospitalización', icon: MdLocalHospital },
         { to: '/reports/cylinder-tracking', label: 'Seguimiento Cilindros', icon: MdRadar },
         { to: '/reports/control-format', label: 'Formatos de Control', icon: MdPrint },
+        { to: '/reports/monthly-resumen', label: 'Resumen Mensual', icon: MdBarChart },
+        { to: '/reports/monthly-entries', label: 'Ingresos Mensuales', icon: MdLocalShipping },
       ]
     }
   ], [isDarkTheme]);
