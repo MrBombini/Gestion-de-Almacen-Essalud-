@@ -551,7 +551,11 @@ class ReportController extends Controller
             $query->where('movement_at', '<', $end);
         }
         if ($type) {
-            $query->where('type', $type);
+            if (str_contains($type, ',')) {
+                $query->whereIn('type', array_filter(explode(',', $type)));
+            } else {
+                $query->where('type', $type);
+            }
         }
         if ($search) {
             $query->where(function($q) use ($search) {

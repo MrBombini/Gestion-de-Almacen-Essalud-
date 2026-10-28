@@ -272,9 +272,6 @@ const Exchange = () => {
     } else if (operationType === 'Assignment') {
       if (!formData.cylinder_out) return setErrorMessage('Para una Asignación inicial, debes seleccionar el balón lleno a entregar.');
       if (formData.cylinder_in) return setErrorMessage('En Asignación inicial no se debe registrar balón vacío recibido.');
-    } else if (operationType === 'Return') {
-      if (!formData.cylinder_in) return setErrorMessage('Para una Devolución final, debes seleccionar el balón vacío a recibir.');
-      if (formData.cylinder_out) return setErrorMessage('En Devolución final no se debe registrar balón lleno entregado.');
     }
 
     try {
@@ -633,10 +630,9 @@ const Exchange = () => {
             <div className="flex flex-col sm:flex-row p-1 bg-slate-100 rounded-xl w-full gap-1">
               <button type="button" onClick={() => { setOperationType('Exchange'); setFormData({...formData, cylinder_in: '', cylinder_out: ''}); setSelectedCylInOption(null); setSelectedCylOutOption(null); }} className={`flex-1 px-2 py-2 rounded-lg text-xs font-bold transition-all text-center ${operationType === 'Exchange' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200'}`}>🔄 Intercambio</button>
               <button type="button" onClick={() => { setOperationType('Assignment'); setFormData({...formData, cylinder_in: ''}); setSelectedCylInOption(null); }} className={`flex-1 px-2 py-2 rounded-lg text-xs font-bold transition-all text-center ${operationType === 'Assignment' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200'}`}>📤 Asignación</button>
-              <button type="button" onClick={() => { setOperationType('Return'); setFormData({...formData, cylinder_out: ''}); setSelectedCylOutOption(null); }} className={`flex-1 px-2 py-2 rounded-lg text-xs font-bold transition-all text-center ${operationType === 'Return' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-slate-200'}`}>📥 Devolución</button>
             </div>
 
-            <div className={operationType === 'Return' ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}>
+            <div>
               <label className="block text-sm font-semibold text-emerald-700 mb-1 font-mono uppercase tracking-wider">Cilindro ENTREGADO (Lleno)</label>
               <AsyncSelect
                 cacheOptions

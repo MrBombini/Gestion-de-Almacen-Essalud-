@@ -638,4 +638,202 @@ export const printPeripheryGuide = (mov, currentUser) => {
   printWindow.document.close();
 };
 
+/**
+ * IMPRESIÓN DE ETIQUETA TÉRMICA ADHESIVA (76mm × 76mm) PARA DEVOLUCIÓN DE PACIENTE
+ */
+export const printThermalReturnLabel = (returnData, currentUser) => {
+  if (!returnData) return;
+
+  const patient = returnData.patient || {};
+  const operator = returnData.user || currentUser || {};
+
+  const rawDate = returnData.movement_at || returnData.date ? new Date(returnData.movement_at || returnData.date) : new Date();
+  const formattedDate = `${rawDate.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })} ${rawDate.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}`;
+
+  const attentionNum = returnData.attention_number || returnData.id || '-';
+
+  const cylinderMovements = returnData.cylinder_movements || [];
+  const cylinder = returnData.cylinder || cylinderMovements.find(m => m.action === 'Entry')?.cylinder || cylinderMovements[0]?.cylinder || {};
+  const cylinderStatus = cylinderMovements.find(m => m.action === 'Entry')?.cylinder_status || cylinder.status || 'empty';
+  const statusEs = cylinderStatus === 'empty' ? 'VACÍO' : 'LLENO';
+  const propName = cylinder.ownership_type?.name || cylinder.ownership_type_name || 'ESSALUD';
+  const reason = returnData.reason || '';
+
+  const printWindow = window.open('', '', 'width=400,height=600');
+  if (!printWindow) return;
+
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Devolución N° ${attentionNum}</title>
+        <style>
+          @page {
+            size: 76mm 76mm;
+            margin: 0 !important;
+          }
+          body { 
+            font-family: Arial, Helvetica, sans-serif; 
+            margin: 0; 
+            padding: 3.5mm 3.5mm;
+            color: #000;
+            width: 74mm;
+            height: 74mm;
+            box-sizing: border-box;
+            font-size: 10px;
+            line-height: 1.25;
+            overflow: hidden;
+          }
+          .ticket-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-sizing: border-box;
+          }
+          .ticket-header { 
+            text-align: center; 
+            border-bottom: 1.5px solid #000; 
+            padding-bottom: 2px;
+            margin-bottom: 2px;
+          }
+          .ticket-header h3 {
+            margin: 0;
+            font-size: 12.5px;
+            font-weight: 900;
+            letter-spacing: 0.3px;
+          }
+          .badge-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 4px;
+            margin-top: 1px;
+          }
+          .ticket-badge {
+            display: inline-block;
+            font-size: 9.5px;
+            font-weight: 900;
+            border: 1px solid #000;
+            padding: 0 4px;
+            border-radius: 2px;
+          }
+          .ticket-body {
+            flex-grow: 1;
+          }
+          .line { 
+            margin-bottom: 1.5px; 
+            font-size: 10px; 
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+          .bold { 
+            font-weight: bold; 
+          }
+          .section-title {
+            font-weight: bold;
+            font-size: 9.5px;
+            border-bottom: 1px dashed #000;
+            margin-top: 3px;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .cyl-card {
+            border: 1px solid #000;
+            border-radius: 3px;
+            padding: 2.5px 4px;
+            margin: 2px 0;
+            background: #fafafa;
+          }
+          .cylinder-number {
+            font-weight: 900;
+            font-size: 12px;
+          }
+          .cyl-detail {
+            font-size: 9.5px;
+            display: flex;
+            justify-content: space-between;
+            margin-top: 1px;
+            border-top: 0.5px dashed #aaa;
+            padding-top: 1px;
+          }
+          .ticket-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-top: 2px;
+            border-top: 1px dashed #000;
+            padding-top: 2px;
+          }
+          .footer-info {
+            font-size: 8.5px;
+            line-height: 1.2;
+          }
+          .signatures { 
+            width: 32mm; 
+            font-size: 8px;
+            text-align: center;
+          }
+          .sign-line { 
+            border-top: 1px solid #000; 
+            padding-top: 1px;
+            margin-top: 10px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="ticket-container">
+          <div class="ticket-header">
+            <h3>DEVOLUCIÓN DE PACIENTE</h3>
+            <div class="badge-row">
+              <span class="ticket-badge">CONTROL N° ${attentionNum}</span>
+              ${reason ? `<span class="ticket-badge" style="background:#000; color:#fff;">${reason.toUpperCase()}</span>` : ''}
+            </div>
+          </div>
+          
+          <div class="ticket-body">
+            <div class="line"><span class="bold">Paciente:</span> ${patient.full_name || '-'}</div>
+            <div class="line"><span class="bold">Cód / DNI:</span> ${patient.exchange_code || patient.dni || '-'}</div>
+            <div class="line"><span class="bold">Dirección:</span> ${patient.address || '-'}</div>
+
+            <div class="section-title">Balón Devuelto (Recepción)</div>
+            <div class="cyl-card">
+              <div class="line" style="margin-bottom: 0;">
+                <span class="bold">SERIE:</span> <span class="cylinder-number">${cylinder.serial_number || 'S/N'}</span>
+              </div>
+              <div class="cyl-detail">
+                <span>Cap: <b>${cylinder.capacity ? `${cylinder.capacity} m³` : '-'}</b></span>
+                <span>Prop: <b>${propName}</b></span>
+                <span>Est: <b>${statusEs}</b></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="ticket-footer">
+            <div class="footer-info">
+              <div class="line"><span class="bold">Op:</span> ${operator.name || '-'}</div>
+              <div class="line"><span class="bold">Fecha:</span> ${formattedDate}</div>
+            </div>
+            <div class="signatures">
+              <div class="sign-line">
+                <div><b>Firma / DNI</b></div>
+                <div>Entregó el balón</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => {
+    printWindow.print();
+    printWindow.close();
+  }, 250);
+};
+
+
   

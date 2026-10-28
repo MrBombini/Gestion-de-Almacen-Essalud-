@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { MdPrint, MdDownload, MdSearch, MdReceipt, MdDateRange, MdNavigateBefore, MdNavigateNext, MdOutlineClear } from 'react-icons/md';
 import useFetch from '../../hooks/useFetch';
+import { printThermalReturnLabel } from '../../utils/printTemplates';
 
 // Obtiene la fecha local de Perú exacta YYYY-MM-DD
 const getLocalYYYYMMDD = () => {
@@ -11,6 +12,7 @@ const getLocalYYYYMMDD = () => {
 const ControlAtencion = () => {
   const [selectedDate, setSelectedDate] = useState(getLocalYYYYMMDD());
   const [filterByDate, setFilterByDate] = useState(true);
+  const [typeFilter, setTypeFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -28,7 +30,7 @@ const ControlAtencion = () => {
 
   // Construir URL reactiva
   const queryParams = new URLSearchParams();
-  queryParams.append('type', 'Exchange');
+  queryParams.append('type', typeFilter === 'all' ? 'Exchange,PatientReturn' : typeFilter);
   queryParams.append('page', currentPage);
   queryParams.append('per_page', 20);
   if (filterByDate && selectedDate) {
@@ -42,10 +44,10 @@ const ControlAtencion = () => {
 
   useEffect(() => {
     execute({ url: `/reports/kardex?${queryParams.toString()}` });
-  }, [selectedDate, filterByDate, debouncedSearch, currentPage]);
+  }, [selectedDate, filterByDate, debouncedSearch, currentPage, typeFilter]);
 
   const rawList = Array.isArray(responseData) ? responseData : (responseData?.data || []);
-  const exchanges = rawList.filter(mov => mov.type === 'Exchange' && mov.patient);
+  const exchanges = rawList.filter(mov => (mov.type === 'Exchange' || mov.type === 'PatientReturn') && mov.patient);
 
   const paginationMeta = responseData && responseData.total !== undefined ? {
     currentPage: responseData.current_page || 1,
@@ -79,12 +81,19 @@ const ControlAtencion = () => {
   // Buscar cilindros: Entry (Vacío que devuelve) y Exit (Lleno que se lleva)
   const cylinderMovements = selectedTicket?.cylinder_movements || [];
   const cylinderOut = cylinderMovements.find(m => m.action === 'Exit')?.cylinder || {};
-  const cylinderIn = cylinderMovements.find(m => m.action === 'Entry')?.cylinder || {};
+  const cylinderInMovement = cylinderMovements.find(m => m.action === 'Entry') || cylinderMovements[0] || {};
+  const cylinderIn = cylinderInMovement?.cylinder || {};
+  const cylinderInStatus = cylinderInMovement?.cylinder_status || cylinderIn.status || 'empty';
 
   // ==========================================
   // FUNCIÓN 1: IMPRIMIR (Formato Etiqueta 76*76mm)
   // ==========================================
   const handlePrint = () => {
+    if (!selectedTicket) return;
+    if (selectedTicket.type === 'PatientReturn') {
+      printThermalReturnLabel(selectedTicket, user);
+      return;
+    }
     if (!ticketRef.current) return;
     const printContent = ticketRef.current.outerHTML;
     const printWindow = window.open('', '', 'width=400,height=600');
@@ -273,6 +282,31 @@ const ControlAtencion = () => {
               </button>
             </div>
 
+            {/* Selector de Tipo (Todos / Intercambios / Devoluciones) */}
+            <div className="flex p-0.5 bg-slate-200/80 rounded-lg text-[11px] font-bold">
+              <button
+                type="button"
+                onClick={() => { setTypeFilter('all'); setCurrentPage(1); }}
+                className={`flex-1 py-1 text-center rounded-md transition-all ${typeFilter === 'all' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                Todos
+              </button>
+              <button
+                type="button"
+                onClick={() => { setTypeFilter('Exchange'); setCurrentPage(1); }}
+                className={`flex-1 py-1 text-center rounded-md transition-all ${typeFilter === 'Exchange' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                Intercambios
+              </button>
+              <button
+                type="button"
+                onClick={() => { setTypeFilter('PatientReturn'); setCurrentPage(1); }}
+                className={`flex-1 py-1 text-center rounded-md transition-all ${typeFilter === 'PatientReturn' ? 'bg-white text-rose-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                Devoluciones
+              </button>
+            </div>
+
             {/* Buscador Global (N° Atención, Ticket o Paciente) */}
             <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-300 focus-within:ring-2 focus-within:ring-indigo-500 transition-shadow">
               <MdSearch className="text-slate-400 text-lg shrink-0" />
@@ -316,9 +350,14 @@ const ControlAtencion = () => {
                 }`}
               >
                 <div className="flex justify-between items-start mb-1">
-                  <span className="font-bold text-slate-800 text-xs">
-                    N° {mov.attention_number || mov.id}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-slate-800 text-xs">
+                      N° {mov.attention_number || mov.id}
+                    </span>
+                    <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded uppercase ${mov.type === 'PatientReturn' ? 'bg-rose-100 text-rose-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                      {mov.type === 'PatientReturn' ? 'Devolución' : 'Canje'}
+                    </span>
+                  </div>
                   <span className="text-[11px] font-semibold text-slate-500">
                     {new Date(mov.movement_at).toLocaleDateString('es-PE')}
                   </span>
@@ -395,8 +434,18 @@ const ControlAtencion = () => {
                   {/* Cabecera */}
                   <div className="ticket-header border-b-2 border-black pb-1 mb-2 text-center">
                     <h3 className="text-sm font-bold tracking-wide">
-                      CONTROL DE ATENCIÓN N° {selectedTicket.attention_number || selectedTicket.id}
+                      {selectedTicket?.type === 'PatientReturn' ? 'DEVOLUCIÓN DE PACIENTE' : `CONTROL DE ATENCIÓN N° ${selectedTicket.attention_number || selectedTicket.id}`}
                     </h3>
+                    {selectedTicket?.type === 'PatientReturn' && (
+                      <div className="text-[11px] font-bold mt-0.5 flex justify-center items-center gap-2">
+                        <span>CONTROL N° {selectedTicket.attention_number || selectedTicket.id}</span>
+                        {selectedTicket.reason && (
+                          <span className="bg-black text-white px-1.5 py-0.5 rounded text-[10px] uppercase">
+                            {selectedTicket.reason}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Cuerpo */}
@@ -412,32 +461,48 @@ const ControlAtencion = () => {
                       <span className="bold font-bold">Dirección:</span> {patient.address || '-'}
                     </div>
 
-                    {/* Tabla de Cilindros */}
-                    <table className="w-full text-left border-collapse my-2 text-xs">
-                      <thead>
-                        <tr>
-                          <th className="border-b border-dashed border-black pb-1 underline font-bold">Cod.</th>
-                          <th className="border-b border-dashed border-black pb-1 underline font-bold">Prop.</th>
-                          <th className="border-b border-dashed border-black pb-1 underline font-bold">Cap.</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td className="py-1">
-                            B. LLENO: <span className="cylinder-number font-bold text-sm">{cylinderOut.serial_number || 'N/A'}</span>
-                          </td>
-                          <td className="py-1">{cylinderOut.ownership_type_name || 'N/A'}</td>
-                          <td className="py-1">{cylinderOut.capacity ? `${cylinderOut.capacity} m3` : '-'}</td>
-                        </tr>
-                        <tr>
-                          <td className="py-1">
-                            B. VACÍO: <span className="cylinder-number font-bold text-sm">{cylinderIn.serial_number || 'N/A'}</span>
-                          </td>
-                          <td className="py-1">{cylinderIn.ownership_type_name || 'N/A'}</td>
-                          <td className="py-1">{cylinderIn.capacity ? `${cylinderIn.capacity} m3` : '-'}</td>
-                        </tr>
-                      </tbody>
-                    </table>
+                    {selectedTicket?.type === 'PatientReturn' ? (
+                      <div className="my-2 border border-black rounded p-2 bg-slate-50 text-xs">
+                        <div className="font-bold border-b border-dashed border-black pb-1 mb-1 text-[11px] uppercase">
+                          Balón Devuelto (Recepción)
+                        </div>
+                        <div className="font-bold text-sm">
+                          SERIE: {cylinderIn.serial_number || 'S/N'}
+                        </div>
+                        <div className="flex justify-between text-[11px] mt-1 pt-1 border-t border-dashed border-slate-300">
+                          <span>Cap: <b>{cylinderIn.capacity ? `${cylinderIn.capacity} m³` : '-'}</b></span>
+                          <span>Prop: <b>{cylinderIn.ownership_type?.name || cylinderIn.ownership_type_name || 'ESSALUD'}</b></span>
+                          <span>Est: <b>{cylinderInStatus === 'empty' ? 'VACÍO' : 'LLENO'}</b></span>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Tabla de Cilindros Intercambio */
+                      <table className="w-full text-left border-collapse my-2 text-xs">
+                        <thead>
+                          <tr>
+                            <th className="border-b border-dashed border-black pb-1 underline font-bold">Cod.</th>
+                            <th className="border-b border-dashed border-black pb-1 underline font-bold">Prop.</th>
+                            <th className="border-b border-dashed border-black pb-1 underline font-bold">Cap.</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td className="py-1">
+                              B. LLENO: <span className="cylinder-number font-bold text-sm">{cylinderOut.serial_number || 'N/A'}</span>
+                            </td>
+                            <td className="py-1">{cylinderOut.ownership_type_name || 'N/A'}</td>
+                            <td className="py-1">{cylinderOut.capacity ? `${cylinderOut.capacity} m3` : '-'}</td>
+                          </tr>
+                          <tr>
+                            <td className="py-1">
+                              B. VACÍO: <span className="cylinder-number font-bold text-sm">{cylinderIn.serial_number || 'N/A'}</span>
+                            </td>
+                            <td className="py-1">{cylinderIn.ownership_type_name || 'N/A'}</td>
+                            <td className="py-1">{cylinderIn.capacity ? `${cylinderIn.capacity} m3` : '-'}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    )}
                   </div>
 
                   {/* Pie de página */}

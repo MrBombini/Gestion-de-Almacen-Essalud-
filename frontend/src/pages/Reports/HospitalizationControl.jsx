@@ -25,14 +25,15 @@ import api from '../../services/api';
 const VOLUME_MAP = { 2: 12, 4: 23, 6: 35, 8: 47, 10: 58, 14: 80, 40: 200 };
 
 function calcEstimatedHours(pressurePsi, flowLmin, capacityM3) {
-  if (!pressurePsi || !flowLmin || flowLmin <= 0) return '';
+  // flowLmin === 0 significa que el balón no está en uso activo; no calculamos autonomía
+  if (!pressurePsi || flowLmin === null || flowLmin === '' || parseFloat(flowLmin) <= 0) return '';
   const caps = Object.keys(VOLUME_MAP).map(Number);
   const closest = caps.reduce((a, b) =>
     Math.abs(a - capacityM3) < Math.abs(b - capacityM3) ? a : b
   );
   const volL = VOLUME_MAP[closest] ?? 50;
   const pressureBar = pressurePsi / 14.5038;
-  return Math.round((volL * pressureBar) / (flowLmin * 60) * 10) / 10;
+  return Math.round((volL * pressureBar) / (parseFloat(flowLmin) * 60) * 10) / 10;
 }
 
 // ─────────────────────────────────────────────
@@ -56,6 +57,8 @@ export function getDynamicAutonomy(cyl, currentTime = Date.now()) {
   }
 
   const lastReading = cyl.last_reading;
+
+  // Sin lectura o sin estimated_hours → sin datos
   if (!lastReading || lastReading.estimated_hours === undefined || lastReading.estimated_hours === null || lastReading.estimated_hours === '') {
     return {
       isEditing: false,
@@ -65,6 +68,35 @@ export function getDynamicAutonomy(cyl, currentTime = Date.now()) {
       display: '—',
       formattedTime: '—',
       alertLevel: null
+    };
+  }
+
+  // Flujo 0 → balón sin uso activo, no es "agotado"
+  const flowSaved = parseFloat(lastReading.flow_lmin);
+  if (!isNaN(flowSaved) && flowSaved === 0) {
+    return {
+      isEditing: false,
+      remainingHours: null,
+      rawRemainingHours: null,
+      status: 'no_flow',
+      display: 'Sin flujo',
+      formattedTime: 'Sin flujo',
+      alertLevel: null,
+      readAt: lastReading.read_at
+    };
+  }
+
+  // estimated_hours explícitamente 0 pero sin flujo registrado → tratar como sin datos
+  if (parseFloat(lastReading.estimated_hours) === 0 && (lastReading.flow_lmin === 0 || lastReading.flow_lmin === '0' || lastReading.flow_lmin === null)) {
+    return {
+      isEditing: false,
+      remainingHours: null,
+      rawRemainingHours: null,
+      status: 'no_flow',
+      display: 'Sin flujo',
+      formattedTime: 'Sin flujo',
+      alertLevel: null,
+      readAt: lastReading.read_at
     };
   }
 
@@ -132,6 +164,7 @@ function getTimeStyle(autonomyOrHours) {
   if (typeof autonomyOrHours === 'object' && autonomyOrHours !== null) {
     const { status, isEditing } = autonomyOrHours;
     if (isEditing) return 'bg-blue-100 text-blue-800 ring-1 ring-blue-400 font-bold';
+    if (status === 'no_flow') return 'bg-slate-100 text-slate-500 font-semibold ring-1 ring-slate-300';
     if (status === 'depleted') return 'bg-slate-900 text-rose-300 font-black animate-pulse ring-2 ring-rose-500';
     if (status === 'critical') return 'bg-red-100 text-red-800 font-black animate-pulse ring-2 ring-red-500';
     if (status === 'warning') return 'bg-amber-100 text-amber-800 font-black ring-2 ring-amber-400';
@@ -655,17 +688,24 @@ const HospitalizationControl = () => {
     updated[idx].is_editing = true;
 
     const psi   = parseFloat(updated[idx].presion_psi) || 0;
-    const lmin  = parseFloat(updated[idx].flujo_lmin)  || 0;
+    // flujo puede ser 0 (balón no activo), solo calculamos si flujo > 0
+    const lminRaw = updated[idx].flujo_lmin;
+    const lmin  = lminRaw !== '' && lminRaw !== null ? parseFloat(lminRaw) : null;
     const cap   = parseFloat(updated[idx].capacity)     || 10;
-    updated[idx].tiempo_horas = psi > 0 && lmin > 0 ? calcEstimatedHours(psi, lmin, cap) : '';
+    updated[idx].tiempo_horas = psi > 0 && lmin !== null && lmin > 0
+      ? calcEstimatedHours(psi, lmin, cap)
+      : '';
 
     setLocalData(updated);
   };
 
   // ── Guardar lectura en el backend con Toast ──
   const handleSaveReading = async (cyl) => {
-    if (!cyl.presion_psi || !cyl.flujo_lmin) {
-      showToast('warning', 'Lectura Incompleta', 'Por favor ingresa la presión (PSI) y el flujo (L/min) antes de guardar.');
+    // Solo se requiere la presión PSI; el flujo puede ser 0 (balón no activo)
+    const psiVal = cyl.presion_psi !== '' && cyl.presion_psi !== null && cyl.presion_psi !== undefined;
+    const flujoVal = cyl.flujo_lmin !== '' && cyl.flujo_lmin !== null && cyl.flujo_lmin !== undefined;
+    if (!psiVal || !flujoVal) {
+      showToast('warning', 'Lectura Incompleta', 'Por favor ingresa la presión (PSI) y el flujo (L/min). Puedes poner flujo 0 si el balón no está en uso activo.');
       return;
     }
     setSavingId(cyl.id);
@@ -702,10 +742,14 @@ const HospitalizationControl = () => {
           }
         } : c
       ));
+      const flujoGuardado = parseFloat(cyl.flujo_lmin);
+      const sinFlujo = !isNaN(flujoGuardado) && flujoGuardado === 0;
       showToast(
         'success', 
         '¡Lectura Guardada Exitosamente!', 
-        `Cilindro ${cyl.serial_number}: Presión registrada. Autonomía calculada: ${horas} horas.`
+        sinFlujo
+          ? `Cilindro ${cyl.serial_number}: Presión registrada. Sin flujo activo (balón sin uso).`
+          : `Cilindro ${cyl.serial_number}: Presión registrada. Autonomía calculada: ${horas} horas.`
       );
     } catch (err) {
       showToast('error', 'Error al Guardar', err?.response?.data?.message || 'Error al guardar la lectura de presión.');
@@ -1108,10 +1152,14 @@ const HospitalizationControl = () => {
               {/* Acciones */}
               <td className="border border-black p-1 no-print">
                 <div className="flex items-center justify-center gap-1">
-                  {/* Guardar lectura */}
+                  {/* Guardar lectura: habilitado si hay PSI y flujo definido (incluyendo 0) */}
                   <button
                     onClick={() => handleSaveReading(cyl)}
-                    disabled={isSaving || !cyl.presion_psi || !cyl.flujo_lmin}
+                    disabled={
+                      isSaving ||
+                      cyl.presion_psi === '' || cyl.presion_psi === null || cyl.presion_psi === undefined ||
+                      cyl.flujo_lmin === '' || cyl.flujo_lmin === null || cyl.flujo_lmin === undefined
+                    }
                     title="Guardar lectura"
                     className="p-1 rounded bg-green-100 hover:bg-green-200 text-green-700 disabled:opacity-40 transition-colors"
                   >
@@ -1315,9 +1363,9 @@ const HospitalizationControl = () => {
       )}
 
       {!loading && !error && (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
+        <div className="bg-white p-3 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
           {/* Filtros */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200">
+          <div className="flex flex-col sm:flex-row gap-3 mb-5 bg-slate-50 p-3 sm:p-4 rounded-xl border border-slate-200">
             <div className="flex-1">
               <label className="block text-xs font-bold text-slate-600 mb-1">Filtrar por Servicio:</label>
               <select
@@ -1342,10 +1390,10 @@ const HospitalizationControl = () => {
               </select>
             </div>
             <div className="flex-1">
-              <label className="block text-xs font-bold text-slate-600 mb-1">Buscar Cilindro / Código de Barras:</label>
+              <label className="block text-xs font-bold text-slate-600 mb-1">Buscar Cilindro / Código:</label>
               <input
                 type="text"
-                placeholder="Escanear código de barras o ingresar serie..."
+                placeholder="Serie o código de barras..."
                 className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none focus:border-blue-500 uppercase font-mono"
                 value={searchCylinder}
                 onChange={e => setSearchCylinder(e.target.value)}
@@ -1353,8 +1401,126 @@ const HospitalizationControl = () => {
             </div>
           </div>
 
-          {/* Tabla imprimible */}
-          <div ref={reportRef} className="min-w-[900px] text-black">
+          {/* ── VISTA MÓVIL: Cards (solo en pantallas pequeñas) ── */}
+          <div className="block sm:hidden space-y-3">
+            {filteredData.length === 0 && (
+              <div className="text-center p-8 text-slate-500 italic">
+                No hay cilindros registrados en uso.
+              </div>
+            )}
+            {filteredData.map((cyl, i) => {
+              const isSaving  = savingId === cyl.id;
+              const autonomy  = autonomiesMap.get(cyl.id) || getDynamicAutonomy(cyl, currentTime);
+              const canSave = (
+                cyl.presion_psi !== '' && cyl.presion_psi !== null && cyl.presion_psi !== undefined &&
+                cyl.flujo_lmin  !== '' && cyl.flujo_lmin  !== null && cyl.flujo_lmin  !== undefined
+              );
+              return (
+                <div
+                  key={cyl.id}
+                  className={`border rounded-xl p-3 shadow-sm ${
+                    autonomy.status === 'depleted'  ? 'border-rose-400 bg-slate-900 text-white' :
+                    autonomy.status === 'critical'  ? 'border-red-300 bg-red-50' :
+                    autonomy.status === 'warning'   ? 'border-amber-300 bg-amber-50' :
+                    'border-slate-200 bg-white'
+                  }`}
+                >
+                  {/* Cabecera de la card */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-black px-2 py-0.5 rounded-md ${
+                        autonomy.status === 'depleted' ? 'bg-rose-800 text-rose-200' : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        Cama {cyl.current_bed?.bed_number || '-'}
+                      </span>
+                      <span className={`text-[10px] truncate max-w-[130px] ${
+                        autonomy.status === 'depleted' ? 'text-slate-400' : 'text-slate-500'
+                      }`}>
+                        {cyl.current_service?.name || '-'}
+                      </span>
+                    </div>
+                    {/* Semáforo de tiempo */}
+                    <div className={`text-xs font-black px-2 py-1 rounded-lg ${getTimeStyle(autonomy)}`}>
+                      {autonomy.display}
+                    </div>
+                  </div>
+
+                  {/* Serie */}
+                  <div
+                    className={`text-[11px] font-mono font-bold mb-2 cursor-pointer hover:underline ${
+                      autonomy.status === 'depleted' ? 'text-indigo-300' : 'text-indigo-700'
+                    }`}
+                    onClick={() => setHistorialCyl(cyl)}
+                  >
+                    {cyl.serial_number} · {cyl.ownership_type?.name || 'ESSALUD'}
+                  </div>
+
+                  {/* Inputs PSI + Flujo */}
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div>
+                      <label className={`block text-[10px] font-bold mb-0.5 ${
+                        autonomy.status === 'depleted' ? 'text-slate-400' : 'text-slate-600'
+                      }`}>Presión (PSI)</label>
+                      <input
+                        type="number"
+                        className="w-full p-2 border border-slate-300 rounded-lg text-sm text-center font-semibold bg-white text-slate-800 outline-none focus:border-blue-500"
+                        value={cyl.presion_psi}
+                        onChange={e => handleInputChange(cyl.id, 'presion_psi', e.target.value)}
+                        placeholder="PSI"
+                        min="0"
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-[10px] font-bold mb-0.5 ${
+                        autonomy.status === 'depleted' ? 'text-slate-400' : 'text-slate-600'
+                      }`}>Flujo (L/min)</label>
+                      <input
+                        type="number"
+                        className="w-full p-2 border border-slate-300 rounded-lg text-sm text-center font-semibold bg-white text-slate-800 outline-none focus:border-blue-500"
+                        value={cyl.flujo_lmin}
+                        onChange={e => handleInputChange(cyl.id, 'flujo_lmin', e.target.value)}
+                        placeholder="0 = sin uso"
+                        min="0"
+                        step="0.1"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Botones de acción */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleSaveReading(cyl)}
+                      disabled={isSaving || !canSave}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg font-bold text-xs transition-colors"
+                    >
+                      {isSaving
+                        ? <span className="animate-spin h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full" />
+                        : <MdSave className="text-base" />
+                      }
+                      <span>Guardar</span>
+                    </button>
+                    <button
+                      onClick={() => setHistorialCyl(cyl)}
+                      className="p-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg transition-colors"
+                      title="Ver historial"
+                    >
+                      <MdHistory className="text-base" />
+                    </button>
+                    <button
+                      onClick={() => setTransferCyl(cyl)}
+                      className="p-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors"
+                      title="Cambiar de cama"
+                    >
+                      <MdSwapHoriz className="text-base" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* ── VISTA ESCRITORIO: Tabla (oculta en móvil) ── */}
+          <div ref={reportRef} className="hidden sm:block overflow-x-auto text-black">
             <h2 className="text-center font-black text-xl mb-6 tracking-wide">
               FORMATO DE CONTROL DE CILINDROS POR SERVICIO HNAGV ESSALUD CUSCO
             </h2>
@@ -1366,7 +1532,7 @@ const HospitalizationControl = () => {
               <div>HORA: <span className="ml-2 font-normal">{getLocalTime()}</span></div>
             </div>
 
-            <div className="flex gap-6">
+            <div className="flex gap-6" style={{ minWidth: '900px' }}>
               <div className="w-1/2">{renderTable(leftCol, 0)}</div>
               <div className="w-1/2">{renderTable(rightCol, half)}</div>
             </div>

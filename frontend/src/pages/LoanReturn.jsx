@@ -2,14 +2,15 @@ import { useState, useCallback, useEffect } from "react";
 import { formatDate } from '../utils/dateUtils';
 import {
   MdBusiness, MdSave, MdAssignment, MdQrCodeScanner, MdHistory,
-  MdPersonOff, MdSearch, MdWarning, MdLocalHospital, MdPersonAdd
+  MdPersonOff, MdSearch, MdWarning, MdLocalHospital, MdPersonAdd,
+  MdPrint, MdDescription
 } from "react-icons/md";
 import AsyncSelect from "react-select/async";
 import Select from "react-select";
 import useFetch from "../hooks/useFetch";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
-import { printReturnReceipt } from "../utils/printTemplates";
+import { printReturnReceipt, printThermalReturnLabel } from "../utils/printTemplates";
 
 const selectStyles = {
   control: (base, state) => ({
@@ -480,35 +481,57 @@ const PatientReturn = ({ shift }) => {
         </div>
       )}
 
-      {/* MODAL IMPRIMIR CONSTANCIA */}
+      {/* MODAL IMPRIMIR CONSTANCIA Y/O ETIQUETA TÉRMICA */}
       {createdReturn && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl p-6 max-w-md w-full border border-slate-100 space-y-6">
-            <div className="text-center space-y-2">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4">
+          <div className="bg-white rounded-3xl shadow-2xl p-6 max-w-md w-full border border-slate-100 space-y-5">
+            <div className="text-center space-y-1">
               <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-3xl font-bold border border-emerald-100 shadow-sm animate-bounce">
                 ✓
               </div>
               <h3 className="text-xl font-black text-slate-800">¡Devolución Registrada!</h3>
-              <p className="text-slate-500 text-sm">Operación N° {createdReturn.id}</p>
+              <p className="text-indigo-600 font-bold text-sm">
+                Control de Atención N° {createdReturn.attention_number || createdReturn.id}
+              </p>
             </div>
 
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/60 text-xs text-slate-700 space-y-3 font-mono shadow-inner">
-              <div className="border-b pb-2 text-center font-bold text-slate-600 tracking-wider">RESUMEN DE CONSTANCIA</div>
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/60 text-xs text-slate-700 space-y-2.5 font-mono shadow-inner">
+              <div className="border-b pb-1.5 text-center font-bold text-slate-600 tracking-wider">RESUMEN DE DEVOLUCIÓN</div>
               <div className="space-y-1">
                 <div><span className="font-sans font-bold text-slate-400">Paciente:</span> {createdReturn.patient?.full_name}</div>
-                <div><span className="font-sans font-bold text-slate-400">Motivo:</span> {createdReturn.reason || createdReturn.notes}</div>
+                <div><span className="font-sans font-bold text-slate-400">Motivo:</span> <span className="font-bold text-rose-600">{createdReturn.reason || createdReturn.notes}</span></div>
               </div>
               <div className="border-t border-dashed pt-2">
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span>BALÓN DEVUELTO: <strong className="font-bold text-slate-800">{createdReturn.cylinder_movements?.[0]?.cylinder?.serial_number}</strong></span>
+                  <span className="text-[10px] bg-slate-200 px-1.5 py-0.5 rounded font-bold">{createdReturn.cylinder_movements?.[0]?.cylinder?.capacity} m³</span>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <button type="button" onClick={() => setCreatedReturn(null)} className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition-all text-sm border border-slate-200/50">Cerrar</button>
-              <button type="button" onClick={() => { printReturnReceipt(createdReturn, user); setCreatedReturn(null); }} className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold transition-all text-sm shadow-md shadow-rose-100 flex items-center justify-center gap-1.5">
-                <MdLocalHospital className="text-lg" /> Imprimir
+            <div className="space-y-2 pt-1">
+              <div className="grid grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => printThermalReturnLabel(createdReturn, user)}
+                  className="py-3 px-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all text-xs shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5"
+                >
+                  <MdPrint className="text-base" /> Etiqueta (76×76)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => printReturnReceipt(createdReturn, user)}
+                  className="py-3 px-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold transition-all text-xs shadow-md shadow-rose-100 flex items-center justify-center gap-1.5"
+                >
+                  <MdDescription className="text-base" /> Constancia A4
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCreatedReturn(null)}
+                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition-all text-xs border border-slate-200"
+              >
+                Cerrar
               </button>
             </div>
           </div>
