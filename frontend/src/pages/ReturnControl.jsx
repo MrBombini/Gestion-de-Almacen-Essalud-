@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { MdPrint, MdSearch, MdDateRange, MdNavigateBefore, MdNavigateNext, MdOutlineClear, MdSettingsBackupRestore, MdLocalHospital, MdPerson } from 'react-icons/md';
+import { MdPrint, MdSearch, MdDateRange, MdNavigateBefore, MdNavigateNext, MdOutlineClear, MdSettingsBackupRestore, MdLocalHospital, MdPerson, MdReceipt } from 'react-icons/md';
 import useFetch from '../hooks/useFetch';
 import { useAuth } from '../context/AuthContext';
-import { printReturnReceipt } from '../utils/printTemplates';
+import { printReturnReceipt, printThermalReturnLabel } from '../utils/printTemplates';
 
 const getLocalYYYYMMDD = () => {
   const tzOffset = (new Date()).getTimezoneOffset() * 60000;
@@ -176,7 +176,7 @@ const ReturnControl = () => {
                         {ret.reason || 'S/M'}
                       </span>
                       <span className="text-[11px] font-mono font-semibold text-slate-600">
-                        OP: {String(ret.id).padStart(5, '0')}
+                        N°: {String(ret.attention_number || ret.id).padStart(5, '0')}
                       </span>
                     </div>
                   </button>
@@ -218,7 +218,7 @@ const ReturnControl = () => {
                   <MdLocalHospital />
                 </div>
                 <h3 className="text-2xl font-black text-slate-800 tracking-tight">Constancia de Devolución</h3>
-                <p className="text-slate-500 font-mono text-sm mt-1">Operación N° {selectedReturn.id}</p>
+                <p className="text-indigo-600 font-bold text-sm mt-1">Control de Atención N° {selectedReturn.attention_number || selectedReturn.id}</p>
               </div>
 
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4 shadow-inner mb-8">
@@ -255,16 +255,22 @@ const ReturnControl = () => {
               </div>
 
               <div className="pt-2">
-                <button
-                  onClick={() => printReturnReceipt(selectedReturn, user)}
-                  className="w-full group relative px-8 py-4 bg-rose-600 text-white rounded-2xl font-black text-lg shadow-xl hover:bg-rose-700 transition-all hover:-translate-y-1 active:translate-y-0 overflow-hidden flex items-center justify-center gap-3"
-                >
-                  <div className="relative z-10 flex items-center gap-2">
-                    <MdPrint className="text-2xl group-hover:scale-110 transition-transform" /> 
-                    IMPRIMIR CONSTANCIA
-                  </div>
-                  <div className="absolute inset-0 bg-gradient-to-r from-red-500 to-rose-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    onClick={() => printThermalReturnLabel(selectedReturn, user)}
+                    className="group relative px-4 py-3.5 bg-indigo-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all hover:-translate-y-0.5 active:translate-y-0 overflow-hidden flex items-center justify-center gap-2"
+                  >
+                    <MdReceipt className="text-xl group-hover:scale-110 transition-transform" /> 
+                    <span>ETIQUETA (76×76)</span>
+                  </button>
+                  <button
+                    onClick={() => printReturnReceipt(selectedReturn, user)}
+                    className="group relative px-4 py-3.5 bg-rose-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-rose-100 hover:bg-rose-700 transition-all hover:-translate-y-0.5 active:translate-y-0 overflow-hidden flex items-center justify-center gap-2"
+                  >
+                    <MdPrint className="text-xl group-hover:scale-110 transition-transform" /> 
+                    <span>CONSTANCIA A4</span>
+                  </button>
+                </div>
               </div>
 
             </div>

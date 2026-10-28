@@ -77,8 +77,8 @@ class InventoryMovementController extends Controller
         return DB::transaction(function () use ($validated) {
             $attentionNumber = null;
             if (!empty($validated['patient_id'])) {
-                $maxAttention = InventoryMovement::where('type', 'Exchange')
-                    ->whereNotNull('patient_id')
+                $maxAttention = InventoryMovement::whereNotNull('patient_id')
+                    ->whereNotNull('attention_number')
                     ->max('attention_number');
                 $attentionNumber = ($maxAttention ? (int) $maxAttention : 0) + 1;
             }
@@ -469,15 +469,21 @@ class InventoryMovementController extends Controller
         }
 
         return DB::transaction(function () use ($validated, $cylinder) {
+            $maxAttention = InventoryMovement::whereNotNull('patient_id')
+                ->whereNotNull('attention_number')
+                ->max('attention_number');
+            $attentionNumber = ($maxAttention ? (int) $maxAttention : 0) + 1;
+
             // Registrar el movimiento de devolución
             $movement = InventoryMovement::create([
-                'type'        => 'PatientReturn',
-                'shift'       => $validated['shift'],
-                'patient_id'  => $validated['patient_id'],
-                'user_id'     => Auth::id(),
-                'movement_at' => Carbon::now(),
-                'notes'       => $validated['notes'] ?? null,
-                'reason'      => $validated['reason'],
+                'type'             => 'PatientReturn',
+                'attention_number' => $attentionNumber,
+                'shift'            => $validated['shift'],
+                'patient_id'       => $validated['patient_id'],
+                'user_id'          => Auth::id(),
+                'movement_at'      => Carbon::now(),
+                'notes'            => $validated['notes'] ?? null,
+                'reason'           => $validated['reason'],
             ]);
 
             // Registrar el movimiento del cilindro (entra al almacén)
@@ -505,7 +511,8 @@ class InventoryMovementController extends Controller
 
             return response()->json($movement->load([
                 'cylinderMovements.cylinder.ownershipType',
-                'patient'
+                'patient',
+                'user'
             ]), 201);
         });
     }

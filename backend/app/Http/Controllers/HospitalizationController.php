@@ -28,9 +28,14 @@ class HospitalizationController extends Controller
 
     /**
      * Calcula el tiempo estimado en horas dado presión (PSI), flujo (L/min) y capacidad (m³).
+     * Devuelve null cuando el flujo es 0 (balón no en uso activo), para que el frontend
+     * muestre '—' en lugar de '0h (Agotado)'.
      */
-    private function calculateEstimatedHours(float $pressurePsi, float $flowLmin, float $capacityM3): float
+    private function calculateEstimatedHours(float $pressurePsi, float $flowLmin, float $capacityM3): ?float
     {
+        // Flujo 0 = balón conectado pero sin uso activo (no es un agotado)
+        if ($flowLmin <= 0) return null;
+
         $caps = array_keys(self::VOLUME_MAP);
         usort($caps, fn($a, $b) => abs($a - $capacityM3) <=> abs($b - $capacityM3));
         $closestCap = $caps[0];
@@ -39,7 +44,6 @@ class HospitalizationController extends Controller
         $pressureBar  = $pressurePsi / 14.5038;
 
         // Tiempo (horas) = (Volumen_L × Presión_Bar) / (Flujo_L·min⁻¹ × 60)
-        if ($flowLmin <= 0) return 0;
         return round(($volumeLitros * $pressureBar) / ($flowLmin * 60), 2);
     }
 
@@ -214,7 +218,7 @@ class HospitalizationController extends Controller
         $validated = $request->validate([
             'cylinder_id'  => 'required|exists:cylinders,id',
             'pressure_psi' => 'required|numeric|min:0',
-            'flow_lmin'    => 'required|numeric|min:0.01',
+            'flow_lmin'    => 'required|numeric|min:0',   // 0 = balón sin flujo activo (no en uso)
             'shift'        => 'required|string|in:Morning,Afternoon,Night',
             'notes'        => 'nullable|string|max:500',
         ]);
@@ -241,7 +245,7 @@ class HospitalizationController extends Controller
 
         return response()->json([
             'message'                 => 'Lectura registrada correctamente.',
-            'estimated_hours'         => $estimatedHours,
+            'estimated_hours'         => $estimatedHours,          // null si flujo=0
             'initial_estimated_hours' => $estimatedHours,
             'remaining_hours'         => $estimatedHours,
             'reading'                 => $reading,
