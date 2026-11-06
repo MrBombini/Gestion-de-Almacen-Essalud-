@@ -1114,6 +1114,8 @@ class ReportController extends Controller
                     'name' => $locationName,
                     'detail' => $locationDetail,
                     'patient_code' => $patientCode,
+                    'exchange_code' => $im->patient?->exchange_code,
+                    'trasiego_code' => $im->patient?->trasiego_code,
                     'patient_address' => $patientAddress,
                     'service_abbreviation' => $serviceAbbreviation,
                 ]
@@ -1167,6 +1169,8 @@ class ReportController extends Controller
                     'name' => $locationName,
                     'detail' => $locationDetail,
                     'patient_code' => $patientCode,
+                    'exchange_code' => $dec->patient?->exchange_code,
+                    'trasiego_code' => $dec->patient?->trasiego_code,
                     'patient_address' => $patientAddress,
                     'service_abbreviation' => $serviceAbbreviation,
                 ]

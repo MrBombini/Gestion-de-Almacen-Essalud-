@@ -42,9 +42,24 @@ function calcEstimatedHours(pressurePsi, flowLmin, capacityM3) {
 export function getDynamicAutonomy(cyl, currentTime = Date.now()) {
   if (cyl.is_editing) {
     const psi  = parseFloat(cyl.presion_psi) || 0;
-    const lmin = parseFloat(cyl.flujo_lmin) || 0;
+    const lminRaw = cyl.flujo_lmin;
+    const lmin = lminRaw !== '' && lminRaw !== null ? parseFloat(lminRaw) : null;
     const cap  = parseFloat(cyl.capacity) || 10;
-    const estimated = psi > 0 && lmin > 0 ? calcEstimatedHours(psi, lmin, cap) : null;
+    
+    // Si el flujo es 0 o negativo, indicar sin flujo (balón inactivo)
+    if (lmin !== null && !isNaN(lmin) && lmin <= 0) {
+      return {
+        isEditing: true,
+        remainingHours: null,
+        rawRemainingHours: null,
+        status: 'no_flow',
+        display: 'Sin flujo',
+        formattedTime: 'Sin flujo',
+        alertLevel: null
+      };
+    }
+
+    const estimated = psi > 0 && lmin !== null && lmin > 0 ? calcEstimatedHours(psi, lmin, cap) : null;
     return {
       isEditing: true,
       remainingHours: estimated,
@@ -52,14 +67,14 @@ export function getDynamicAutonomy(cyl, currentTime = Date.now()) {
       status: 'editing',
       display: estimated !== null ? `${estimated}h` : '—',
       formattedTime: estimated !== null ? `${estimated}h` : '—',
-      alertLevel: 'editing'
+      alertLevel: null
     };
   }
 
   const lastReading = cyl.last_reading;
 
-  // Sin lectura o sin estimated_hours → sin datos
-  if (!lastReading || lastReading.estimated_hours === undefined || lastReading.estimated_hours === null || lastReading.estimated_hours === '') {
+  // Sin lectura previa
+  if (!lastReading) {
     return {
       isEditing: false,
       remainingHours: null,
@@ -71,9 +86,13 @@ export function getDynamicAutonomy(cyl, currentTime = Date.now()) {
     };
   }
 
-  // Flujo 0 → balón sin uso activo, no es "agotado"
-  const flowSaved = parseFloat(lastReading.flow_lmin);
-  if (!isNaN(flowSaved) && flowSaved === 0) {
+  // Comprobar rigurosamente: si NO hay flujo (<= 0, null, vacío, o status 'no_flow')
+  // IMPORTANTE: Un balón sin flujo no está en uso activo y NUNCA debe generar alertas de recambio
+  const flowVal = lastReading.flow_lmin !== null && lastReading.flow_lmin !== undefined && lastReading.flow_lmin !== ''
+    ? parseFloat(lastReading.flow_lmin)
+    : null;
+
+  if (flowVal === null || isNaN(flowVal) || flowVal <= 0 || lastReading.status === 'no_flow') {
     return {
       isEditing: false,
       remainingHours: null,
@@ -86,21 +105,32 @@ export function getDynamicAutonomy(cyl, currentTime = Date.now()) {
     };
   }
 
-  // estimated_hours explícitamente 0 pero sin flujo registrado → tratar como sin datos
-  if (parseFloat(lastReading.estimated_hours) === 0 && (lastReading.flow_lmin === 0 || lastReading.flow_lmin === '0' || lastReading.flow_lmin === null)) {
+  // Sin estimated_hours válido
+  if (lastReading.estimated_hours === undefined || lastReading.estimated_hours === null || lastReading.estimated_hours === '') {
     return {
       isEditing: false,
       remainingHours: null,
       rawRemainingHours: null,
-      status: 'no_flow',
-      display: 'Sin flujo',
-      formattedTime: 'Sin flujo',
-      alertLevel: null,
-      readAt: lastReading.read_at
+      status: 'no_data',
+      display: '—',
+      formattedTime: '—',
+      alertLevel: null
     };
   }
 
   const initialHours = parseFloat(lastReading.initial_estimated_hours ?? lastReading.estimated_hours) || 0;
+  if (initialHours <= 0) {
+    return {
+      isEditing: false,
+      remainingHours: 0,
+      rawRemainingHours: 0,
+      status: 'depleted',
+      display: '0h (Agotado)',
+      formattedTime: '0h (Agotado)',
+      alertLevel: 'depleted',
+      readAt: lastReading.read_at
+    };
+  }
   const readAtTime = lastReading.read_at ? new Date(lastReading.read_at).getTime() : null;
 
   let remainingHours = initialHours;
@@ -634,6 +664,7 @@ const HospitalizationControl = () => {
   const [toast, setToast]                 = useState(null);
   const [currentTime, setCurrentTime]     = useState(Date.now());
   const [onlyAlerts, setOnlyAlerts]       = useState(false);
+  const [showAlertsExpanded, setShowAlertsExpanded] = useState(false);
   const reportRef = useRef(null);
 
   // Ticker en tiempo real: recalcula el tiempo restante automáticamente cada 30 segundos
@@ -1256,81 +1287,90 @@ const HospitalizationControl = () => {
         </div>
       </div>
 
-      {/* ── BANNER DESTACADO DE BALONES POR AGOTARSE (≤ 2 HORAS) ── */}
+      {/* ── ALERTA MINIMALISTA DE BALONES POR AGOTARSE (≤ 2 HORAS) ── */}
       {totalAlerts > 0 && (
-        <div className="bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 p-0.5 rounded-2xl shadow-md animate-fadeIn">
-          <div className="bg-white p-4 sm:p-5 rounded-[15px]">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-red-100 text-red-600 rounded-xl animate-bounce">
-                  <MdNotificationsActive className="text-2xl" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base sm:text-lg font-black text-slate-900">
-                      Alerta de Recambio: {totalAlerts} balón{totalAlerts > 1 ? 'es' : ''} próximo{totalAlerts > 1 ? 's' : ''} a agotarse (≤ 2 horas)
-                    </h3>
-                    <span className="px-2 py-0.5 text-[10px] font-black uppercase rounded-full bg-red-100 text-red-700 border border-red-300 animate-pulse">
-                      Cambiar Balón
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    El cálculo disminuye hora por hora. Cuando falte 1 a 2 horas o menos, realice el cambio oportuno del cilindro para no interrumpir el flujo del paciente.
-                  </p>
-                </div>
+        <div className="bg-white border border-rose-200 rounded-xl p-3 shadow-xs transition-all">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="p-1.5 bg-rose-100 text-rose-600 rounded-lg shrink-0">
+                <MdNotificationsActive className="text-base" />
+              </span>
+              <span className="text-xs font-bold text-slate-800">
+                Recambio Prioritario: <span className="font-black text-rose-700">{totalAlerts}</span> {totalAlerts === 1 ? 'balón en alerta' : 'balones en alerta'}
+              </span>
+              
+              <div className="flex items-center gap-1.5 flex-wrap ml-1">
+                {depletedCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-md bg-slate-900 text-rose-300 text-[10px] font-black tracking-wide">
+                    ⛔ {depletedCount} Agotado{depletedCount > 1 ? 's' : ''}
+                  </span>
+                )}
+                {criticalCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-md bg-red-600 text-white text-[10px] font-black tracking-wide">
+                    🚨 {criticalCount} Crítico (≤1h)
+                  </span>
+                )}
+                {warningCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-md bg-amber-500 text-white text-[10px] font-bold tracking-wide">
+                    ⚠️ {warningCount} Cambiar (1-2h)
+                  </span>
+                )}
               </div>
             </div>
 
-            {/* Chips de balones en alerta */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 mt-3 pt-3 border-t border-slate-100">
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setOnlyAlerts(prev => !prev)}
+                className={`text-xs px-2.5 py-1 rounded-lg font-bold transition-all border ${
+                  onlyAlerts 
+                    ? 'bg-rose-600 text-white border-rose-600 shadow-xs' 
+                    : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                }`}
+              >
+                {onlyAlerts ? 'Ver Todos' : 'Filtrar en Tabla'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAlertsExpanded(prev => !prev)}
+                className="text-xs px-2.5 py-1 rounded-lg font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors flex items-center gap-1"
+                title="Mostrar/Ocultar lista compacta"
+              >
+                <span>{showAlertsExpanded ? 'Ocultar' : `Ver Balones (${alertCylinders.length})`}</span>
+                <span className="text-[10px]">{showAlertsExpanded ? '▲' : '▼'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Lista compacta desplegable (con altura máxima controlada y scroll para nunca tapar la pantalla) */}
+          {showAlertsExpanded && (
+            <div className="mt-2.5 pt-2.5 border-t border-slate-100 flex flex-wrap gap-1.5 max-h-36 overflow-y-auto pr-1">
               {alertCylinders.map(({ cyl, autonomy }) => (
-                <div
+                <button
                   key={cyl.id}
+                  type="button"
                   onClick={() => {
                     setSelectedService(cyl.current_service?.name || '');
                     setSearchCylinder(cyl.serial_number || '');
                   }}
-                  className={`p-3 rounded-xl border flex items-center justify-between gap-2.5 cursor-pointer transition-all hover:scale-[1.01] ${
+                  className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium flex items-center gap-1.5 transition-all hover:scale-[1.02] cursor-pointer ${
                     autonomy.status === 'depleted'
-                      ? 'bg-slate-900 border-rose-500 text-white'
+                      ? 'bg-slate-900 border-rose-500 text-rose-200 hover:bg-slate-800'
                       : autonomy.status === 'critical'
-                      ? 'bg-red-50 border-red-200 hover:bg-red-100 text-red-900'
-                      : 'bg-amber-50 border-amber-200 hover:bg-amber-100 text-amber-900'
+                      ? 'bg-red-50 border-red-200 text-red-800 hover:bg-red-100'
+                      : 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100'
                   }`}
-                  title="Hacer clic para filtrar y ubicar este balón en la tabla"
+                  title={`Clic para ubicar Cama ${cyl.current_bed?.bed_number} en la tabla`}
                 >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-black text-xs uppercase">
-                        Cama {cyl.current_bed?.bed_number || '?'}
-                      </span>
-                      <span className={`text-[10px] truncate max-w-[110px] ${autonomy.status === 'depleted' ? 'text-slate-400' : 'text-slate-500'}`}>
-                        ({cyl.current_service?.name || 'Servicio'})
-                      </span>
-                    </div>
-                    <div className="font-mono text-[11px] font-bold opacity-90 truncate mt-0.5">
-                      {cyl.serial_number}
-                    </div>
-                  </div>
-
-                  <div className="text-right shrink-0">
-                    <div className={`text-xs font-black px-2 py-0.5 rounded-lg ${
-                      autonomy.status === 'depleted'
-                        ? 'bg-rose-500 text-white'
-                        : autonomy.status === 'critical'
-                        ? 'bg-red-600 text-white animate-pulse'
-                        : 'bg-amber-500 text-white'
-                    }`}>
-                      {autonomy.display}
-                    </div>
-                    <div className="text-[9px] font-bold mt-0.5">
-                      {autonomy.status === 'depleted' ? '⛔ Agotado' : autonomy.status === 'critical' ? '🚨 Cambio Urgente' : '⚠️ Cambiar Balón'}
-                    </div>
-                  </div>
-                </div>
+                  <span className="font-bold text-slate-900">Cama {cyl.current_bed?.bed_number || '?'}</span>
+                  <span className="opacity-60 text-[10px]">·</span>
+                  <span className="font-mono text-[10px]">{cyl.serial_number}</span>
+                  <span className="opacity-60 text-[10px]">·</span>
+                  <span className="font-black underline">{autonomy.display}</span>
+                </button>
               ))}
             </div>
-          </div>
+          )}
         </div>
       )}
 

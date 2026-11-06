@@ -46,6 +46,9 @@ const ExcelExportsPanel = () => {
       liquid_refills: false
   });
 
+  // Filtros específicos para Pacientes PADOMI
+  const [patientCodeFilter, setPatientCodeFilter] = useState('ALL'); // 'ALL' | 'EXCHANGE' | 'TRASIEGO'
+
   // Filtros específicos para el Inventario General
   const [inventoryLocation, setInventoryLocation] = useState('ALL');
   const [inventoryOwnership, setInventoryOwnership] = useState('');
@@ -145,11 +148,19 @@ const ExcelExportsPanel = () => {
                   return isService && isNotPeriphery && isNotTrasiego && isNotSupplier && isNotPatient;
               });
           } else if (type === 'patient') {
-              // Pacientes PADOMI: Excluye trasiegos
+              // Pacientes PADOMI: filtro por código intercambio, trasiego o ambos según preferencia del usuario
               data = allMovements.filter(item => {
-                  const isPatient = (item.location && item.location.type === 'Paciente') || item.type === 'Intercambio PADOMI' || item.type === 'Devolución Paciente';
-                  const isNotTrasiego = item.type !== 'Trasiego (Decantación)' && !item.location?.type?.includes('Trasiego');
-                  return isPatient && isNotTrasiego;
+                  const isPatientExchange = (item.location && item.location.type === 'Paciente') || item.type === 'Intercambio PADOMI' || item.type === 'Devolución Paciente';
+                  const isPatientTrasiego = (item.location && item.location.type?.includes('Paciente')) && (item.type === 'Trasiego (Decantación)' || item.location?.type === 'Paciente (Trasiego)');
+                  
+                  if (patientCodeFilter === 'EXCHANGE') {
+                      return isPatientExchange && item.type !== 'Trasiego (Decantación)' && !item.location?.type?.includes('Trasiego');
+                  }
+                  if (patientCodeFilter === 'TRASIEGO') {
+                      return isPatientTrasiego;
+                  }
+                  // 'ALL': Ambos (Intercambio y Trasiego)
+                  return isPatientExchange || isPatientTrasiego;
               });
           } else if (type === 'ipress') {
               // Canjes de Red / Periferia
@@ -178,7 +189,7 @@ const ExcelExportsPanel = () => {
   const executeDownload = async () => {
       if (previewType === 'supplier') await exportSupplierReport(previewData, getDateRangeText());
       else if (previewType === 'location') await exportLocationReport(previewData, getDateRangeText());
-      else if (previewType === 'patient') await exportPadomiPatientReport(previewData, getDateRangeText());
+      else if (previewType === 'patient') await exportPadomiPatientReport(previewData, getDateRangeText(), patientCodeFilter);
       else if (previewType === 'ipress') await exportIpressReport(previewData, getDateRangeText());
       else if (previewType === 'trasiegos') await exportTrasiegosReport(previewData, getDateRangeText());
       else if (previewType === 'inventory') await exportCylindersInventoryReport(previewData, getDateRangeText());
@@ -192,7 +203,12 @@ const ExcelExportsPanel = () => {
       switch(previewType) {
           case 'supplier': return 'Reporte de Proveedor Externo';
           case 'location': return 'Reporte de Hospitalización HNAGV';
-          case 'patient': return 'Reporte de Pacientes PADOMI';
+          case 'patient': 
+              return patientCodeFilter === 'EXCHANGE'
+                  ? 'Reporte de Pacientes PADOMI (Código Intercambio)'
+                  : patientCodeFilter === 'TRASIEGO'
+                  ? 'Reporte de Pacientes PADOMI (Código Trasiego)'
+                  : 'Reporte de Pacientes PADOMI (Intercambio y Trasiego)';
           case 'ipress': return 'Reporte de Centros Asistenciales (Periferia)';
           case 'trasiegos': return 'Reporte de Trasiegos / Recargas';
           case 'inventory': return 'Inventario General de Cilindros';
@@ -236,7 +252,7 @@ const ExcelExportsPanel = () => {
   const totalPreviewPages = Math.ceil(previewData.length / PREVIEW_PER_PAGE) || 1;
   const paginatedPreview = previewData.slice((previewPage - 1) * PREVIEW_PER_PAGE, previewPage * PREVIEW_PER_PAGE);
 
-  const ReportCard = ({ title, description, icon: Icon, onClick, loading, bgColor, textColor }) => (
+  const ReportCard = ({ title, description, icon: Icon, onClick, loading, bgColor, textColor, extraControl }) => (
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between hover:shadow-md transition-shadow">
           <div>
               <div className={`p-4 rounded-2xl w-fit mb-4 ${bgColor} ${textColor}`}>
@@ -244,6 +260,11 @@ const ExcelExportsPanel = () => {
               </div>
               <h3 className="font-bold text-slate-800 text-lg leading-tight mb-2">{title}</h3>
               <p className="text-slate-500 text-sm">{description}</p>
+              {extraControl && (
+                  <div className="mt-4 pt-3 border-t border-slate-100">
+                      {extraControl}
+                  </div>
+              )}
           </div>
           <button 
               onClick={onClick}
@@ -394,12 +415,26 @@ const ExcelExportsPanel = () => {
               />
               <ReportCard 
                   title="Pacientes PADOMI"
-                  description="Reporte diario mensualizado exclusivo de asignaciones, recargas y préstamos a pacientes PADOMI."
+                  description="Reporte diario mensualizado de asignaciones (intercambio) y recargas por trasiego a pacientes PADOMI."
                   icon={MdPerson}
                   loading={loadingStates.patient}
                   onClick={() => fetchPreviewData('patient')}
                   bgColor="bg-purple-50"
                   textColor="text-purple-600"
+                  extraControl={
+                      <div className="space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide">Modalidad de Código:</label>
+                          <select 
+                              value={patientCodeFilter}
+                              onChange={(e) => setPatientCodeFilter(e.target.value)}
+                              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-purple-400"
+                          >
+                              <option value="ALL">Ambos (Canje y Trasiego)</option>
+                              <option value="EXCHANGE">Solo Código de Intercambio (Canje)</option>
+                              <option value="TRASIEGO">Solo Código de Trasiego</option>
+                          </select>
+                      </div>
+                  }
               />
               <ReportCard 
                   title="Centros Asistenciales (Periferia)"
@@ -571,6 +606,52 @@ const ExcelExportsPanel = () => {
                                             <td className="px-4 py-3 text-blue-700 font-bold">{item.tank_level_after || '0'}</td>
                                         </tr>
                                     ))
+                                )}
+                            </tbody>
+                        </table>
+                    ) : previewType === 'patient' ? (
+                        <table className="w-full text-left text-sm whitespace-nowrap">
+                            <thead className="bg-purple-50 text-purple-900 uppercase text-xs font-bold sticky top-0 border-b border-purple-200">
+                                <tr>
+                                    <th className="px-4 py-3">Nº</th>
+                                    <th className="px-4 py-3">Fecha</th>
+                                    <th className="px-4 py-3">Modalidad</th>
+                                    <th className="px-4 py-3">Cód. Canje</th>
+                                    <th className="px-4 py-3">Cód. Trasiego</th>
+                                    <th className="px-4 py-3">Paciente</th>
+                                    <th className="px-4 py-3">DNI</th>
+                                    <th className="px-4 py-3">Cilindro</th>
+                                    <th className="px-4 py-3">Detalle</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200">
+                                {paginatedPreview.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="9" className="px-4 py-8 text-center text-slate-400">
+                                            No hay registros de pacientes con la modalidad seleccionada.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    paginatedPreview.map((item, index) => {
+                                        const isTrasiego = item.type === 'Trasiego (Decantación)' || item.location?.type?.includes('Trasiego');
+                                        return (
+                                            <tr key={index} className="hover:bg-purple-50/40 transition-colors">
+                                                <td className="px-4 py-3 text-slate-400 font-medium">{(previewPage - 1) * PREVIEW_PER_PAGE + index + 1}</td>
+                                                <td className="px-4 py-3 text-slate-700">{item.date ? format(new Date(item.date), 'dd/MM/yyyy') : ''}</td>
+                                                <td className="px-4 py-3">
+                                                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${isTrasiego ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-blue-100 text-blue-800 border border-blue-200'}`}>
+                                                        {isTrasiego ? 'TRASIEGO' : 'INTERCAMBIO'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3 font-mono font-bold text-blue-700">{item.location?.exchange_code || (!isTrasiego ? item.location?.patient_code : '-') || '-'}</td>
+                                                <td className="px-4 py-3 font-mono font-bold text-amber-700">{item.location?.trasiego_code || (isTrasiego ? item.location?.patient_code : '-') || '-'}</td>
+                                                <td className="px-4 py-3 font-semibold text-slate-800">{item.location?.name || '-'}</td>
+                                                <td className="px-4 py-3 text-slate-600 font-mono text-xs">{item.location?.detail?.replace('DNI: ', '') || '-'}</td>
+                                                <td className="px-4 py-3 font-mono text-slate-700">{item.cylinder?.serial_number || 'S/D'} ({item.cylinder?.capacity}m³)</td>
+                                                <td className="px-4 py-3 text-slate-500 text-xs">{item.notes || item.action || '-'}</td>
+                                            </tr>
+                                        );
+                                    })
                                 )}
                             </tbody>
                         </table>

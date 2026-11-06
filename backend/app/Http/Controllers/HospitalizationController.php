@@ -57,15 +57,27 @@ class HospitalizationController extends Controller
     {
         if (!$reading) {
             return [
-                'initial_estimated_hours' => 0,
+                'initial_estimated_hours' => null,
                 'elapsed_hours'           => 0,
-                'remaining_hours'         => 0,
+                'remaining_hours'         => null,
                 'status'                  => 'no_data',
                 'needs_change'            => false,
             ];
         }
 
-        $initialHours = (float) ($reading->estimated_hours ?? 0);
+        // Si no hay flujo (<= 0 o null) o no se calculó autonomía (balón sin uso activo)
+        $flow = $reading->flow_lmin !== null ? (float) $reading->flow_lmin : 0;
+        if ($flow <= 0 || $reading->estimated_hours === null) {
+            return [
+                'initial_estimated_hours' => null,
+                'elapsed_hours'           => 0,
+                'remaining_hours'         => null,
+                'status'                  => 'no_flow',
+                'needs_change'            => false,
+            ];
+        }
+
+        $initialHours = (float) $reading->estimated_hours;
         $readAt = $reading->read_at ? Carbon::parse($reading->read_at) : Carbon::now();
         $now = Carbon::now();
 

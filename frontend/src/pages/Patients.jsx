@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
 import { formatDate } from '../utils/dateUtils';
-import { MdAdd, MdEdit, MdDelete, MdSearch, MdLocationOn, MdPhone, MdAssignment, MdClose, MdHistory, MdWarning } from 'react-icons/md';
+import { MdAdd, MdEdit, MdDelete, MdSearch, MdLocationOn, MdPhone, MdAssignment, MdClose, MdHistory, MdWarning, MdDownload } from 'react-icons/md';
 import { FaBedPulse } from 'react-icons/fa6';
 import useFetch from '../hooks/useFetch';
 import Modal from '../components/Modal';
 import api from '../services/api';
+import { exportPatientsCatalogReport } from '../utils/excelExportService';
 
 const Patients = () => {
     const [currentPage, setCurrentPage]     = useState(1);
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [searchTerm, setSearchTerm]       = useState('');
     const [filterRxStatus, setFilterRxStatus] = useState('ALL');
+    const [exportingExcel, setExportingExcel] = useState(false);
     
     // NUEVO: Estado para el filtro de códigos
     const [filterCodeType, setFilterCodeType] = useState('ALL'); 
@@ -135,6 +137,31 @@ const Patients = () => {
         }
     };
 
+    const handleExportExcel = async () => {
+        setExportingExcel(true);
+        try {
+            const res = await api.get('/patients', {
+                params: {
+                    per_page: 'all',
+                    search: debouncedSearch || undefined,
+                    rx_status: filterRxStatus,
+                    code_type: filterCodeType,
+                }
+            });
+            const allPatients = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+            if (allPatients.length === 0) {
+                alert('No se encontraron pacientes para exportar con los filtros seleccionados.');
+                return;
+            }
+            await exportPatientsCatalogReport(allPatients, filterCodeType);
+        } catch (error) {
+            console.error('Error al exportar pacientes:', error);
+            alert('Error al generar la exportación de pacientes.');
+        } finally {
+            setExportingExcel(false);
+        }
+    };
+
     const patientsList = Array.isArray(patients) ? patients : (patients?.data || []);
     const filtered = patientsList;
 
@@ -155,9 +182,29 @@ const Patients = () => {
                         <p className="text-slate-500 text-xs sm:text-sm mt-1">Gestiona pacientes y sus recetas de oxígeno.</p>
                     </div>
                 </div>
-                <button onClick={handleOpenCreate} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-sm transition-all hover:scale-105 shrink-0">
-                    <MdAdd className="text-xl" /> Nuevo Paciente
-                </button>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
+                    <button 
+                        onClick={handleExportExcel} 
+                        disabled={exportingExcel}
+                        className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-4 py-2.5 rounded-xl font-semibold shadow-sm transition-all hover:scale-105 shrink-0"
+                        title={`Exportar a Excel según filtros (${filterCodeType === 'ALL' ? 'Todos' : filterCodeType === 'TRASIEGO' ? 'Con Trasiego' : 'Con Canje'})`}
+                    >
+                        {exportingExcel ? (
+                            <>
+                                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                <span>Exportando...</span>
+                            </>
+                        ) : (
+                            <>
+                                <MdDownload className="text-xl" />
+                                <span>Exportar Excel</span>
+                            </>
+                        )}
+                    </button>
+                    <button onClick={handleOpenCreate} className="flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-sm transition-all hover:scale-105 shrink-0">
+                        <MdAdd className="text-xl" /> Nuevo Paciente
+                    </button>
+                </div>
             </div>
 
             {/* Contenedor de Tabla */}
