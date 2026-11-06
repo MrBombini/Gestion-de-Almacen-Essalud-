@@ -60,9 +60,9 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   const [openSections, setOpenSections] = useState(() => {
     try {
       const saved = localStorage.getItem('sidebarOpenSections');
-      return saved ? JSON.parse(saved) : { operaciones: true, reportes: false, catalogos: false, liquido: false };
+      return saved ? JSON.parse(saved) : { recorrido: true, operaciones: true, reportes: false, catalogos: false, liquido: false };
     } catch (e) {
-      return { operaciones: true, reportes: false, catalogos: false, liquido: false };
+      return { recorrido: true, operaciones: true, reportes: false, catalogos: false, liquido: false };
     }
   });
 
@@ -79,7 +79,9 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     const path = location.pathname;
     let sectionToOpen = null;
 
-    if (path.startsWith('/inventory') || path === '/reports/ticketcontrol') {
+    if (path === '/reports/hospitalization-control') {
+      sectionToOpen = 'recorrido';
+    } else if (path.startsWith('/inventory') || path === '/reports/ticketcontrol') {
       sectionToOpen = 'operaciones';
     } else if (path.startsWith('/liquid')) {
       sectionToOpen = 'liquido';
@@ -126,6 +128,15 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
 
   // Configuración de las secciones del Sidebar
   const SECTIONS = useMemo(() => [
+    {
+      id: 'recorrido',
+      label: 'Recorrido Hospitalización',
+      icon: MdLocalHospital,
+      color: isDarkTheme ? 'bg-rose-500/20 text-rose-400' : 'bg-rose-50 text-rose-600',
+      items: [
+        { to: '/reports/hospitalization-control', label: 'Recorrido Hospitalización', icon: MdLocalHospital },
+      ]
+    },
     {
       id: 'operaciones',
       label: 'Operaciones',
@@ -178,7 +189,6 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
         { to: '/reports/alerts', label: 'Alertas de Pacientes', icon: MdNotificationsActive },
         { to: '/reports/supplier', label: 'Proveedores Ingreso/Salida', icon: MdInsertChart },
         { to: '/reports/periphery', label: 'Periferia Reportes', icon: MdMap },
-        { to: '/reports/hospitalization-control', label: 'Control Hospitalización', icon: MdLocalHospital },
         { to: '/reports/cylinder-tracking', label: 'Seguimiento Cilindros', icon: MdRadar },
         { to: '/reports/control-format', label: 'Formatos de Control', icon: MdPrint },
         { to: '/reports/monthly-resumen', label: 'Resumen Mensual', icon: MdBarChart },

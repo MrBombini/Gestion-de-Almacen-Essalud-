@@ -303,28 +303,75 @@ export const exportPadomiExchangeReport = async (data, dateRangeText) => {
     saveAs(new Blob([buffer]), `Intercambios_PADOMI_${dateRangeText.replace(/\//g, '-')}.xlsx`);
 };
 
-export const exportPadomiPatientReport = async (data, dateRangeText) => {
+export const exportPadomiPatientReport = async (data, dateRangeText, filterMode = 'ALL') => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Pacientes');
 
-    applyBaseStyles(worksheet, 'REPORTE DIARIO MENSUAL DE ASIGNACIONES PACIENTES PADOMI', '', dateRangeText);
+    let reportTitle = 'REPORTE DIARIO MENSUAL DE PACIENTES PADOMI - INTERCAMBIO Y TRASIEGO';
+    let filePrefix = 'Reporte_Pacientes_Integral';
+    if (filterMode === 'EXCHANGE') {
+        reportTitle = 'REPORTE DIARIO MENSUAL DE ASIGNACIONES PACIENTES PADOMI (CÓDIGO INTERCAMBIO)';
+        filePrefix = 'Reporte_Pacientes_Intercambio';
+    } else if (filterMode === 'TRASIEGO') {
+        reportTitle = 'REPORTE DIARIO MENSUAL DE TRASIEGOS PACIENTES PADOMI (CÓDIGO TRASIEGO)';
+        filePrefix = 'Reporte_Pacientes_Trasiego';
+    }
 
-    worksheet.columns = [
-        { header: 'FECHA', key: 'fecha', width: 12 },
-        { header: 'SEMANA', key: 'semana', width: 12 },
-        { header: 'CODIGO PACIENTE', key: 'cod_paciente', width: 15 },
-        { header: 'DNI', key: 'dni', width: 12 },
-        { header: 'SERVICIO /USUARIO', key: 'usuario', width: 30 },
-        { header: 'DIRECCION', key: 'direccion', width: 35 },
-        { header: 'CODIGO LLENO', key: 'lleno', width: 15 },
-        { header: 'MODELO', key: 'modelo', width: 15 },
-        { header: 'CAP.', key: 'capacidad', width: 10 },
-        { header: 'PROPIEDAD', key: 'propiedad', width: 15 },
-        { header: 'CODIGO VACIO', key: 'vacio', width: 15 },
-    ];
+    applyBaseStyles(worksheet, reportTitle, '', dateRangeText);
 
+    let columns = [];
+    if (filterMode === 'EXCHANGE') {
+        columns = [
+            { header: 'FECHA', key: 'fecha', width: 12 },
+            { header: 'SEMANA', key: 'semana', width: 12 },
+            { header: 'CODIGO INTERCAMBIO', key: 'cod_intercambio', width: 18 },
+            { header: 'DNI', key: 'dni', width: 12 },
+            { header: 'PACIENTE / USUARIO', key: 'usuario', width: 32 },
+            { header: 'DIRECCION', key: 'direccion', width: 35 },
+            { header: 'CODIGO LLENO', key: 'lleno', width: 16 },
+            { header: 'MODELO', key: 'modelo', width: 15 },
+            { header: 'CAP.', key: 'capacidad', width: 10 },
+            { header: 'PROPIEDAD', key: 'propiedad', width: 16 },
+            { header: 'CODIGO VACIO', key: 'vacio', width: 16 },
+        ];
+    } else if (filterMode === 'TRASIEGO') {
+        columns = [
+            { header: 'FECHA', key: 'fecha', width: 12 },
+            { header: 'SEMANA', key: 'semana', width: 12 },
+            { header: 'CODIGO TRASIEGO', key: 'cod_trasiego', width: 18 },
+            { header: 'DNI', key: 'dni', width: 12 },
+            { header: 'PACIENTE / USUARIO', key: 'usuario', width: 32 },
+            { header: 'DIRECCION', key: 'direccion', width: 35 },
+            { header: 'CODIGO CILINDRO', key: 'lleno', width: 18 },
+            { header: 'MODELO', key: 'modelo', width: 15 },
+            { header: 'CAP.', key: 'capacidad', width: 10 },
+            { header: 'PROPIEDAD', key: 'propiedad', width: 16 },
+            { header: 'CANTIDAD RECARGADA', key: 'cantidad', width: 18 },
+            { header: 'DETALLE / NOTAS', key: 'detalle', width: 25 },
+        ];
+    } else {
+        // AMBOS
+        columns = [
+            { header: 'FECHA', key: 'fecha', width: 12 },
+            { header: 'SEMANA', key: 'semana', width: 12 },
+            { header: 'MODALIDAD', key: 'modalidad', width: 15 },
+            { header: 'COD. INTERCAMBIO', key: 'cod_intercambio', width: 16 },
+            { header: 'COD. TRASIEGO', key: 'cod_trasiego', width: 16 },
+            { header: 'DNI', key: 'dni', width: 12 },
+            { header: 'PACIENTE / USUARIO', key: 'usuario', width: 32 },
+            { header: 'DIRECCION', key: 'direccion', width: 35 },
+            { header: 'CODIGO LLENO / CILINDRO', key: 'lleno', width: 20 },
+            { header: 'MODELO', key: 'modelo', width: 15 },
+            { header: 'CAP.', key: 'capacidad', width: 10 },
+            { header: 'PROPIEDAD', key: 'propiedad', width: 16 },
+            { header: 'CODIGO VACIO', key: 'vacio', width: 16 },
+            { header: 'DETALLE / OBSERVACIÓN', key: 'detalle', width: 25 },
+        ];
+    }
+
+    worksheet.columns = columns;
     worksheet.getRow(5).values = worksheet.columns.map(c => c.header);
-    applyHeaderStyles(worksheet, 5, 11);
+    applyHeaderStyles(worksheet, 5, columns.length);
 
     // Agrupar movimientos por movement_id para unificar Intercambios (Salida y Entrada)
     const groupedData = [];
@@ -365,27 +412,134 @@ export const exportPadomiPatientReport = async (data, dateRangeText) => {
         const salida = group.salida;
         const ingreso = group.ingreso;
         
-        // Priorizar el cilindro lleno (salida) para los datos generales del balón, si no el ingreso o base.
+        const isTrasiego = base.type === 'Trasiego (Decantación)' || base.location?.type?.includes('Trasiego');
         const mainCylinder = (salida && salida.cylinder) ? salida.cylinder : (ingreso ? ingreso.cylinder : base.cylinder);
 
+        const codIntercambio = base.location?.exchange_code || (isTrasiego ? '-' : (base.location?.patient_code || '-'));
+        const codTrasiego = base.location?.trasiego_code || (isTrasiego ? (base.location?.patient_code || '-') : '-');
+        const dniClean = base.location?.detail?.replace('DNI: ', '') || '-';
+        const usuarioNombre = base.location?.name || '-';
+        const direccion = base.location?.patient_address || '';
+
+        if (filterMode === 'EXCHANGE') {
+            worksheet.addRow({
+                fecha: base.date ? format(new Date(base.date), 'dd/MM/yyyy') : '',
+                semana: `Semana ${Math.ceil(new Date(base.date || new Date()).getDate() / 7)}`,
+                cod_intercambio: codIntercambio !== '-' ? codIntercambio : (base.location?.patient_code || '-'),
+                dni: dniClean,
+                usuario: usuarioNombre,
+                direccion: direccion,
+                lleno: salida ? salida.cylinder?.serial_number : (base.cylinder?.serial_number || ''),
+                modelo: mainCylinder?.ownership_type || '-',
+                capacidad: mainCylinder?.capacity || '-',
+                propiedad: mainCylinder?.supplier || '-',
+                vacio: ingreso ? ingreso.cylinder?.serial_number : '',
+            });
+        } else if (filterMode === 'TRASIEGO') {
+            worksheet.addRow({
+                fecha: base.date ? format(new Date(base.date), 'dd/MM/yyyy') : '',
+                semana: `Semana ${Math.ceil(new Date(base.date || new Date()).getDate() / 7)}`,
+                cod_trasiego: codTrasiego !== '-' ? codTrasiego : (base.location?.patient_code || '-'),
+                dni: dniClean,
+                usuario: usuarioNombre,
+                direccion: direccion,
+                lleno: base.cylinder?.serial_number || (salida ? salida.cylinder?.serial_number : '-'),
+                modelo: mainCylinder?.ownership_type || '-',
+                capacidad: mainCylinder?.capacity || '-',
+                propiedad: mainCylinder?.supplier || '-',
+                cantidad: base.notes || base.location?.detail || 'Recarga',
+                detalle: base.user ? `Operador: ${base.user}` : 'Estación de Trasiego',
+            });
+        } else {
+            // AMBOS
+            worksheet.addRow({
+                fecha: base.date ? format(new Date(base.date), 'dd/MM/yyyy') : '',
+                semana: `Semana ${Math.ceil(new Date(base.date || new Date()).getDate() / 7)}`,
+                modalidad: isTrasiego ? 'TRASIEGO' : 'INTERCAMBIO',
+                cod_intercambio: codIntercambio,
+                cod_trasiego: codTrasiego,
+                dni: dniClean,
+                usuario: usuarioNombre,
+                direccion: direccion,
+                lleno: salida ? salida.cylinder?.serial_number : (base.cylinder?.serial_number || ''),
+                modelo: mainCylinder?.ownership_type || '-',
+                capacidad: mainCylinder?.capacity || '-',
+                propiedad: mainCylinder?.supplier || '-',
+                vacio: ingreso ? ingreso.cylinder?.serial_number : '',
+                detalle: isTrasiego ? (base.notes || 'Recarga Trasiego') : (base.type || 'Intercambio PADOMI'),
+            });
+        }
+    });
+
+    applyDataStyles(worksheet, 6, groupedData.length, columns.length);
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(new Blob([buffer]), `${filePrefix}_${dateRangeText.replace(/\//g, '-')}.xlsx`);
+};
+
+export const exportPatientsCatalogReport = async (patientsData, filterCodeType = 'ALL') => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Directorio Pacientes');
+
+    let titleSuffix = 'GENERAL';
+    if (filterCodeType === 'EXCHANGE') titleSuffix = 'CON CÓDIGO DE INTERCAMBIO (CANJE)';
+    else if (filterCodeType === 'TRASIEGO') titleSuffix = 'CON CÓDIGO DE TRASIEGO';
+
+    applyBaseStyles(worksheet, `PADRÓN DE PACIENTES PADOMI - ${titleSuffix}`, '', format(new Date(), 'dd/MM/yyyy'));
+
+    worksheet.columns = [
+        { header: 'Nº', key: 'nro', width: 6 },
+        { header: 'DNI', key: 'dni', width: 12 },
+        { header: 'PACIENTE (APELLIDOS Y NOMBRES)', key: 'nombre', width: 36 },
+        { header: 'CÓD. INTERCAMBIO', key: 'cod_intercambio', width: 18 },
+        { header: 'CÓD. TRASIEGO', key: 'cod_trasiego', width: 18 },
+        { header: 'TELÉFONO 1', key: 'tel1', width: 14 },
+        { header: 'TELÉFONO 2', key: 'tel2', width: 14 },
+        { header: 'DIRECCIÓN', key: 'direccion', width: 36 },
+        { header: 'RECETA (DOSIS / TIEMPO)', key: 'receta_dosis', width: 22 },
+        { header: 'VENCIMIENTO RECETA', key: 'vencimiento', width: 16 },
+        { header: 'DÍAS RESTANTES', key: 'dias_restantes', width: 15 },
+        { header: 'ESTADO RECETA', key: 'estado_receta', width: 14 },
+    ];
+
+    worksheet.getRow(5).values = worksheet.columns.map(c => c.header);
+    applyHeaderStyles(worksheet, 5, 12);
+
+    patientsData.forEach((p, idx) => {
+        const activeRx = p.prescriptions?.find(rx => rx.status === 'active');
+        let dosisText = '-';
+        if (activeRx) {
+            if (activeRx.dosage && activeRx.usage_time) dosisText = `${activeRx.dosage} L/min · ${activeRx.usage_time} hrs`;
+            else if (activeRx.dosage) dosisText = `${activeRx.dosage} L/min`;
+            else if (activeRx.usage_time) dosisText = `${activeRx.usage_time} hrs`;
+            else dosisText = 'Receta Activa';
+        }
+
+        let diasText = '-';
+        if (activeRx && activeRx.days_remaining !== undefined && activeRx.days_remaining !== null) {
+            diasText = activeRx.days_remaining < 0 
+                ? `Vencida (${Math.abs(activeRx.days_remaining)}d)` 
+                : `${activeRx.days_remaining} días`;
+        }
+
         worksheet.addRow({
-            fecha: base.date ? format(new Date(base.date), 'dd/MM/yyyy') : '',
-            semana: `Semana ${Math.ceil(new Date(base.date || new Date()).getDate() / 7)}`,
-            cod_paciente: base.location?.patient_code || base.location?.detail?.replace('DNI: ', ''),
-            dni: base.location?.detail?.replace('DNI: ', ''),
-            usuario: base.location?.name,
-            direccion: base.location?.patient_address || '', 
-            lleno: salida ? salida.cylinder?.serial_number : '',
-            modelo: mainCylinder?.ownership_type,
-            capacidad: mainCylinder?.capacity,
-            propiedad: mainCylinder?.supplier,
-            vacio: ingreso ? ingreso.cylinder?.serial_number : '',
+            nro: idx + 1,
+            dni: p.dni || '-',
+            nombre: p.full_name,
+            cod_intercambio: p.exchange_code || '-',
+            cod_trasiego: p.trasiego_code || '-',
+            tel1: p.phone1 || '-',
+            tel2: p.phone2 || '-',
+            direccion: p.address || '-',
+            receta_dosis: dosisText,
+            vencimiento: activeRx?.expires_at ? format(new Date(activeRx.expires_at), 'dd/MM/yyyy') : (activeRx ? 'Sin fecha' : '-'),
+            dias_restantes: diasText,
+            estado_receta: activeRx ? (activeRx.status === 'active' ? 'ACTIVA' : 'INACTIVA') : 'SIN RECETA',
         });
     });
 
-    applyDataStyles(worksheet, 6, data.length, 11);
+    applyDataStyles(worksheet, 6, patientsData.length, 12);
     const buffer = await workbook.xlsx.writeBuffer();
-    saveAs(new Blob([buffer]), `Reporte_Pacientes_${dateRangeText.replace(/\//g, '-')}.xlsx`);
+    saveAs(new Blob([buffer]), `Padron_Pacientes_${filterCodeType}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
 };
 
 export const exportIpressReport = async (data, dateRangeText) => {

@@ -31,7 +31,7 @@ const PAGE_TITLES = {
   '/reports/alerts': 'Alertas de Pacientes',
   '/reports/kardexresume': 'Resumen de Kardex',
   '/reports/kardex': 'Kardex General',
-  '/reports/hospitalization-control': 'Control de Hospitalización',
+  '/reports/hospitalization-control': 'Recorrido Hospitalización',
   '/reports/cylinder-tracking': 'Seguimiento de Cilindros',
   '/reports/unified-search': 'Búsqueda y Exportación',
   '/reports/executive': 'Reporte Gerencial',

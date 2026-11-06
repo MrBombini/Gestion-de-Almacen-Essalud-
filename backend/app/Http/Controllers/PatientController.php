@@ -9,6 +9,62 @@ use Illuminate\Support\Facades\DB;
 
 class PatientController extends Controller
 {
+    // =========================================================
+    // CONSTANTES de inicio de secuencia
+    // exchange_code: numérico, empieza en 3200
+    // trasiego_code: formato P####, empieza en P1090
+    // =========================================================
+    private const EXCHANGE_START = 3200;
+    private const TRASIEGO_PREFIX = 'P';
+    private const TRASIEGO_START  = 1090;
+
+    /**
+     * Devuelve el siguiente código disponible para exchange_code y trasiego_code,
+     * garantizando que no exista ya en la tabla patients.
+     * GET /patients/next-codes
+     */
+    public function nextCodes()
+    {
+        // ── Exchange code (numérico) ──
+        $maxExchange = Patient::whereNotNull('exchange_code')
+            ->get(['exchange_code'])
+            ->map(fn($p) => (int) filter_var($p->exchange_code, FILTER_SANITIZE_NUMBER_INT))
+            ->filter(fn($n) => $n > 0)
+            ->max();
+
+        $nextExchange = max(self::EXCHANGE_START, ($maxExchange ?? self::EXCHANGE_START - 1) + 1);
+
+        // Asegurar que no esté ya ocupado
+        while (Patient::where('exchange_code', (string) $nextExchange)->exists()) {
+            $nextExchange++;
+        }
+
+        // ── Trasiego code (P####) ──
+        $maxTrasiego = Patient::whereNotNull('trasiego_code')
+            ->where('trasiego_code', 'like', self::TRASIEGO_PREFIX . '%')
+            ->get(['trasiego_code'])
+            ->map(function ($p) {
+                $num = ltrim(substr($p->trasiego_code, strlen(self::TRASIEGO_PREFIX)), '0');
+                return is_numeric($num) ? (int) $num : 0;
+            })
+            ->filter(fn($n) => $n > 0)
+            ->max();
+
+        $nextTrasiegoNum = max(self::TRASIEGO_START, ($maxTrasiego ?? self::TRASIEGO_START - 1) + 1);
+        $nextTrasiego    = self::TRASIEGO_PREFIX . $nextTrasiegoNum;
+
+        // Asegurar que no esté ya ocupado
+        while (Patient::where('trasiego_code', $nextTrasiego)->exists()) {
+            $nextTrasiegoNum++;
+            $nextTrasiego = self::TRASIEGO_PREFIX . $nextTrasiegoNum;
+        }
+
+        return response()->json([
+            'exchange_code' => (string) $nextExchange,
+            'trasiego_code' => $nextTrasiego,
+        ]);
+    }
+
     public function index(Request $request)
     {
         $query = Patient::with(['prescriptions' => function($q) {

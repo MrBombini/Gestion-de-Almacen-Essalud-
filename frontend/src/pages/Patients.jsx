@@ -1,16 +1,24 @@
 import { useState, useEffect } from 'react';
 import { formatDate } from '../utils/dateUtils';
-import { MdAdd, MdEdit, MdDelete, MdSearch, MdLocationOn, MdPhone, MdAssignment, MdClose, MdHistory, MdWarning } from 'react-icons/md';
+import { MdAdd, MdEdit, MdDelete, MdSearch, MdLocationOn, MdPhone, MdAssignment, MdClose, MdHistory, MdWarning, MdDownload } from 'react-icons/md';
 import { FaBedPulse } from 'react-icons/fa6';
 import useFetch from '../hooks/useFetch';
 import Modal from '../components/Modal';
 import api from '../services/api';
+import { exportPatientsCatalogReport } from '../utils/excelExportService';
 
 const Patients = () => {
     const [currentPage, setCurrentPage]     = useState(1);
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [searchTerm, setSearchTerm]       = useState('');
     const [filterRxStatus, setFilterRxStatus] = useState('ALL');
+    const [exportingExcel, setExportingExcel] = useState(false);
+    const [loadingCodes, setLoadingCodes]   = useState(false);
+    // Toggles de tipo de código para el formulario
+    const [hasTrasiego, setHasTrasiego]     = useState(false);
+    const [hasExchange, setHasExchange]     = useState(false);
+    // Códigos pre-cargados desde el backend (para reutilizarlos si el usuario activa/desactiva)
+    const [prefetchedCodes, setPrefetchedCodes] = useState({ trasiego_code: '', exchange_code: '' });
     
     // NUEVO: Estado para el filtro de códigos
     const [filterCodeType, setFilterCodeType] = useState('ALL'); 
@@ -49,7 +57,26 @@ const Patients = () => {
     };
     const [formData, setFormData] = useState(emptyForm);
 
-    const handleOpenCreate = () => { setFormData(emptyForm); setEditingId(null); setIsModalOpen(true); };
+    const handleOpenCreate = async () => {
+        setHasTrasiego(false);
+        setHasExchange(false);
+        setPrefetchedCodes({ trasiego_code: '', exchange_code: '' });
+        setFormData(emptyForm);
+        setEditingId(null);
+        setIsModalOpen(true);
+        setLoadingCodes(true);
+        try {
+            const res = await api.get('/patients/next-codes');
+            setPrefetchedCodes({
+                exchange_code: res.data.exchange_code ?? '',
+                trasiego_code: res.data.trasiego_code ?? '',
+            });
+        } catch {
+            // Si falla, el usuario puede escribir manualmente
+        } finally {
+            setLoadingCodes(false);
+        }
+    };
 
     const handleOpenEdit = (patient) => {
         const rx = patient.prescriptions?.find(p => p.status === 'active') || {};
@@ -60,6 +87,10 @@ const Patients = () => {
             dosage: rx.dosage || '', usage_time: rx.usage_time || '', expires_at: rx.expires_at || '',
             promissory_note: rx.promissory_note || '', authorization_date: rx.authorization_date || ''
         });
+        // Detectar qué códigos tiene ya el paciente
+        setHasTrasiego(!!patient.trasiego_code);
+        setHasExchange(!!patient.exchange_code);
+        setPrefetchedCodes({ trasiego_code: '', exchange_code: '' });
         setEditingId(patient.id);
         setIsModalOpen(true);
     };
@@ -135,6 +166,31 @@ const Patients = () => {
         }
     };
 
+    const handleExportExcel = async () => {
+        setExportingExcel(true);
+        try {
+            const res = await api.get('/patients', {
+                params: {
+                    per_page: 'all',
+                    search: debouncedSearch || undefined,
+                    rx_status: filterRxStatus,
+                    code_type: filterCodeType,
+                }
+            });
+            const allPatients = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+            if (allPatients.length === 0) {
+                alert('No se encontraron pacientes para exportar con los filtros seleccionados.');
+                return;
+            }
+            await exportPatientsCatalogReport(allPatients, filterCodeType);
+        } catch (error) {
+            console.error('Error al exportar pacientes:', error);
+            alert('Error al generar la exportación de pacientes.');
+        } finally {
+            setExportingExcel(false);
+        }
+    };
+
     const patientsList = Array.isArray(patients) ? patients : (patients?.data || []);
     const filtered = patientsList;
 
@@ -155,9 +211,29 @@ const Patients = () => {
                         <p className="text-slate-500 text-xs sm:text-sm mt-1">Gestiona pacientes y sus recetas de oxígeno.</p>
                     </div>
                 </div>
-                <button onClick={handleOpenCreate} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-sm transition-all hover:scale-105 shrink-0">
-                    <MdAdd className="text-xl" /> Nuevo Paciente
-                </button>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
+                    <button 
+                        onClick={handleExportExcel} 
+                        disabled={exportingExcel}
+                        className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-4 py-2.5 rounded-xl font-semibold shadow-sm transition-all hover:scale-105 shrink-0"
+                        title={`Exportar a Excel según filtros (${filterCodeType === 'ALL' ? 'Todos' : filterCodeType === 'TRASIEGO' ? 'Con Trasiego' : 'Con Canje'})`}
+                    >
+                        {exportingExcel ? (
+                            <>
+                                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                <span>Exportando...</span>
+                            </>
+                        ) : (
+                            <>
+                                <MdDownload className="text-xl" />
+                                <span>Exportar Excel</span>
+                            </>
+                        )}
+                    </button>
+                    <button onClick={handleOpenCreate} className="flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-sm transition-all hover:scale-105 shrink-0">
+                        <MdAdd className="text-xl" /> Nuevo Paciente
+                    </button>
+                </div>
             </div>
 
             {/* Contenedor de Tabla */}
@@ -305,80 +381,229 @@ const Patients = () => {
                 MODAL PRINCIPAL: Crear / Editar Paciente
             ═══════════════════════════════════════════ */}
             <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? 'Editar Paciente' : 'Nuevo Paciente'} maxWidth="max-w-lg">
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* ── Datos Personales ── */}
                     <div className="space-y-3">
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-1">Datos Personales</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                            <div className="sm:col-span-2">
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">Nombre Completo *</label>
-                                <input type="text" required value={formData.full_name} onChange={e => setFormData({...formData, full_name: e.target.value})}
-                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm" />
-                            </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">Nombre Completo *</label>
+                            <input type="text" required value={formData.full_name} onChange={e => setFormData({...formData, full_name: e.target.value})}
+                                className="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none text-sm" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <label className="block text-xs font-semibold text-slate-700 mb-1">DNI</label>
-                                <input type="text" value={formData.dni} onChange={e => setFormData({...formData, dni: e.target.value})}
-                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm" />
+                                <input type="text" inputMode="numeric" value={formData.dni} onChange={e => setFormData({...formData, dni: e.target.value})}
+                                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none text-sm" />
                             </div>
                             <div>
                                 <label className="block text-xs font-semibold text-slate-700 mb-1">Celular</label>
-                                <input type="text" value={formData.phone1} onChange={e => setFormData({...formData, phone1: e.target.value})}
-                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm" />
+                                <input type="text" inputMode="tel" value={formData.phone1} onChange={e => setFormData({...formData, phone1: e.target.value})}
+                                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none text-sm" />
                             </div>
-                            <div className="sm:col-span-2">
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">Dirección</label>
-                                <input type="text" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})}
-                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-sm" />
-                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">Dirección</label>
+                            <input type="text" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})}
+                                className="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none text-sm" />
                         </div>
                     </div>
 
-                    <div className="space-y-3 p-3 sm:p-4 bg-blue-50 rounded-xl border border-blue-100">
+                    {/* ── Receta Inicial ── */}
+                    <div className="space-y-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
                         <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest border-b border-blue-100 pb-1 flex items-center gap-1"><MdAssignment />Receta Inicial</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">Dosificación (L/min)</label>
-                                <input type="text" value={formData.dosage} onChange={e => setFormData({...formData, dosage: e.target.value})}
-                                    placeholder="Ej: 3 L/min" className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm outline-none" />
+                                <label className="block text-xs font-semibold text-slate-700 mb-1">Dosif. (L/min)</label>
+                                <input type="text" inputMode="decimal" value={formData.dosage} onChange={e => setFormData({...formData, dosage: e.target.value})}
+                                    placeholder="Ej: 3" className="w-full px-3 py-2.5 border border-blue-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-400" />
                             </div>
                             <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">Tiempo Uso (hrs/día)</label>
-                                <input type="text" value={formData.usage_time} onChange={e => setFormData({...formData, usage_time: e.target.value})}
-                                    placeholder="Ej: 24" className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm outline-none" />
+                                <label className="block text-xs font-semibold text-slate-700 mb-1">Uso (hrs/día)</label>
+                                <input type="text" inputMode="decimal" value={formData.usage_time} onChange={e => setFormData({...formData, usage_time: e.target.value})}
+                                    placeholder="Ej: 24" className="w-full px-3 py-2.5 border border-blue-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-400" />
                             </div>
                             <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">Fecha Autorización</label>
+                                <label className="block text-xs font-semibold text-slate-700 mb-1">F. Autorización</label>
                                 <input type="date" value={formData.authorization_date} onChange={e => setFormData({...formData, authorization_date: e.target.value})}
-                                    className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm outline-none" />
+                                    className="w-full px-3 py-2.5 border border-blue-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-400" />
                             </div>
                             <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">Fecha Vencimiento</label>
+                                <label className="block text-xs font-semibold text-slate-700 mb-1">F. Vencimiento</label>
                                 <input type="date" value={formData.expires_at} onChange={e => setFormData({...formData, expires_at: e.target.value})}
-                                    className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm outline-none" />
+                                    className="w-full px-3 py-2.5 border border-blue-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-400" />
                             </div>
-                            <div className="sm:col-span-2">
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">Nº Pagaré</label>
-                                <input type="text" value={formData.promissory_note} onChange={e => setFormData({...formData, promissory_note: e.target.value})}
-                                    placeholder="PAG-2024-001" className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm outline-none" />
-                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">Nº Pagaré</label>
+                            <input type="text" value={formData.promissory_note} onChange={e => setFormData({...formData, promissory_note: e.target.value})}
+                                placeholder="PAG-2024-001" className="w-full px-3 py-2.5 border border-blue-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-400" />
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                        <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1">Código Trasiego</label>
-                            <input type="text" value={formData.trasiego_code} onChange={e => setFormData({...formData, trasiego_code: e.target.value.toUpperCase()})}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm uppercase outline-none" />
+                    {/* ══════════════════════════════════════
+                        SELECTOR DE TIPO DE CÓDIGO (CARD TOGGLE)
+                    ══════════════════════════════════════ */}
+                    <div className="space-y-2.5">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-1">
+                            Modalidad del Paciente PADOMI
+                        </p>
+                        <p className="text-xs text-slate-500">Selecciona los tipos de código que aplican:</p>
+
+                        <div className="flex flex-col gap-3">
+                            {/* ── Card: Código Trasiego ── */}
+                            <div
+                                onClick={() => {
+                                    const next = !hasTrasiego;
+                                    setHasTrasiego(next);
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        trasiego_code: next ? (prefetchedCodes.trasiego_code || prev.trasiego_code) : '',
+                                    }));
+                                }}
+                                className={`relative cursor-pointer rounded-xl border-2 p-3.5 transition-all select-none ${
+                                    hasTrasiego
+                                        ? 'border-orange-400 bg-orange-50 shadow-sm shadow-orange-100'
+                                        : 'border-slate-200 bg-white active:bg-orange-50/40'
+                                }`}
+                            >
+                                {/* Cabecera de la card: icono + texto + toggle */}
+                                <div className="flex items-center gap-3">
+                                    {/* Checkbox visual tipo pill a la izquierda */}
+                                    <div className={`shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                                        hasTrasiego ? 'bg-orange-500 border-orange-500' : 'border-slate-300 bg-white'
+                                    }`}>
+                                        {hasTrasiego && (
+                                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                            </svg>
+                                        )}
+                                    </div>
+                                    <span className="text-xl leading-none">🔁</span>
+                                    <div className="flex-1 min-w-0">
+                                        <p className={`font-black text-sm leading-tight ${hasTrasiego ? 'text-orange-700' : 'text-slate-700'}`}>
+                                            Código Trasiego
+                                        </p>
+                                        <p className="text-[11px] text-slate-400 mt-0.5 leading-tight">Recarga por decantación · Formato P####</p>
+                                    </div>
+                                    <span className={`shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full transition-colors ${
+                                        hasTrasiego ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-400'
+                                    }`}>
+                                        {hasTrasiego ? 'ON' : 'OFF'}
+                                    </span>
+                                </div>
+
+                                {/* Input expansible cuando está activo */}
+                                {hasTrasiego && (
+                                    <div className="mt-3 pt-3 border-t border-orange-200" onClick={e => e.stopPropagation()}>
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                value={formData.trasiego_code}
+                                                onChange={e => setFormData({ ...formData, trasiego_code: e.target.value.toUpperCase() })}
+                                                className="w-full px-3 py-2.5 border-2 border-orange-300 rounded-lg text-sm font-bold uppercase outline-none focus:border-orange-500 bg-white text-orange-800 pr-14 touch-action-manipulation"
+                                                placeholder={loadingCodes ? 'Calculando...' : 'Ej: P1090'}
+                                                readOnly={loadingCodes}
+                                                inputMode="text"
+                                                autoCapitalize="characters"
+                                            />
+                                            {loadingCodes ? (
+                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                                !editingId && (
+                                                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-black text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded-full border border-orange-200">AUTO</span>
+                                                )
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* ── Card: Código Intercambio ── */}
+                            <div
+                                onClick={() => {
+                                    const next = !hasExchange;
+                                    setHasExchange(next);
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        exchange_code: next ? (prefetchedCodes.exchange_code || prev.exchange_code) : '',
+                                    }));
+                                }}
+                                className={`relative cursor-pointer rounded-xl border-2 p-3.5 transition-all select-none ${
+                                    hasExchange
+                                        ? 'border-blue-400 bg-blue-50 shadow-sm shadow-blue-100'
+                                        : 'border-slate-200 bg-white active:bg-blue-50/40'
+                                }`}
+                            >
+                                {/* Cabecera de la card */}
+                                <div className="flex items-center gap-3">
+                                    <div className={`shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                                        hasExchange ? 'bg-blue-500 border-blue-500' : 'border-slate-300 bg-white'
+                                    }`}>
+                                        {hasExchange && (
+                                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                            </svg>
+                                        )}
+                                    </div>
+                                    <span className="text-xl leading-none">🔄</span>
+                                    <div className="flex-1 min-w-0">
+                                        <p className={`font-black text-sm leading-tight ${hasExchange ? 'text-blue-700' : 'text-slate-700'}`}>
+                                            Código Intercambio
+                                        </p>
+                                        <p className="text-[11px] text-slate-400 mt-0.5 leading-tight">Canje balón lleno/vacío · Formato ####</p>
+                                    </div>
+                                    <span className={`shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full transition-colors ${
+                                        hasExchange ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-400'
+                                    }`}>
+                                        {hasExchange ? 'ON' : 'OFF'}
+                                    </span>
+                                </div>
+
+                                {/* Input expansible cuando está activo */}
+                                {hasExchange && (
+                                    <div className="mt-3 pt-3 border-t border-blue-200" onClick={e => e.stopPropagation()}>
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                value={formData.exchange_code}
+                                                onChange={e => setFormData({ ...formData, exchange_code: e.target.value.toUpperCase() })}
+                                                className="w-full px-3 py-2.5 border-2 border-blue-300 rounded-lg text-sm font-bold uppercase outline-none focus:border-blue-500 bg-white text-blue-800 pr-14 touch-action-manipulation"
+                                                placeholder={loadingCodes ? 'Calculando...' : 'Ej: 3200'}
+                                                readOnly={loadingCodes}
+                                                inputMode="numeric"
+                                            />
+                                            {loadingCodes ? (
+                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                                !editingId && (
+                                                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-black text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full border border-blue-200">AUTO</span>
+                                                )
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                        <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1">Código Intercambio</label>
-                            <input type="text" value={formData.exchange_code} onChange={e => setFormData({...formData, exchange_code: e.target.value.toUpperCase()})}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm uppercase outline-none" />
-                        </div>
+
+                        {/* Indicador si ninguno está activo */}
+                        {!hasTrasiego && !hasExchange && (
+                            <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                                <span className="text-base">ℹ️</span>
+                                <p className="text-xs text-slate-400 italic leading-tight">
+                                    Sin código asignado — el paciente no tendrá modalidad PADOMI.
+                                </p>
+                            </div>
+                        )}
                     </div>
 
-                    <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t border-slate-100">
-                        <button type="button" onClick={() => setIsModalOpen(false)} className="w-full sm:w-auto px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-lg font-medium text-sm transition-colors order-2 sm:order-1">Cancelar</button>
-                        <button type="submit" disabled={actionLoading} className="w-full sm:w-auto px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold text-sm disabled:opacity-50 transition-colors order-1 sm:order-2">
+                    <div className="flex gap-3 pt-4 border-t border-slate-100">
+                        <button type="button" onClick={() => setIsModalOpen(false)}
+                            className="flex-1 px-4 py-3 border border-slate-200 text-slate-600 rounded-xl font-semibold text-sm hover:bg-slate-50 transition-colors">
+                            Cancelar
+                        </button>
+                        <button type="submit" disabled={actionLoading}
+                            className="flex-1 px-5 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-sm disabled:opacity-50 transition-colors shadow-sm shadow-purple-200">
                             {actionLoading ? 'Guardando...' : 'Guardar Paciente'}
                         </button>
                     </div>

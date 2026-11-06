@@ -19,7 +19,7 @@ Sistema de información para la gestión integral del inventario de gases medici
 | [Cilindros](./api/cylinders.md) | CRUD de balones de gas medicinal |
 | [Movimientos de Inventario](./api/inventory-movements.md) | Intercambio, Trasiego, Proveedor, Periféricos |
 | [Módulo Líquido](./api/liquid.md) | Recarga de tanque y lecturas diarias |
-| [Lecturas Diarias](./api/daily-readings.md) | Registro del flujómetro y nivel de tanque |
+| [Lecturas Diarias](./api/daily-readings.md) | Registro del flujómetro y nivel de tanqu |
 | [Recetas Médicas](./api/prescriptions.md) | Gestión de recetas de pacientes PADOMI |
 | [Reportes](./api/reports.md) | Kardex, Consumo, Inventario y Cierre de turno |
 | [Usuarios](./api/users.md) | Gestión de operadores del sistema |

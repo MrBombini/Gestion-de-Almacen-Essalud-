@@ -14,10 +14,13 @@ import {
   MdInfo,
   MdNotificationsActive,
   MdAccessTime,
-  MdHourglassEmpty
+  MdHourglassEmpty,
+  MdSearch,
+  MdClear
 } from 'react-icons/md';
 import useFetch from '../../hooks/useFetch';
 import api from '../../services/api';
+import Select from 'react-select';
 
 // ─────────────────────────────────────────────
 // Mapa de capacidad → volumen water (L)
@@ -42,9 +45,24 @@ function calcEstimatedHours(pressurePsi, flowLmin, capacityM3) {
 export function getDynamicAutonomy(cyl, currentTime = Date.now()) {
   if (cyl.is_editing) {
     const psi  = parseFloat(cyl.presion_psi) || 0;
-    const lmin = parseFloat(cyl.flujo_lmin) || 0;
+    const lminRaw = cyl.flujo_lmin;
+    const lmin = lminRaw !== '' && lminRaw !== null ? parseFloat(lminRaw) : null;
     const cap  = parseFloat(cyl.capacity) || 10;
-    const estimated = psi > 0 && lmin > 0 ? calcEstimatedHours(psi, lmin, cap) : null;
+    
+    // Si el flujo es 0 o negativo, indicar sin flujo (balón inactivo)
+    if (lmin !== null && !isNaN(lmin) && lmin <= 0) {
+      return {
+        isEditing: true,
+        remainingHours: null,
+        rawRemainingHours: null,
+        status: 'no_flow',
+        display: 'Sin flujo',
+        formattedTime: 'Sin flujo',
+        alertLevel: null
+      };
+    }
+
+    const estimated = psi > 0 && lmin !== null && lmin > 0 ? calcEstimatedHours(psi, lmin, cap) : null;
     return {
       isEditing: true,
       remainingHours: estimated,
@@ -52,14 +70,14 @@ export function getDynamicAutonomy(cyl, currentTime = Date.now()) {
       status: 'editing',
       display: estimated !== null ? `${estimated}h` : '—',
       formattedTime: estimated !== null ? `${estimated}h` : '—',
-      alertLevel: 'editing'
+      alertLevel: null
     };
   }
 
   const lastReading = cyl.last_reading;
 
-  // Sin lectura o sin estimated_hours → sin datos
-  if (!lastReading || lastReading.estimated_hours === undefined || lastReading.estimated_hours === null || lastReading.estimated_hours === '') {
+  // Sin lectura previa
+  if (!lastReading) {
     return {
       isEditing: false,
       remainingHours: null,
@@ -71,9 +89,13 @@ export function getDynamicAutonomy(cyl, currentTime = Date.now()) {
     };
   }
 
-  // Flujo 0 → balón sin uso activo, no es "agotado"
-  const flowSaved = parseFloat(lastReading.flow_lmin);
-  if (!isNaN(flowSaved) && flowSaved === 0) {
+  // Comprobar rigurosamente: si NO hay flujo (<= 0, null, vacío, o status 'no_flow')
+  // IMPORTANTE: Un balón sin flujo no está en uso activo y NUNCA debe generar alertas de recambio
+  const flowVal = lastReading.flow_lmin !== null && lastReading.flow_lmin !== undefined && lastReading.flow_lmin !== ''
+    ? parseFloat(lastReading.flow_lmin)
+    : null;
+
+  if (flowVal === null || isNaN(flowVal) || flowVal <= 0 || lastReading.status === 'no_flow') {
     return {
       isEditing: false,
       remainingHours: null,
@@ -86,21 +108,32 @@ export function getDynamicAutonomy(cyl, currentTime = Date.now()) {
     };
   }
 
-  // estimated_hours explícitamente 0 pero sin flujo registrado → tratar como sin datos
-  if (parseFloat(lastReading.estimated_hours) === 0 && (lastReading.flow_lmin === 0 || lastReading.flow_lmin === '0' || lastReading.flow_lmin === null)) {
+  // Sin estimated_hours válido
+  if (lastReading.estimated_hours === undefined || lastReading.estimated_hours === null || lastReading.estimated_hours === '') {
     return {
       isEditing: false,
       remainingHours: null,
       rawRemainingHours: null,
-      status: 'no_flow',
-      display: 'Sin flujo',
-      formattedTime: 'Sin flujo',
-      alertLevel: null,
-      readAt: lastReading.read_at
+      status: 'no_data',
+      display: '—',
+      formattedTime: '—',
+      alertLevel: null
     };
   }
 
   const initialHours = parseFloat(lastReading.initial_estimated_hours ?? lastReading.estimated_hours) || 0;
+  if (initialHours <= 0) {
+    return {
+      isEditing: false,
+      remainingHours: 0,
+      rawRemainingHours: 0,
+      status: 'depleted',
+      display: '0h (Agotado)',
+      formattedTime: '0h (Agotado)',
+      alertLevel: 'depleted',
+      readAt: lastReading.read_at
+    };
+  }
   const readAtTime = lastReading.read_at ? new Date(lastReading.read_at).getTime() : null;
 
   let remainingHours = initialHours;
@@ -392,32 +425,122 @@ function ToastNotification({ toast, onClose }) {
 }
 
 // ─────────────────────────────────────────────
-// Modal: Cambio de cama con UX Premium
+// Modal: Cambio de cama simplificado
+// Selecciona directamente la cama escribiendo en el buscador
+// y el servicio se asigna automáticamente
 // ─────────────────────────────────────────────
 function BedTransferModal({ cylinder, currentShift, onClose, onSuccess }) {
-  const [services, setServices] = useState([]);
   const [beds, setBeds] = useState([]);
-  const [toServiceId, setToServiceId] = useState('');
+  const [loadingBeds, setLoadingBeds] = useState(true);
   const [toBedId, setToBedId] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Cargar todas las camas con su servicio asociado directamente
   useEffect(() => {
-    api.get('/services').then(r => setServices(r.data?.data || r.data || [])).catch(() => {});
+    setLoadingBeds(true);
+    api.get('/beds')
+      .then(r => setBeds(r.data?.data || r.data || []))
+      .catch(() => setBeds([]))
+      .finally(() => setLoadingBeds(false));
   }, []);
 
-  useEffect(() => {
-    if (!toServiceId) { setBeds([]); setToBedId(''); return; }
-    api.get('/beds', { params: { service_id: toServiceId } })
-      .then(r => setBeds(r.data?.data || r.data || []))
-      .catch(() => setBeds([]));
-    setToBedId('');
-    setErrorMsg('');
-  }, [toServiceId]);
-
   const selectedBedObj = beds.find(b => String(b.id) === String(toBedId));
-  const selectedServiceObj = services.find(s => String(s.id) === String(toServiceId));
+  const autoServiceName = selectedBedObj?.service?.name || selectedBedObj?.service_name || '';
+  const autoServiceId = selectedBedObj?.service_id || selectedBedObj?.service?.id || null;
+
+  // Opciones de camas agrupadas por servicio para react-select
+  const groupedBedOptions = useMemo(() => {
+    const groups = {};
+    beds.forEach(b => {
+      const isSameBed = b.id === cylinder.current_bed_id;
+      const isOccupied = b.status === 'occupied' && !isSameBed;
+      const sName = b.service?.name || b.service_name || 'Otros / Sin Servicio';
+      if (!groups[sName]) groups[sName] = [];
+      groups[sName].push({
+        value: b.id,
+        label: `Cama ${b.bed_number} — ${sName}`,
+        bedNumber: b.bed_number,
+        serviceName: sName,
+        serviceId: b.service_id || b.service?.id || null,
+        isOccupied,
+        isDisabled: isSameBed,
+      });
+    });
+
+    return Object.keys(groups).map(sName => ({
+      label: `📍 SERVICIO: ${sName}`,
+      options: groups[sName],
+    }));
+  }, [beds, cylinder.current_bed_id]);
+
+  // Opción seleccionada actualmente
+  const selectedOption = useMemo(() => {
+    if (!toBedId) return null;
+    for (const group of groupedBedOptions) {
+      const found = group.options.find(opt => String(opt.value) === String(toBedId));
+      if (found) return found;
+    }
+    return null;
+  }, [groupedBedOptions, toBedId]);
+
+  // Filtro inteligente para buscar por número de cama o servicio al escribir
+  const filterOption = (candidate, input) => {
+    if (!input) return true;
+    const term = input.toLowerCase().trim();
+    const bedNum = String(candidate.data?.bedNumber || '').toLowerCase();
+    const sName = String(candidate.data?.serviceName || '').toLowerCase();
+    const fullLabel = String(candidate.label || '').toLowerCase();
+    return bedNum.includes(term) || sName.includes(term) || fullLabel.includes(term);
+  };
+
+  const selectStyles = {
+    control: (base, state) => ({
+      ...base,
+      borderRadius: '0.75rem',
+      borderColor: state.isFocused ? '#2563eb' : '#cbd5e1',
+      boxShadow: state.isFocused ? '0 0 0 3px rgba(37, 99, 235, 0.15)' : 'none',
+      padding: '3px 4px',
+      fontSize: '0.875rem',
+      backgroundColor: '#ffffff',
+      '&:hover': {
+        borderColor: '#94a3b8',
+      },
+    }),
+    menuPortal: (base) => ({ ...base, zIndex: 99999 }),
+    menu: (base) => ({
+      ...base,
+      borderRadius: '0.75rem',
+      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+      border: '1px solid #e2e8f0',
+      overflow: 'hidden',
+      zIndex: 99999,
+    }),
+    option: (base, state) => ({
+      ...base,
+      backgroundColor: state.isSelected
+        ? '#2563eb'
+        : state.isFocused
+        ? '#eff6ff'
+        : 'transparent',
+      color: state.isSelected ? '#ffffff' : '#1e293b',
+      cursor: state.isDisabled ? 'not-allowed' : 'pointer',
+      fontSize: '0.875rem',
+      padding: '8px 12px',
+    }),
+    groupHeading: (base) => ({
+      ...base,
+      color: '#334155',
+      fontWeight: '800',
+      fontSize: '0.72rem',
+      textTransform: 'uppercase',
+      letterSpacing: '0.05em',
+      padding: '7px 12px',
+      backgroundColor: '#f8fafc',
+      borderBottom: '1px solid #f1f5f9',
+    }),
+  };
 
   const handleSubmit = async () => {
     setErrorMsg('');
@@ -436,7 +559,7 @@ function BedTransferModal({ cylinder, currentShift, onClose, onSuccess }) {
       await api.post('/hospitalization/bed-transfer', {
         cylinder_id:   cylinder.id,
         to_bed_id:     parseInt(toBedId),
-        to_service_id: toServiceId ? parseInt(toServiceId) : null,
+        to_service_id: autoServiceId,
         shift:         currentShift,
         notes,
       });
@@ -445,7 +568,7 @@ function BedTransferModal({ cylinder, currentShift, onClose, onSuccess }) {
       onSuccess({
         cyl: cylinder,
         bedNumber: selectedBedObj?.bed_number || toBedId,
-        serviceName: selectedServiceObj?.name || 'Servicio'
+        serviceName: autoServiceName || 'Servicio'
       });
       onClose();
     } catch (err) {
@@ -456,19 +579,19 @@ function BedTransferModal({ cylinder, currentShift, onClose, onSuccess }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200" onClick={onClose}>
       <div
-        className="bg-white rounded-3xl shadow-2xl w-full max-w-lg border border-slate-100 overflow-hidden scale-100 transform transition-all"
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-lg border border-slate-100 overflow-hidden scale-100 transform transition-all max-h-[92dvh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         {/* Cabecera del modal */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-linear-to-r from-blue-50/50 to-indigo-50/30">
-          <div className="flex items-center gap-3.5">
-            <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-md shadow-blue-500/20">
-              <MdSwapHoriz className="text-2xl" />
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-100 bg-linear-to-r from-blue-50/50 to-indigo-50/30 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 sm:p-3 bg-blue-600 text-white rounded-2xl shadow-md shadow-blue-500/20">
+              <MdSwapHoriz className="text-xl sm:text-2xl" />
             </div>
             <div>
-              <h3 className="font-black text-slate-800 text-lg tracking-tight">Cambiar Cama de Cilindro</h3>
+              <h3 className="font-black text-slate-800 text-base sm:text-lg tracking-tight">Cambiar Cama de Cilindro</h3>
               <p className="text-xs text-slate-500 mt-0.5">
                 Balón serie: <span className="font-mono font-bold text-slate-700 bg-white px-2 py-0.5 rounded-md border border-slate-200">{cylinder.serial_number}</span>
               </p>
@@ -482,9 +605,10 @@ function BedTransferModal({ cylinder, currentShift, onClose, onSuccess }) {
           </button>
         </div>
 
-        <div className="p-6 space-y-5">
-          {/* Visualizador de Traslado (Origen -> Destino) */}
-          <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-2xs">
+        {/* Cuerpo con scroll optimizado para móviles */}
+        <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
+          {/* Visualizador de Traslado (Origen -> Destino con servicio auto-asociado) */}
+          <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 sm:p-4 flex items-center justify-between gap-2 sm:gap-3 shadow-2xs">
             <div className="flex-1 min-w-0">
               <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Ubicación Actual</div>
               <div className="font-black text-slate-800 text-sm flex items-center gap-1.5 mt-1">
@@ -496,8 +620,8 @@ function BedTransferModal({ cylinder, currentShift, onClose, onSuccess }) {
               </div>
             </div>
 
-            <div className="shrink-0 p-2.5 bg-blue-100/70 text-blue-700 rounded-full">
-              <MdArrowForward className="text-lg" />
+            <div className="shrink-0 p-2 sm:p-2.5 bg-blue-100/70 text-blue-700 rounded-full">
+              <MdArrowForward className="text-base sm:text-lg" />
             </div>
 
             <div className="flex-1 min-w-0 text-right">
@@ -507,70 +631,86 @@ function BedTransferModal({ cylinder, currentShift, onClose, onSuccess }) {
                 <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${selectedBedObj ? 'bg-emerald-500' : 'bg-slate-300'}`} />
               </div>
               <div className="text-xs text-slate-500 truncate mt-0.5">
-                {selectedServiceObj?.name || 'Selecciona servicio'}
+                {autoServiceName || 'Selecciona una cama'}
               </div>
             </div>
           </div>
 
           {/* Banner de error inline */}
           {errorMsg && (
-            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2.5 font-medium animate-in fade-in">
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2.5 font-medium animate-in fade-in">
               <MdErrorOutline className="text-lg shrink-0 text-rose-600" />
               <span>{errorMsg}</span>
             </div>
           )}
 
-          {/* Selector de Servicio */}
+          {/* Selector Escribible de Cama (React-Select con búsqueda y servicio auto-vinculado) */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              1. Servicio de Destino: <span className="text-rose-500">*</span>
+              Cama de Destino: <span className="text-rose-500">*</span>
+              <span className="ml-1 text-[11px] font-normal text-slate-400">(escribe número o servicio para filtrar)</span>
             </label>
-            <select
-              className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-medium text-slate-700"
-              value={toServiceId}
-              onChange={e => setToServiceId(e.target.value)}
-            >
-              <option value="">-- Seleccionar servicio --</option>
-              {services.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
 
-          {/* Selector de Cama */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              2. Cama de Destino: <span className="text-rose-500">*</span>
-            </label>
-            <select
-              className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-white outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-medium text-slate-700 disabled:bg-slate-100 disabled:opacity-60"
-              value={toBedId}
-              onChange={e => {
-                setToBedId(e.target.value);
+            <Select
+              value={selectedOption}
+              onChange={opt => {
+                setToBedId(opt ? opt.value : '');
                 setErrorMsg('');
               }}
-              disabled={!toServiceId}
-            >
-              <option value="">-- {toServiceId ? 'Seleccionar cama disponible' : 'Primero elige un servicio'} --</option>
-              {beds.map(b => {
-                const isSameBed = b.id === cylinder.current_bed_id;
-                const isOccupied = b.status === 'occupied' && !isSameBed;
+              options={groupedBedOptions}
+              filterOption={filterOption}
+              isSearchable={true}
+              isClearable={true}
+              isLoading={loadingBeds}
+              placeholder="Escribe la cama o servicio (ej: 101, UCI, Medicina)..."
+              noOptionsMessage={({ inputValue }) => 
+                inputValue ? `No se encontró "${inputValue}"` : "No hay camas disponibles"
+              }
+              loadingMessage={() => "Cargando camas del hospital..."}
+              menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+              styles={selectStyles}
+              formatOptionLabel={(option, { context }) => {
+                if (context === 'value') {
+                  return (
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-800">Cama {option.bedNumber}</span>
+                      <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                        {option.serviceName}
+                      </span>
+                    </div>
+                  );
+                }
                 return (
-                  <option
-                    key={b.id}
-                    value={b.id}
-                    disabled={isSameBed}
-                    style={isSameBed ? { color: '#9ca3af' } : isOccupied ? { color: '#ea580c' } : { color: '#16a34a' }}
-                  >
-                    Cama {b.bed_number} {isSameBed ? '(Ubicación actual)' : isOccupied ? '● En uso' : '○ Libre'}
-                  </option>
+                  <div className="flex items-center justify-between py-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-800 text-xs sm:text-sm">Cama {option.bedNumber}</span>
+                      <span className="text-[11px] text-slate-500 font-medium">({option.serviceName})</span>
+                    </div>
+                    <div>
+                      {option.isDisabled ? (
+                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded">Ubicación actual</span>
+                      ) : option.isOccupied ? (
+                        <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">● En uso</span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">○ Libre</span>
+                      )}
+                    </div>
+                  </div>
                 );
-              })}
-            </select>
+              }}
+            />
+
+            {/* Badge de confirmación visual del servicio auto-detectado */}
             {selectedBedObj && selectedBedObj.id !== cylinder.current_bed_id && (
-              <p className="text-[11px] text-emerald-600 font-semibold mt-1.5 flex items-center gap-1">
-                <MdCheckCircle /> Cama {selectedBedObj.bed_number} seleccionada correctamente.
-              </p>
+              <div className="mt-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs animate-in fade-in">
+                <div className="flex items-center gap-2 text-emerald-800 font-semibold">
+                  <MdCheckCircle className="text-emerald-600 text-base shrink-0" />
+                  <span>Cama <strong>{selectedBedObj.bed_number}</strong> seleccionada</span>
+                </div>
+                <div className="bg-white px-2.5 py-0.5 rounded-lg border border-emerald-300 text-emerald-700 font-bold text-[11px] shrink-0">
+                  {autoServiceName || 'Servicio vinculado'}
+                </div>
+              </div>
             )}
           </div>
 
@@ -587,7 +727,7 @@ function BedTransferModal({ cylinder, currentShift, onClose, onSuccess }) {
           </div>
 
           {/* Botones de acción */}
-          <div className="flex gap-3 pt-2">
+          <div className="flex gap-3 pt-1">
             <button
               onClick={onClose}
               disabled={saving}
@@ -634,6 +774,7 @@ const HospitalizationControl = () => {
   const [toast, setToast]                 = useState(null);
   const [currentTime, setCurrentTime]     = useState(Date.now());
   const [onlyAlerts, setOnlyAlerts]       = useState(false);
+  const [showAlertsExpanded, setShowAlertsExpanded] = useState(false);
   const reportRef = useRef(null);
 
   // Ticker en tiempo real: recalcula el tiempo restante automáticamente cada 30 segundos
@@ -1120,7 +1261,7 @@ const HospitalizationControl = () => {
                   value={cyl.flujo_lmin}
                   onChange={e => handleInputChange(cyl.id, 'flujo_lmin', e.target.value)}
                   placeholder="L/min"
-                  min="0.01"
+                  min="0"
                   step="0.1"
                 />
               </td>
@@ -1202,7 +1343,7 @@ const HospitalizationControl = () => {
             <MdLocalHospital className="text-2xl" />
           </div>
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-slate-800">Control de Hospitalización</h2>
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-800">Recorrido Hospitalización</h2>
             <p className="text-slate-500 text-xs sm:text-sm mt-1 flex flex-wrap items-center gap-1.5">
               <span>Turno: <strong className="text-indigo-600">{SHIFT_ES[currentShift]}</strong></span>
               <span>· {localData.length} cilindros</span>
@@ -1256,81 +1397,90 @@ const HospitalizationControl = () => {
         </div>
       </div>
 
-      {/* ── BANNER DESTACADO DE BALONES POR AGOTARSE (≤ 2 HORAS) ── */}
+      {/* ── ALERTA MINIMALISTA DE BALONES POR AGOTARSE (≤ 2 HORAS) ── */}
       {totalAlerts > 0 && (
-        <div className="bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 p-0.5 rounded-2xl shadow-md animate-fadeIn">
-          <div className="bg-white p-4 sm:p-5 rounded-[15px]">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-red-100 text-red-600 rounded-xl animate-bounce">
-                  <MdNotificationsActive className="text-2xl" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base sm:text-lg font-black text-slate-900">
-                      Alerta de Recambio: {totalAlerts} balón{totalAlerts > 1 ? 'es' : ''} próximo{totalAlerts > 1 ? 's' : ''} a agotarse (≤ 2 horas)
-                    </h3>
-                    <span className="px-2 py-0.5 text-[10px] font-black uppercase rounded-full bg-red-100 text-red-700 border border-red-300 animate-pulse">
-                      Cambiar Balón
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    El cálculo disminuye hora por hora. Cuando falte 1 a 2 horas o menos, realice el cambio oportuno del cilindro para no interrumpir el flujo del paciente.
-                  </p>
-                </div>
+        <div className="bg-white border border-rose-200 rounded-xl p-3 shadow-xs transition-all">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="p-1.5 bg-rose-100 text-rose-600 rounded-lg shrink-0">
+                <MdNotificationsActive className="text-base" />
+              </span>
+              <span className="text-xs font-bold text-slate-800">
+                Recambio Prioritario: <span className="font-black text-rose-700">{totalAlerts}</span> {totalAlerts === 1 ? 'balón en alerta' : 'balones en alerta'}
+              </span>
+              
+              <div className="flex items-center gap-1.5 flex-wrap ml-1">
+                {depletedCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-md bg-slate-900 text-rose-300 text-[10px] font-black tracking-wide">
+                    ⛔ {depletedCount} Agotado{depletedCount > 1 ? 's' : ''}
+                  </span>
+                )}
+                {criticalCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-md bg-red-600 text-white text-[10px] font-black tracking-wide">
+                    🚨 {criticalCount} Crítico (≤1h)
+                  </span>
+                )}
+                {warningCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-md bg-amber-500 text-white text-[10px] font-bold tracking-wide">
+                    ⚠️ {warningCount} Cambiar (1-2h)
+                  </span>
+                )}
               </div>
             </div>
 
-            {/* Chips de balones en alerta */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 mt-3 pt-3 border-t border-slate-100">
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setOnlyAlerts(prev => !prev)}
+                className={`text-xs px-2.5 py-1 rounded-lg font-bold transition-all border ${
+                  onlyAlerts 
+                    ? 'bg-rose-600 text-white border-rose-600 shadow-xs' 
+                    : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                }`}
+              >
+                {onlyAlerts ? 'Ver Todos' : 'Filtrar en Tabla'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAlertsExpanded(prev => !prev)}
+                className="text-xs px-2.5 py-1 rounded-lg font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors flex items-center gap-1"
+                title="Mostrar/Ocultar lista compacta"
+              >
+                <span>{showAlertsExpanded ? 'Ocultar' : `Ver Balones (${alertCylinders.length})`}</span>
+                <span className="text-[10px]">{showAlertsExpanded ? '▲' : '▼'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Lista compacta desplegable (con altura máxima controlada y scroll para nunca tapar la pantalla) */}
+          {showAlertsExpanded && (
+            <div className="mt-2.5 pt-2.5 border-t border-slate-100 flex flex-wrap gap-1.5 max-h-36 overflow-y-auto pr-1">
               {alertCylinders.map(({ cyl, autonomy }) => (
-                <div
+                <button
                   key={cyl.id}
+                  type="button"
                   onClick={() => {
                     setSelectedService(cyl.current_service?.name || '');
                     setSearchCylinder(cyl.serial_number || '');
                   }}
-                  className={`p-3 rounded-xl border flex items-center justify-between gap-2.5 cursor-pointer transition-all hover:scale-[1.01] ${
+                  className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium flex items-center gap-1.5 transition-all hover:scale-[1.02] cursor-pointer ${
                     autonomy.status === 'depleted'
-                      ? 'bg-slate-900 border-rose-500 text-white'
+                      ? 'bg-slate-900 border-rose-500 text-rose-200 hover:bg-slate-800'
                       : autonomy.status === 'critical'
-                      ? 'bg-red-50 border-red-200 hover:bg-red-100 text-red-900'
-                      : 'bg-amber-50 border-amber-200 hover:bg-amber-100 text-amber-900'
+                      ? 'bg-red-50 border-red-200 text-red-800 hover:bg-red-100'
+                      : 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100'
                   }`}
-                  title="Hacer clic para filtrar y ubicar este balón en la tabla"
+                  title={`Clic para ubicar Cama ${cyl.current_bed?.bed_number} en la tabla`}
                 >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-black text-xs uppercase">
-                        Cama {cyl.current_bed?.bed_number || '?'}
-                      </span>
-                      <span className={`text-[10px] truncate max-w-[110px] ${autonomy.status === 'depleted' ? 'text-slate-400' : 'text-slate-500'}`}>
-                        ({cyl.current_service?.name || 'Servicio'})
-                      </span>
-                    </div>
-                    <div className="font-mono text-[11px] font-bold opacity-90 truncate mt-0.5">
-                      {cyl.serial_number}
-                    </div>
-                  </div>
-
-                  <div className="text-right shrink-0">
-                    <div className={`text-xs font-black px-2 py-0.5 rounded-lg ${
-                      autonomy.status === 'depleted'
-                        ? 'bg-rose-500 text-white'
-                        : autonomy.status === 'critical'
-                        ? 'bg-red-600 text-white animate-pulse'
-                        : 'bg-amber-500 text-white'
-                    }`}>
-                      {autonomy.display}
-                    </div>
-                    <div className="text-[9px] font-bold mt-0.5">
-                      {autonomy.status === 'depleted' ? '⛔ Agotado' : autonomy.status === 'critical' ? '🚨 Cambio Urgente' : '⚠️ Cambiar Balón'}
-                    </div>
-                  </div>
-                </div>
+                  <span className="font-bold text-slate-900">Cama {cyl.current_bed?.bed_number || '?'}</span>
+                  <span className="opacity-60 text-[10px]">·</span>
+                  <span className="font-mono text-[10px]">{cyl.serial_number}</span>
+                  <span className="opacity-60 text-[10px]">·</span>
+                  <span className="font-black underline">{autonomy.display}</span>
+                </button>
               ))}
             </div>
-          </div>
+          )}
         </div>
       )}
 
