@@ -54,6 +54,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/drafts/{module}', [UserDraftController::class, 'destroy']);
 
         // Catalogs (CRUD)
+        Route::get('patients/next-codes', [PatientController::class, 'nextCodes']); // ← ANTES del apiResource
         Route::apiResource('patients', PatientController::class);
         Route::apiResource('services', ServiceController::class);
         Route::apiResource('beds', BedController::class);
