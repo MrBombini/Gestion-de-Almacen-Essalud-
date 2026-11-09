@@ -65,7 +65,7 @@ class HospitalizationController extends Controller
             ];
         }
 
-        // Si no hay flujo (<= 0 o null) o no se calculó autonomía (balón sin uso activo)
+        // Si no hay flujo (<= 0 o null) o no se calculó autonomía (balón sin uso activo / en reserva)
         $flow = $reading->flow_lmin !== null ? (float) $reading->flow_lmin : 0;
         if ($flow <= 0 || $reading->estimated_hours === null) {
             return [
@@ -186,6 +186,12 @@ class HospitalizationController extends Controller
             }
 
             $autonomy = $this->getReadingAutonomy($lastReading);
+
+            // NUNCA generar alerta si el flujo es <= 0, no hay consumo activo o no hay tiempo calculado
+            $flowVal = $lastReading->flow_lmin !== null ? (float) $lastReading->flow_lmin : 0;
+            if ($flowVal <= 0 || $autonomy['status'] === 'no_flow' || $autonomy['remaining_hours'] === null) {
+                continue;
+            }
 
             if ($autonomy['needs_change']) {
                 if ($autonomy['status'] === 'critical') $criticalCount++;
