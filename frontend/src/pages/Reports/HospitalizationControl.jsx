@@ -96,6 +96,12 @@ export function getDynamicAutonomy(cyl, currentTime = Date.now()) {
     : null;
 
   if (flowVal === null || isNaN(flowVal) || flowVal <= 0 || lastReading.status === 'no_flow') {
+    const readAtTime = lastReading.read_at ? new Date(lastReading.read_at).getTime() : null;
+    let elapsedMinutes = null;
+    if (readAtTime && !isNaN(readAtTime)) {
+      const elapsedMs = Math.max(0, currentTime - readAtTime);
+      elapsedMinutes = Math.floor(elapsedMs / (1000 * 60));
+    }
     return {
       isEditing: false,
       remainingHours: null,
@@ -104,7 +110,8 @@ export function getDynamicAutonomy(cyl, currentTime = Date.now()) {
       display: 'Sin flujo',
       formattedTime: 'Sin flujo',
       alertLevel: null,
-      readAt: lastReading.read_at
+      readAt: lastReading.read_at,
+      elapsedMinutes
     };
   }
 
@@ -1282,7 +1289,7 @@ const HospitalizationControl = () => {
                   {autonomy.isEditing && (
                     <span className="text-[8px] font-semibold text-blue-700">Sin guardar</span>
                   )}
-                  {autonomy.readAt && !autonomy.isEditing && (
+                  {autonomy.readAt && !autonomy.isEditing && typeof autonomy.elapsedMinutes === 'number' && !isNaN(autonomy.elapsedMinutes) && (
                     <span className="text-[8px] opacity-65 font-medium">
                       hace {autonomy.elapsedMinutes < 60 ? `${autonomy.elapsedMinutes}m` : `${Math.floor(autonomy.elapsedMinutes/60)}h ${autonomy.elapsedMinutes%60}m`}
                     </span>

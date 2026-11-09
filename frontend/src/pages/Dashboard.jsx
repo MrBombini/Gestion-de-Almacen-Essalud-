@@ -154,6 +154,18 @@ const Dashboard = ({ defaultTab }) => {
   const [kpisLoading, setKpisLoading] = useState(false);
   const [dismissHospAlert, setDismissHospAlert] = useState(false);
 
+  // Filtrar estrictamente: NUNCA alertar balones con flujo <= 0 o estatus 'no_flow' (en espera/reserva)
+  const validHospAlerts = useMemo(() => {
+    if (!hospAlerts || !Array.isArray(hospAlerts.alerts)) return [];
+    return hospAlerts.alerts.filter(al => {
+      const flow = al.flow_lmin !== null && al.flow_lmin !== undefined && al.flow_lmin !== ''
+        ? parseFloat(al.flow_lmin)
+        : null;
+      if (flow === null || isNaN(flow) || flow <= 0 || al.status === 'no_flow') return false;
+      return typeof al.remaining_hours === 'number' && !isNaN(al.remaining_hours) && al.remaining_hours <= 2.0;
+    });
+  }, [hospAlerts]);
+
   const fetchKpis = async () => {
     setKpisLoading(true);
     try {
@@ -408,109 +420,77 @@ const Dashboard = ({ defaultTab }) => {
         </div>
       </div>
 
-      {/* ── AVISO DE HOSPITALIZACIÓN: BALONES POR AGOTARSE (≤ 2 HORAS) ── */}
-      {hospAlerts && hospAlerts.total_alerts > 0 && !dismissHospAlert && (
-        <div className="relative overflow-hidden rounded-3xl p-0.5 bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 shadow-lg shadow-red-500/10 animate-fadeIn">
-          <div className="bg-white rounded-[23px] p-4 sm:p-5">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              
-              <div className="flex items-start sm:items-center gap-3.5">
-                <div className="p-3 bg-red-100 text-red-600 rounded-2xl shrink-0 animate-bounce">
-                  <MdNotificationsActive className="text-2xl" />
-                </div>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-100 text-red-700 border border-red-300 animate-pulse">
-                      Alerta Prioritaria
-                    </span>
-                    <span className="text-xs font-bold text-slate-500">
-                      Control de Oxígeno en Hospitalización
-                    </span>
-                  </div>
-                  <h2 className="text-base sm:text-lg font-black text-slate-900 mt-1">
-                    {hospAlerts.total_alerts} balón{hospAlerts.total_alerts > 1 ? 'es' : ''} de oxígeno requiere{hospAlerts.total_alerts > 1 ? 'n' : ''} cambio urgente (≤ 2 horas de autonomía)
-                  </h2>
-                  <p className="text-xs text-slate-500 font-medium mt-0.5">
-                    Se detectaron balones asignados a camas con autonomía crítica. Se recomienda el recambio inmediato para evitar desabastecimiento.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2.5 self-end md:self-center shrink-0">
-                <button
-                  onClick={() => navigate('/reports/hospitalization-control')}
-                  className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-red-600/20 flex items-center gap-2 active:scale-95 cursor-pointer"
-                >
-                  <MdLocalHospital className="text-base" />
-                  <span>Atender en Hospitalización</span>
-                  <MdArrowForward className="text-sm" />
-                </button>
-                <button
-                  onClick={() => setDismissHospAlert(true)}
-                  title="Ocultar aviso temporalmente"
-                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
-                >
-                  <MdClose className="text-lg" />
-                </button>
-              </div>
-
-            </div>
-
-            {/* Fila de balones críticos */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 mt-4 pt-4 border-t border-slate-100">
-              {hospAlerts.alerts?.map((al, idx) => {
-                const totalMins = Math.floor((al.remaining_hours || 0) * 60);
-                const h = Math.floor(totalMins / 60);
-                const m = totalMins % 60;
-                const timeText = al.remaining_hours <= 0 ? '0h (Agotado)' : (h > 0 ? `${h}h ${m}m` : `${m} min`);
-
-                return (
-                  <div
-                    key={idx}
-                    onClick={() => navigate('/reports/hospitalization-control')}
-                    className={`p-3 rounded-2xl border transition-all cursor-pointer hover:shadow-sm flex items-center justify-between gap-3 ${
-                      al.status === 'depleted'
-                        ? 'bg-slate-900 border-rose-500 text-white'
-                        : al.status === 'critical'
-                        ? 'bg-rose-50 border-rose-200 hover:bg-rose-100'
-                        : 'bg-amber-50 border-amber-200 hover:bg-amber-100'
-                    }`}
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`text-xs font-black uppercase ${al.status === 'depleted' ? 'text-rose-400' : 'text-slate-900'}`}>
-                          Cama {al.bed_number || '?'}
-                        </span>
-                        <span className={`text-[10px] truncate max-w-[100px] ${al.status === 'depleted' ? 'text-slate-400' : 'text-slate-500'}`}>
-                          {al.service_name || 'Hospitalización'}
-                        </span>
-                      </div>
-                      <p className={`text-[11px] font-mono font-bold truncate mt-0.5 ${al.status === 'depleted' ? 'text-slate-300' : 'text-slate-700'}`}>
-                        {al.serial_number} · {al.capacity || 10}m³
-                      </p>
-                    </div>
-
-                    <div className="text-right shrink-0">
-                      <span className={`inline-block px-2 py-0.5 rounded-lg text-xs font-black ${
-                        al.status === 'depleted'
-                          ? 'bg-rose-500 text-white animate-pulse'
-                          : al.status === 'critical'
-                          ? 'bg-red-600 text-white animate-pulse'
-                          : 'bg-amber-500 text-white'
-                      }`}>
-                        {timeText}
-                      </span>
-                      <p className={`text-[9px] font-bold mt-0.5 ${
-                        al.status === 'depleted' ? 'text-rose-300' : al.status === 'critical' ? 'text-red-700' : 'text-amber-800'
-                      }`}>
-                        {al.status === 'depleted' ? 'Sin oxígeno' : al.status === 'critical' ? 'Cambio urgente' : 'Cambiar pronto'}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
+      {/* ── AVISO DE HOSPITALIZACIÓN: BALONES POR AGOTARSE (≤ 2 HORAS) (MINIMALISTA) ── */}
+      {validHospAlerts.length > 0 && !dismissHospAlert && (
+        <div className="bg-gradient-to-r from-rose-50 via-white to-amber-50/50 border border-rose-200/90 rounded-2xl p-3 sm:px-4 sm:py-2.5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 animate-fadeIn">
+          
+          {/* Lado izquierdo: Icono + Resumen */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="p-1.5 bg-rose-500/15 text-rose-600 rounded-xl shrink-0 flex items-center justify-center">
+              <MdNotificationsActive className="text-base animate-pulse" />
+            </span>
+            <div className="flex items-center gap-2 flex-wrap min-w-0 text-xs">
+              <span className="font-extrabold text-rose-950">Recambio Prioritario:</span>
+              <span className="text-slate-600">
+                {validHospAlerts.length} balón{validHospAlerts.length > 1 ? 'es' : ''} en Hospitalización con ≤ 2h de autonomía
+              </span>
             </div>
           </div>
+
+          {/* Centro: Chips compactos de camas en alerta */}
+          <div className="flex items-center gap-1.5 flex-wrap overflow-x-auto py-0.5">
+            {validHospAlerts.slice(0, 4).map((al, idx) => {
+              const totalMins = Math.floor((al.remaining_hours || 0) * 60);
+              const h = Math.floor(totalMins / 60);
+              const m = totalMins % 60;
+              const timeText = al.remaining_hours <= 0 ? 'Agotado' : (h > 0 ? `${h}h ${m}m` : `${m}m`);
+              const isDepleted = al.status === 'depleted' || al.remaining_hours <= 0;
+
+              return (
+                <button
+                  key={idx}
+                  onClick={() => navigate('/reports/hospitalization-control')}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                    isDepleted
+                      ? 'bg-rose-100/90 border-rose-300 text-rose-900 hover:bg-rose-200'
+                      : 'bg-white border-amber-200 text-amber-900 hover:bg-amber-50'
+                  }`}
+                  title={`${al.serial_number} - ${al.service_name || 'Hospitalización'}`}
+                >
+                  <span className="font-bold">Cama {al.bed_number || '?'}</span>
+                  <span className="opacity-40">·</span>
+                  <span className={`font-black text-[11px] ${isDepleted ? 'text-rose-600' : 'text-amber-700'}`}>
+                    {timeText}
+                  </span>
+                </button>
+              );
+            })}
+            {validHospAlerts.length > 4 && (
+              <span className="text-[11px] font-bold text-rose-700 bg-rose-100/80 px-2 py-0.5 rounded-md border border-rose-200">
+                +{validHospAlerts.length - 4} más
+              </span>
+            )}
+          </div>
+
+          {/* Lado derecho: Botón rápido y cerrar */}
+          <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+            <button
+              onClick={() => navigate('/reports/hospitalization-control')}
+              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 active:scale-95 cursor-pointer"
+            >
+              <MdLocalHospital className="text-sm" />
+              <span>Ver Recorrido</span>
+              <MdArrowForward className="text-xs" />
+            </button>
+            <button
+              onClick={() => setDismissHospAlert(true)}
+              title="Ocultar aviso"
+              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-rose-100/60 rounded-lg transition-colors cursor-pointer"
+            >
+              <MdClose className="text-base" />
+            </button>
+          </div>
+
         </div>
       )}
 
