@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Diagrama BPMN 2.0 Detallado - Sistema de Inventario de Oxígeno Medicinal EsSalud</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17.11.1/dist/assets/diagram-js.css" />
+  <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17.11.1/dist/assets/bpmn-js.css" />
+  <link rel="stylesheet" href="https://unpkg.com/bpmn-js@17.11.1/dist/assets/bpmn-font/css/bpmn.css" />
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background-color: #ffffff;
+      font-family: 'Segoe UI', Arial, sans-serif;
+    }
+
+    #canvas {
+      width: 100vw;
+      height: 100vh;
+      background-color: #ffffff;
+    }
+
+    .djs-palette {
+      display: none !important;
+    }
+    .bjs-powered-by {
+      display: none !important;
+    }
+
+    .floating-controls {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      display: flex;
+      gap: 8px;
+      z-index: 9999;
+      opacity: 0.9;
+      transition: opacity 0.2s ease;
+    }
+    .floating-controls:hover {
+      opacity: 1;
+    }
+    .btn-control {
+      background-color: #1e293b;
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+      transition: background-color 0.15s ease;
+    }
+    .btn-control:hover {
+      background-color: #0f172a;
+    }
+    .btn-control.secondary {
+      background-color: #2563eb;
+    }
+    .btn-control.secondary:hover {
+      background-color: #1d4ed8;
+    }
+    .btn-control.success {
+      background-color: #059669;
+    }
+    .btn-control.success:hover {
+      background-color: #047857;
+    }
+
+    @media print {
+      .floating-controls {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="canvas"></div>
+
+  <div class="floating-controls">
+    <button class="btn-control" id="btn-fit" title="Ajustar todo el diagrama a la pantalla">
+      Centrar Vista Completa
+    </button>
+    <button class="btn-control" id="btn-toggle-palette" title="Mostrar/Ocultar barra de herramientas BPMN">
+      Paleta Edición
+    </button>
+    <button class="btn-control secondary" id="btn-svg" title="Exportar diagrama completo en formato vectorial .SVG">
+      Descargar .SVG
+    </button>
+    <button class="btn-control success" id="btn-png" title="Exportar diagrama completo en imagen de alta resolución .PNG">
+      Descargar .PNG (HD)
+    </button>
+  </div>
+
+  <script src="https://unpkg.com/bpmn-js@17.11.1/dist/bpmn-modeler.development.js"></script>
+
+  <script>
+    const bpmnXML = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  id="Definitions_EsSalud_Detallado"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:collaboration id="Collaboration_EsSalud_Detallado">
+    <bpmn:participant id="Participant_EsSalud"
+                      name="Proceso Integral Detallado de Gestión y Control de Inventario de Oxígeno Medicinal - EsSalud"
+                      processRef="Process_EsSalud_Detallado" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_EsSalud_Detallado" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_Principal">
+
+      <!-- CARRIL 1: ADMINISTRADOR / INGENIERO HOSPITALARIO (y: 60..280, alto: 220) -->
+      <bpmn:lane id="Lane_Admin" name="Administrador / Ingeniero Hospitalario">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Admin_Usuarios</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Admin_Catalogos</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Admin_Balones</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Admin_Auditar</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Admin_Trazabilidad</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_Admin_Exportar</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Admin_Firmar</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_1</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <!-- CARRIL 2: ÁREA ASISTENCIAL / PACIENTE PADOMI / PROVEEDOR (y: 280..540, alto: 260) -->
+      <bpmn:lane id="Lane_Asistencial" name="Servicios Asistenciales / Paciente PADOMI / Proveedor">
+        <bpmn:flowNodeRef>Gw_TipoSolicitud</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Prov_Abastecer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Asist_Receta</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Asist_Vale</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Asist_Cama</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <!-- CARRIL 3: USUARIO OPERADOR DE PLANTA Y ALMACÉN (y: 540..1080, alto: 540) -->
+      <bpmn:lane id="Lane_Operador" name="Usuario Operador (Planta y Almacén de Oxígeno)">
+        <bpmn:flowNodeRef>Gw_Op_Abast</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Op_Proveedor</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Op_Trasvase</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Op_Liquido</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_Op_Despacho</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Op_Canje</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Op_Prestamo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Op_Devolucion</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Op_HospPSI</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_Op_Union</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Op_Confirmar</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Op_Corregir</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+      <!-- CARRIL 4: SISTEMA DE INVENTARIO ESSALUD (y: 1080..1360, alto: 280) -->
+      <bpmn:lane id="Lane_Sistema" name="Sistema de Inventario EsSalud (API REST Laravel 12 + BD)">
+        <bpmn:flowNodeRef>Task_Sys_Borrador</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Sys_Validar</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_Sys_Consistente</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Sys_Rollback</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Sys_Transaccion</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Sys_CalculoO2</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_Sys_UmbralAlerta</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Sys_GenerarAlerta</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Sys_Kardex</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Sys_Excel</bpmn:flowNodeRef>
+      </bpmn:lane>
+
+    </bpmn:laneSet>
+
+    <!-- ===================================================== -->
+    <!-- ELEMENTOS CARRIL 1: ADMINISTRADOR / INGENIERO         -->
+    <!-- ===================================================== -->
+    <bpmn:startEvent id="StartEvent_1" name="Inicio del Ciclo de Gestión">
+      <bpmn:outgoing>F01</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Task_Admin_Usuarios" name="1. Autenticarse y Administrar Usuarios / Roles (RBAC)">
+      <bpmn:incoming>F01</bpmn:incoming>
+      <bpmn:outgoing>F02</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_Admin_Catalogos" name="2. Configurar Servicios, Camas, Proveedores y Autoridades">
+      <bpmn:incoming>F02</bpmn:incoming>
+      <bpmn:outgoing>F03</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_Admin_Balones" name="3. Registrar Catálogo de Balones (Serie, m³, Propiedad y Estado)">
+      <bpmn:incoming>F03</bpmn:incoming>
+      <bpmn:outgoing>F04</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_Admin_Auditar" name="18. Auditar Dashboard, Kardex Diario/General y Consumo Ejecutivo">
+      <bpmn:incoming>F34</bpmn:incoming>
+      <bpmn:outgoing>F35</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_Admin_Trazabilidad" name="19. Consultar Trazabilidad por Balón y Alertas de Pacientes">
+      <bpmn:incoming>F35</bpmn:incoming>
+      <bpmn:outgoing>F36</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="Gw_Admin_Exportar" name="¿Requiere Exportar Reporte Oficial?">
+      <bpmn:incoming>F36</bpmn:incoming>
+      <bpmn:outgoing>F37_Si</bpmn:outgoing>
+      <bpmn:outgoing>F38_No</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="Task_Admin_Firmar" name="21. Validar Firmas de Autoridades en Resumen e Ingresos Mensuales">
+      <bpmn:incoming>F39</bpmn:incoming>
+      <bpmn:outgoing>F40</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:endEvent id="EndEvent_1" name="Inventario y Kardex Conciliado">
+      <bpmn:incoming>F38_No</bpmn:incoming>
+      <bpmn:incoming>F40</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ===================================================== -->
+    <!-- ELEMENTOS CARRIL 2: ASISTENCIAL / PADOMI / PROVEEDOR  -->
+    <!-- ===================================================== -->
+    <bpmn:exclusiveGateway id="Gw_TipoSolicitud" name="¿Origen del Requerimiento?">
+      <bpmn:incoming>F04</bpmn:incoming>
+      <bpmn:outgoing>F05_Abast</bpmn:outgoing>
+      <bpmn:outgoing>F06_Asist</bpmn:outgoing>
+      <bpmn:outgoing>F07_Piso</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="Task_Prov_Abastecer" name="4A. Entregar Lote de Balones o Cisterna de O2 Líquido con Guía">
+      <bpmn:incoming>F05_Abast</bpmn:incoming>
+      <bpmn:outgoing>F08</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_Asist_Receta" name="4B. Registrar Paciente (PADOMI / Hosp.) y Prescripción (L/min)">
+      <bpmn:incoming>F06_Asist</bpmn:incoming>
+      <bpmn:outgoing>F09</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_Asist_Vale" name="5B. Solicitar Canje, Préstamo o Devolución mediante Vale/Ticket">
+      <bpmn:incoming>F09</bpmn:incoming>
+      <bpmn:outgoing>F10</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_Asist_Cama" name="4C. Instalar Balón en Cama Hospitalaria o Solicitar Traslado">
+      <bpmn:incoming>F07_Piso</bpmn:incoming>
+      <bpmn:outgoing>F11</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- ===================================================== -->
+    <!-- ELEMENTOS CARRIL 3: OPERADOR DE PLANTA Y ALMACÉN      -->
+    <!-- ===================================================== -->
+    <bpmn:exclusiveGateway id="Gw_Op_Abast" name="¿Operación de Planta/Almacén?">
+      <bpmn:incoming>F08</bpmn:incoming>
+      <bpmn:outgoing>F12_Prov</bpmn:outgoing>
+      <bpmn:outgoing>F13_Tras</bpmn:outgoing>
+      <bpmn:outgoing>F14_Liq</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="Task_Op_Proveedor" name="6A. Registrar Ingreso/Salida Proveedor o Transferencia Almacén">
+      <bpmn:incoming>F12_Prov</bpmn:incoming>
+      <bpmn:outgoing>F18</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_Op_Trasvase" name="6B. Registrar Trasvase (Decanting) de Balón Matriz a Portátiles">
+      <bpmn:incoming>F13_Tras</bpmn:incoming>
+      <bpmn:outgoing>F19</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_Op_Liquido" name="6C. Registrar Lectura Diaria (Nivel/PSI) o Recarga Tanque Criogénico">
+      <bpmn:incoming>F14_Liq</bpmn:incoming>
+      <bpmn:outgoing>F20</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="Gw_Op_Despacho" name="¿Movimiento Asistencial?">
+      <bpmn:incoming>F10</bpmn:incoming>
+      <bpmn:outgoing>F15_Canje</bpmn:outgoing>
+      <bpmn:outgoing>F16_Prest</bpmn:outgoing>
+      <bpmn:outgoing>F17_Dev</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="Task_Op_Canje" name="7A. Registrar Canje (Salida Lleno / Ingreso Vacío: Servicio, PADOMI, Periferia)">
+      <bpmn:incoming>F15_Canje</bpmn:incoming>
+      <bpmn:outgoing>F21</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_Op_Prestamo" name="7B. Registrar Préstamo Directo de Balón Lleno a Paciente o Servicio">
+      <bpmn:incoming>F16_Prest</bpmn:incoming>
+      <bpmn:outgoing>F22</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_Op_Devolucion" name="7C. Controlar Devolución de Balón Prestado y Verificar Estado Físico">
+      <bpmn:incoming>F17_Dev</bpmn:incoming>
+      <bpmn:outgoing>F23</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_Op_HospPSI" name="8. Registrar Lectura Manométrica (PSI) en Cama o Transferencia de Cama">
+      <bpmn:incoming>F11</bpmn:incoming>
+      <bpmn:outgoing>F24</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="Gw_Op_Union">
+      <bpmn:incoming>F18</bpmn:incoming>
+      <bpmn:incoming>F19</bpmn:incoming>
+      <bpmn:incoming>F20</bpmn:incoming>
+      <bpmn:incoming>F21</bpmn:incoming>
+      <bpmn:incoming>F22</bpmn:incoming>
+      <bpmn:incoming>F23</bpmn:incoming>
+      <bpmn:incoming>F24</bpmn:incoming>
+      <bpmn:outgoing>F25</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="Task_Op_Confirmar" name="9. Confirmar Códigos de Balones, N° de Vale y Enviar Movimiento">
+      <bpmn:incoming>F25</bpmn:incoming>
+      <bpmn:outgoing>F26</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:userTask id="Task_Op_Corregir" name="13. Recuperar Borrador (UserDraft) y Corregir Serie o Estado del Balón">
+      <bpmn:incoming>F29_Corregir</bpmn:incoming>
+      <bpmn:outgoing>F30_Reenviar</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- ===================================================== -->
+    <!-- ELEMENTOS CARRIL 4: SISTEMA DE INVENTARIO ESSALUD     -->
+    <!-- ===================================================== -->
+    <bpmn:serviceTask id="Task_Sys_Borrador" name="10. Sincronizar Borrador Temporal por Módulo (UserDrafts)">
+      <bpmn:incoming>F26</bpmn:incoming>
+      <bpmn:incoming>F30_Reenviar</bpmn:incoming>
+      <bpmn:outgoing>F27</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_Sys_Validar" name="11. Validar Disponibilidad (Lleno/Vacío), Propiedad y Vigencia de Receta">
+      <bpmn:incoming>F27</bpmn:incoming>
+      <bpmn:outgoing>F28</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="Gw_Sys_Consistente" name="¿Datos y Stock Consistentes?">
+      <bpmn:incoming>F28</bpmn:incoming>
+      <bpmn:outgoing>F28_No</bpmn:outgoing>
+      <bpmn:outgoing>F28_Si</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="Task_Sys_Rollback" name="12. Revertir Transacción (ROLLBACK) y Emitir Alerta de Validación">
+      <bpmn:incoming>F28_No</bpmn:incoming>
+      <bpmn:outgoing>F29_Corregir</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_Sys_Transaccion" name="14. Ejecutar Transacción ACID: Registrar Movimiento y Detalle de Balones">
+      <bpmn:incoming>F28_Si</bpmn:incoming>
+      <bpmn:outgoing>F31</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_Sys_CalculoO2" name="15. Actualizar Estado/Ubicación del Balón y Calcular Consumo O2 (m³)">
+      <bpmn:incoming>F31</bpmn:incoming>
+      <bpmn:outgoing>F32</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="Gw_Sys_UmbralAlerta" name="¿PSI Crítico, Balón Estancado o Receta Vencida?">
+      <bpmn:incoming>F32</bpmn:incoming>
+      <bpmn:outgoing>F32_Si</bpmn:outgoing>
+      <bpmn:outgoing>F32_No</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="Task_Sys_GenerarAlerta" name="16. Activar Alerta de Recambio Urgente en Cama o Alerta PADOMI">
+      <bpmn:incoming>F32_Si</bpmn:incoming>
+      <bpmn:outgoing>F33_Merge</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_Sys_Kardex" name="17. Actualizar Saldos Kardex Diario/General (Unidades y m³) y Limpiar Draft">
+      <bpmn:incoming>F32_No</bpmn:incoming>
+      <bpmn:incoming>F33_Merge</bpmn:incoming>
+      <bpmn:outgoing>F34</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_Sys_Excel" name="20. Generar Archivo Oficial Excel (.xlsx) con Formato Control y Kardex">
+      <bpmn:incoming>F37_Si</bpmn:incoming>
+      <bpmn:outgoing>F39</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ===================================================== -->
+    <!-- FLUJOS DE SECUENCIA (40 CONEXIONES DETALLADAS)        -->
+    <!-- ===================================================== -->
+    <bpmn:sequenceFlow id="F01" sourceRef="StartEvent_1" targetRef="Task_Admin_Usuarios" />
+    <bpmn:sequenceFlow id="F02" sourceRef="Task_Admin_Usuarios" targetRef="Task_Admin_Catalogos" />
+    <bpmn:sequenceFlow id="F03" sourceRef="Task_Admin_Catalogos" targetRef="Task_Admin_Balones" />
+    <bpmn:sequenceFlow id="F04" sourceRef="Task_Admin_Balones" targetRef="Gw_TipoSolicitud" />
+
+    <bpmn:sequenceFlow id="F05_Abast" name="Abastecimiento / Planta" sourceRef="Gw_TipoSolicitud" targetRef="Task_Prov_Abastecer" />
+    <bpmn:sequenceFlow id="F06_Asist" name="Atención Paciente / Servicio" sourceRef="Gw_TipoSolicitud" targetRef="Task_Asist_Receta" />
+    <bpmn:sequenceFlow id="F07_Piso" name="Monitoreo en Cama" sourceRef="Gw_TipoSolicitud" targetRef="Task_Asist_Cama" />
+
+    <bpmn:sequenceFlow id="F08" sourceRef="Task_Prov_Abastecer" targetRef="Gw_Op_Abast" />
+    <bpmn:sequenceFlow id="F09" sourceRef="Task_Asist_Receta" targetRef="Task_Asist_Vale" />
+    <bpmn:sequenceFlow id="F10" sourceRef="Task_Asist_Vale" targetRef="Gw_Op_Despacho" />
+    <bpmn:sequenceFlow id="F11" sourceRef="Task_Asist_Cama" targetRef="Task_Op_HospPSI" />
+
+    <bpmn:sequenceFlow id="F12_Prov" name="Proveedor / Almacén" sourceRef="Gw_Op_Abast" targetRef="Task_Op_Proveedor" />
+    <bpmn:sequenceFlow id="F13_Tras" name="Trasvase" sourceRef="Gw_Op_Abast" targetRef="Task_Op_Trasvase" />
+    <bpmn:sequenceFlow id="F14_Liq" name="O2 Líquido" sourceRef="Gw_Op_Abast" targetRef="Task_Op_Liquido" />
+
+    <bpmn:sequenceFlow id="F15_Canje" name="Canje" sourceRef="Gw_Op_Despacho" targetRef="Task_Op_Canje" />
+    <bpmn:sequenceFlow id="F16_Prest" name="Préstamo" sourceRef="Gw_Op_Despacho" targetRef="Task_Op_Prestamo" />
+    <bpmn:sequenceFlow id="F17_Dev" name="Devolución" sourceRef="Gw_Op_Despacho" targetRef="Task_Op_Devolucion" />
+
+    <bpmn:sequenceFlow id="F18" sourceRef="Task_Op_Proveedor" targetRef="Gw_Op_Union" />
+    <bpmn:sequenceFlow id="F19" sourceRef="Task_Op_Trasvase" targetRef="Gw_Op_Union" />
+    <bpmn:sequenceFlow id="F20" sourceRef="Task_Op_Liquido" targetRef="Gw_Op_Union" />
+    <bpmn:sequenceFlow id="F21" sourceRef="Task_Op_Canje" targetRef="Gw_Op_Union" />
+    <bpmn:sequenceFlow id="F22" sourceRef="Task_Op_Prestamo" targetRef="Gw_Op_Union" />
+    <bpmn:sequenceFlow id="F23" sourceRef="Task_Op_Devolucion" targetRef="Gw_Op_Union" />
+    <bpmn:sequenceFlow id="F24" sourceRef="Task_Op_HospPSI" targetRef="Gw_Op_Union" />
+
+    <bpmn:sequenceFlow id="F25" sourceRef="Gw_Op_Union" targetRef="Task_Op_Confirmar" />
+    <bpmn:sequenceFlow id="F26" sourceRef="Task_Op_Confirmar" targetRef="Task_Sys_Borrador" />
+    <bpmn:sequenceFlow id="F27" sourceRef="Task_Sys_Borrador" targetRef="Task_Sys_Validar" />
+    <bpmn:sequenceFlow id="F28" sourceRef="Task_Sys_Validar" targetRef="Gw_Sys_Consistente" />
+
+    <bpmn:sequenceFlow id="F28_No" name="No (Error Stock/Estado)" sourceRef="Gw_Sys_Consistente" targetRef="Task_Sys_Rollback" />
+    <bpmn:sequenceFlow id="F29_Corregir" sourceRef="Task_Sys_Rollback" targetRef="Task_Op_Corregir" />
+    <bpmn:sequenceFlow id="F30_Reenviar" sourceRef="Task_Op_Corregir" targetRef="Task_Sys_Borrador" />
+
+    <bpmn:sequenceFlow id="F28_Si" name="Sí" sourceRef="Gw_Sys_Consistente" targetRef="Task_Sys_Transaccion" />
+    <bpmn:sequenceFlow id="F31" sourceRef="Task_Sys_Transaccion" targetRef="Task_Sys_CalculoO2" />
+    <bpmn:sequenceFlow id="F32" sourceRef="Task_Sys_CalculoO2" targetRef="Gw_Sys_UmbralAlerta" />
+
+    <bpmn:sequenceFlow id="F32_Si" name="Sí" sourceRef="Gw_Sys_UmbralAlerta" targetRef="Task_Sys_GenerarAlerta" />
+    <bpmn:sequenceFlow id="F32_No" name="No" sourceRef="Gw_Sys_UmbralAlerta" targetRef="Task_Sys_Kardex" />
+    <bpmn:sequenceFlow id="F33_Merge" sourceRef="Task_Sys_GenerarAlerta" targetRef="Task_Sys_Kardex" />
+
+    <bpmn:sequenceFlow id="F34" sourceRef="Task_Sys_Kardex" targetRef="Task_Admin_Auditar" />
+    <bpmn:sequenceFlow id="F35" sourceRef="Task_Admin_Auditar" targetRef="Task_Admin_Trazabilidad" />
+    <bpmn:sequenceFlow id="F36" sourceRef="Task_Admin_Trazabilidad" targetRef="Gw_Admin_Exportar" />
+
+    <bpmn:sequenceFlow id="F37_Si" name="Sí (.xlsx)" sourceRef="Gw_Admin_Exportar" targetRef="Task_Sys_Excel" />
+    <bpmn:sequenceFlow id="F38_No" name="No" sourceRef="Gw_Admin_Exportar" targetRef="EndEvent_1" />
+    <bpmn:sequenceFlow id="F39" sourceRef="Task_Sys_Excel" targetRef="Task_Admin_Firmar" />
+    <bpmn:sequenceFlow id="F40" sourceRef="Task_Admin_Firmar" targetRef="EndEvent_1" />
+
+  </bpmn:process>
+
+  <!-- ===================================================== -->
+  <!-- COORDENADAS EXACTAS DE DIAGRAMACIÓN (BPMNDI)          -->
+  <!-- ===================================================== -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_EsSalud_Detallado">
+    <bpmndi:BPMNPlane id="BPMNPlane_EsSalud_Detallado" bpmnElement="Collaboration_EsSalud_Detallado">
+
+      <!-- POOL PRINCIPAL (x: 60..3480, y: 50..1370) -->
+      <bpmndi:BPMNShape id="Participant_EsSalud_di" bpmnElement="Participant_EsSalud" isHorizontal="true">
+        <dc:Bounds x="60" y="50" width="3420" height="1320" />
+      </bpmndi:BPMNShape>
+
+      <!-- CARRIL 1: Admin (y: 50..250, centro Y = 150) -->
+      <bpmndi:BPMNShape id="Lane_Admin_di" bpmnElement="Lane_Admin" isHorizontal="true">
+        <dc:Bounds x="90" y="50" width="3390" height="200" />
+      </bpmndi:BPMNShape>
+
+      <!-- CARRIL 2: Asistencial / PADOMI / Proveedor (y: 250..550, centro Y = 400) -->
+      <bpmndi:BPMNShape id="Lane_Asistencial_di" bpmnElement="Lane_Asistencial" isHorizontal="true">
+        <dc:Bounds x="90" y="250" width="3390" height="300" />
+      </bpmndi:BPMNShape>
+
+      <!-- CARRIL 3: Operador Planta/Almacén (y: 550..1090, centro Y = 820) -->
+      <bpmndi:BPMNShape id="Lane_Operador_di" bpmnElement="Lane_Operador" isHorizontal="true">
+        <dc:Bounds x="90" y="550" width="3390" height="540" />
+      </bpmndi:BPMNShape>
+
+      <!-- CARRIL 4: Sistema Backend API (y: 1090..1370, centro Y = 1230) -->
+      <bpmndi:BPMNShape id="Lane_Sistema_di" bpmnElement="Lane_Sistema" isHorizontal="true">
+        <dc:Bounds x="90" y="1090" width="3390" height="280" />
+      </bpmndi:BPMNShape>
+
+      <!-- ===================================================== -->
+      <!-- SHAPES CARRIL 1: ADMINISTRADOR / INGENIERO            -->
+      <!-- ===================================================== -->
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="150" y="132" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="128" y="175" width="82" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Admin_Usuarios_di" bpmnElement="Task_Admin_Usuarios">
+        <dc:Bounds x="250" y="110" width="170" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Admin_Catalogos_di" bpmnElement="Task_Admin_Catalogos">
+        <dc:Bounds x="490" y="110" width="170" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Admin_Balones_di" bpmnElement="Task_Admin_Balones">
+        <dc:Bounds x="730" y="110" width="170" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Admin_Auditar_di" bpmnElement="Task_Admin_Auditar">
+        <dc:Bounds x="2560" y="110" width="170" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Admin_Trazabilidad_di" bpmnElement="Task_Admin_Trazabilidad">
+        <dc:Bounds x="2800" y="110" width="170" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Gw_Admin_Exportar_di" bpmnElement="Gw_Admin_Exportar" isMarkerVisible="true">
+        <dc:Bounds x="3045" y="125" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3025" y="80" width="90" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Admin_Firmar_di" bpmnElement="Task_Admin_Firmar">
+        <dc:Bounds x="3180" y="110" width="170" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="EndEvent_1_di" bpmnElement="EndEvent_1">
+        <dc:Bounds x="3412" y="132" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3385" y="175" width="90" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- ===================================================== -->
+      <!-- SHAPES CARRIL 2: ASISTENCIAL / PADOMI / PROVEEDOR     -->
+      <!-- ===================================================== -->
+      <bpmndi:BPMNShape id="Gw_TipoSolicitud_di" bpmnElement="Gw_TipoSolicitud" isMarkerVisible="true">
+        <dc:Bounds x="790" y="375" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="695" y="386" width="85" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Prov_Abastecer_di" bpmnElement="Task_Prov_Abastecer">
+        <dc:Bounds x="940" y="265" width="180" height="75" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Asist_Receta_di" bpmnElement="Task_Asist_Receta">
+        <dc:Bounds x="940" y="362" width="180" height="75" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Asist_Vale_di" bpmnElement="Task_Asist_Vale">
+        <dc:Bounds x="1180" y="362" width="180" height="75" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Asist_Cama_di" bpmnElement="Task_Asist_Cama">
+        <dc:Bounds x="940" y="460" width="180" height="75" />
+      </bpmndi:BPMNShape>
+
+      <!-- ===================================================== -->
+      <!-- SHAPES CARRIL 3: OPERADOR PLANTA Y ALMACÉN            -->
+      <!-- ===================================================== -->
+      <bpmndi:BPMNShape id="Gw_Op_Abast_di" bpmnElement="Gw_Op_Abast" isMarkerVisible="true">
+        <dc:Bounds x="1005" y="655" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="910" y="666" width="85" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Op_Proveedor_di" bpmnElement="Task_Op_Proveedor">
+        <dc:Bounds x="1150" y="565" width="190" height="70" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Op_Trasvase_di" bpmnElement="Task_Op_Trasvase">
+        <dc:Bounds x="1150" y="645" width="190" height="70" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Op_Liquido_di" bpmnElement="Task_Op_Liquido">
+        <dc:Bounds x="1150" y="725" width="190" height="70" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Gw_Op_Despacho_di" bpmnElement="Gw_Op_Despacho" isMarkerVisible="true">
+        <dc:Bounds x="1245" y="885" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1165" y="896" width="70" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Op_Canje_di" bpmnElement="Task_Op_Canje">
+        <dc:Bounds x="1390" y="805" width="190" height="70" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Op_Prestamo_di" bpmnElement="Task_Op_Prestamo">
+        <dc:Bounds x="1390" y="885" width="190" height="70" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Op_Devolucion_di" bpmnElement="Task_Op_Devolucion">
+        <dc:Bounds x="1390" y="965" width="190" height="70" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Op_HospPSI_di" bpmnElement="Task_Op_HospPSI">
+        <dc:Bounds x="1150" y="1005" width="190" height="70" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Gw_Op_Union_di" bpmnElement="Gw_Op_Union" isMarkerVisible="true">
+        <dc:Bounds x="1655" y="795" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Op_Confirmar_di" bpmnElement="Task_Op_Confirmar">
+        <dc:Bounds x="1760" y="780" width="170" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Op_Corregir_di" bpmnElement="Task_Op_Corregir">
+        <dc:Bounds x="2000" y="780" width="170" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- ===================================================== -->
+      <!-- SHAPES CARRIL 4: SISTEMA BACKEND API                  -->
+      <!-- ===================================================== -->
+      <bpmndi:BPMNShape id="Task_Sys_Borrador_di" bpmnElement="Task_Sys_Borrador">
+        <dc:Bounds x="1620" y="1185" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Sys_Validar_di" bpmnElement="Task_Sys_Validar">
+        <dc:Bounds x="1830" y="1185" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Gw_Sys_Consistente_di" bpmnElement="Gw_Sys_Consistente" isMarkerVisible="true">
+        <dc:Bounds x="2035" y="1200" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2019" y="1258" width="82" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Sys_Rollback_di" bpmnElement="Task_Sys_Rollback">
+        <dc:Bounds x="2000" y="1100" width="160" height="70" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Sys_Transaccion_di" bpmnElement="Task_Sys_Transaccion">
+        <dc:Bounds x="2150" y="1185" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Sys_CalculoO2_di" bpmnElement="Task_Sys_CalculoO2">
+        <dc:Bounds x="2350" y="1185" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Gw_Sys_UmbralAlerta_di" bpmnElement="Gw_Sys_UmbralAlerta" isMarkerVisible="true">
+        <dc:Bounds x="2555" y="1200" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2535" y="1256" width="90" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Sys_GenerarAlerta_di" bpmnElement="Task_Sys_GenerarAlerta">
+        <dc:Bounds x="2650" y="1105" width="160" height="75" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Sys_Kardex_di" bpmnElement="Task_Sys_Kardex">
+        <dc:Bounds x="2850" y="1185" width="170" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_Sys_Excel_di" bpmnElement="Task_Sys_Excel">
+        <dc:Bounds x="3090" y="1185" width="170" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- ===================================================== -->
+      <!-- EDGES (FLECHAS ORTOGONALES SIN CRUCES)                -->
+      <!-- ===================================================== -->
+      <bpmndi:BPMNEdge id="F01_di" bpmnElement="F01">
+        <di:waypoint x="186" y="150" />
+        <di:waypoint x="250" y="150" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F02_di" bpmnElement="F02">
+        <di:waypoint x="420" y="150" />
+        <di:waypoint x="490" y="150" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F03_di" bpmnElement="F03">
+        <di:waypoint x="660" y="150" />
+        <di:waypoint x="730" y="150" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F04_di" bpmnElement="F04">
+        <di:waypoint x="815" y="190" />
+        <di:waypoint x="815" y="375" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F05_Abast_di" bpmnElement="F05_Abast">
+        <di:waypoint x="815" y="375" />
+        <di:waypoint x="815" y="302" />
+        <di:waypoint x="940" y="302" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="825" y="270" width="105" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F06_Asist_di" bpmnElement="F06_Asist">
+        <di:waypoint x="840" y="400" />
+        <di:waypoint x="940" y="400" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="845" y="368" width="90" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F07_Piso_di" bpmnElement="F07_Piso">
+        <di:waypoint x="815" y="425" />
+        <di:waypoint x="815" y="497" />
+        <di:waypoint x="940" y="497" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="825" y="478" width="95" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F08_di" bpmnElement="F08">
+        <di:waypoint x="1030" y="340" />
+        <di:waypoint x="1030" y="655" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F09_di" bpmnElement="F09">
+        <di:waypoint x="1120" y="400" />
+        <di:waypoint x="1180" y="400" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F10_di" bpmnElement="F10">
+        <di:waypoint x="1270" y="437" />
+        <di:waypoint x="1270" y="885" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F11_di" bpmnElement="F11">
+        <di:waypoint x="980" y="535" />
+        <di:waypoint x="980" y="1040" />
+        <di:waypoint x="1150" y="1040" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F12_Prov_di" bpmnElement="F12_Prov">
+        <di:waypoint x="1030" y="655" />
+        <di:waypoint x="1030" y="600" />
+        <di:waypoint x="1150" y="600" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1040" y="570" width="98" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F13_Tras_di" bpmnElement="F13_Tras">
+        <di:waypoint x="1055" y="680" />
+        <di:waypoint x="1150" y="680" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1075" y="660" width="46" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F14_Liq_di" bpmnElement="F14_Liq">
+        <di:waypoint x="1030" y="705" />
+        <di:waypoint x="1030" y="760" />
+        <di:waypoint x="1150" y="760" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1055" y="740" width="55" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F15_Canje_di" bpmnElement="F15_Canje">
+        <di:waypoint x="1270" y="885" />
+        <di:waypoint x="1270" y="840" />
+        <di:waypoint x="1390" y="840" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1305" y="820" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F16_Prest_di" bpmnElement="F16_Prest">
+        <di:waypoint x="1295" y="910" />
+        <di:waypoint x="1390" y="910" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1310" y="890" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F17_Dev_di" bpmnElement="F17_Dev">
+        <di:waypoint x="1270" y="935" />
+        <di:waypoint x="1270" y="1000" />
+        <di:waypoint x="1390" y="1000" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1295" y="980" width="55" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F18_di" bpmnElement="F18">
+        <di:waypoint x="1340" y="600" />
+        <di:waypoint x="1680" y="600" />
+        <di:waypoint x="1680" y="795" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F19_di" bpmnElement="F19">
+        <di:waypoint x="1340" y="680" />
+        <di:waypoint x="1680" y="680" />
+        <di:waypoint x="1680" y="795" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F20_di" bpmnElement="F20">
+        <di:waypoint x="1340" y="760" />
+        <di:waypoint x="1680" y="760" />
+        <di:waypoint x="1680" y="795" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F21_di" bpmnElement="F21">
+        <di:waypoint x="1580" y="840" />
+        <di:waypoint x="1680" y="840" />
+        <di:waypoint x="1680" y="845" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F22_di" bpmnElement="F22">
+        <di:waypoint x="1580" y="920" />
+        <di:waypoint x="1680" y="920" />
+        <di:waypoint x="1680" y="845" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F23_di" bpmnElement="F23">
+        <di:waypoint x="1580" y="1000" />
+        <di:waypoint x="1680" y="1000" />
+        <di:waypoint x="1680" y="845" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F24_di" bpmnElement="F24">
+        <di:waypoint x="1340" y="1055" />
+        <di:waypoint x="1680" y="1055" />
+        <di:waypoint x="1680" y="845" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F25_di" bpmnElement="F25">
+        <di:waypoint x="1705" y="820" />
+        <di:waypoint x="1760" y="820" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F26_di" bpmnElement="F26">
+        <di:waypoint x="1845" y="860" />
+        <di:waypoint x="1845" y="1130" />
+        <di:waypoint x="1700" y="1130" />
+        <di:waypoint x="1700" y="1185" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F27_di" bpmnElement="F27">
+        <di:waypoint x="1780" y="1225" />
+        <di:waypoint x="1830" y="1225" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F28_di" bpmnElement="F28">
+        <di:waypoint x="1990" y="1225" />
+        <di:waypoint x="2035" y="1225" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F28_No_di" bpmnElement="F28_No">
+        <di:waypoint x="2060" y="1200" />
+        <di:waypoint x="2060" y="1170" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2068" y="1175" width="88" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F29_Corregir_di" bpmnElement="F29_Corregir">
+        <di:waypoint x="2080" y="1100" />
+        <di:waypoint x="2080" y="860" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F30_Reenviar_di" bpmnElement="F30_Reenviar">
+        <di:waypoint x="2080" y="780" />
+        <di:waypoint x="2080" y="720" />
+        <di:waypoint x="1600" y="720" />
+        <di:waypoint x="1600" y="1225" />
+        <di:waypoint x="1620" y="1225" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F28_Si_di" bpmnElement="F28_Si">
+        <di:waypoint x="2085" y="1225" />
+        <di:waypoint x="2150" y="1225" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2110" y="1205" width="14" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F31_di" bpmnElement="F31">
+        <di:waypoint x="2310" y="1225" />
+        <di:waypoint x="2350" y="1225" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F32_di" bpmnElement="F32">
+        <di:waypoint x="2510" y="1225" />
+        <di:waypoint x="2555" y="1225" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F32_Si_di" bpmnElement="F32_Si">
+        <di:waypoint x="2580" y="1200" />
+        <di:waypoint x="2580" y="1142" />
+        <di:waypoint x="2650" y="1142" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2595" y="1122" width="14" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F32_No_di" bpmnElement="F32_No">
+        <di:waypoint x="2605" y="1225" />
+        <di:waypoint x="2850" y="1225" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2715" y="1205" width="18" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F33_Merge_di" bpmnElement="F33_Merge">
+        <di:waypoint x="2810" y="1142" />
+        <di:waypoint x="2935" y="1142" />
+        <di:waypoint x="2935" y="1185" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F34_di" bpmnElement="F34">
+        <di:waypoint x="2935" y="1185" />
+        <di:waypoint x="2935" y="1060" />
+        <di:waypoint x="2645" y="1060" />
+        <di:waypoint x="2645" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F35_di" bpmnElement="F35">
+        <di:waypoint x="2730" y="150" />
+        <di:waypoint x="2800" y="150" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F36_di" bpmnElement="F36">
+        <di:waypoint x="2970" y="150" />
+        <di:waypoint x="3045" y="150" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F37_Si_di" bpmnElement="F37_Si">
+        <di:waypoint x="3070" y="175" />
+        <di:waypoint x="3070" y="1225" />
+        <di:waypoint x="3090" y="1225" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3078" y="210" width="44" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F38_No_di" bpmnElement="F38_No">
+        <di:waypoint x="3070" y="125" />
+        <di:waypoint x="3070" y="75" />
+        <di:waypoint x="3430" y="75" />
+        <di:waypoint x="3430" y="132" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3240" y="55" width="18" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F39_di" bpmnElement="F39">
+        <di:waypoint x="3260" y="1225" />
+        <di:waypoint x="3265" y="1225" />
+        <di:waypoint x="3265" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="F40_di" bpmnElement="F40">
+        <di:waypoint x="3350" y="150" />
+        <di:waypoint x="3412" y="150" />
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>`;
+
+    const modeler = new BpmnJS({
+      container: '#canvas'
+    });
+
+    async function renderDiagram() {
+      try {
+        await modeler.importXML(bpmnXML);
+        const canvas = modeler.get('canvas');
+        canvas.zoom('fit-viewport', 'auto');
+      } catch (err) {
+        console.error('Error al cargar el diagrama BPMN:', err);
+      }
+    }
+
+    document.getElementById('btn-fit').addEventListener('click', () => {
+      const canvas = modeler.get('canvas');
+      canvas.zoom('fit-viewport', 'auto');
+    });
+
+    let paletteVisible = false;
+    document.getElementById('btn-toggle-palette').addEventListener('click', () => {
+      const palette = document.querySelector('.djs-palette');
+      if (palette) {
+        paletteVisible = !paletteVisible;
+        palette.style.setProperty('display', paletteVisible ? 'block' : 'none', 'important');
+      }
+    });
+
+    document.getElementById('btn-svg').addEventListener('click', async () => {
+      try {
+        const { svg } = await modeler.saveSVG();
+        const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'bpmn-detallado-inventario-oxigeno-essalud.svg';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error('Error al exportar SVG:', err);
+      }
+    });
+
+    document.getElementById('btn-png').addEventListener('click', async () => {
+      try {
+        const { svg } = await modeler.saveSVG();
+        const parser = new DOMParser();
+        const svgDoc = parser.parseFromString(svg, 'image/svg+xml');
+        const svgEl = svgDoc.documentElement;
+
+        let width = parseFloat(svgEl.getAttribute('width'));
+        let height = parseFloat(svgEl.getAttribute('height'));
+
+        if ((!width || !height) && svgEl.getAttribute('viewBox')) {
+          const parts = svgEl.getAttribute('viewBox').split(/\s+|,/).map(Number);
+          width = parts[2];
+          height = parts[3];
+        }
+
+        width = width || 3500;
+        height = height || 1400;
+
+        // Factor de escala 2.5x para imagen PNG nítida en Word / PDF
+        const scale = 2.5;
+        const padding = 40;
+
+        svgEl.setAttribute('width', width);
+        svgEl.setAttribute('height', height);
+        const serializedSvg = new XMLSerializer().serializeToString(svgEl);
+        const svgDataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(serializedSvg);
+
+        const img = new Image();
+        img.onload = () => {
+          const canvasEl = document.createElement('canvas');
+          canvasEl.width = (width + padding * 2) * scale;
+          canvasEl.height = (height + padding * 2) * scale;
+
+          const ctx = canvasEl.getContext('2d');
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvasEl.width, canvasEl.height);
+          ctx.scale(scale, scale);
+          ctx.drawImage(img, padding, padding, width, height);
+
+          canvasEl.toBlob((blob) => {
+            if (!blob) return;
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'bpmn-detallado-inventario-oxigeno-essalud.png';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+          }, 'image/png', 1.0);
+        };
+        img.src = svgDataUrl;
+      } catch (err) {
+        console.error('Error al exportar PNG:', err);
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      modeler.get('canvas').zoom('fit-viewport', 'auto');
+    });
+
+    renderDiagram();
+  </script>
+</body>
+</html>

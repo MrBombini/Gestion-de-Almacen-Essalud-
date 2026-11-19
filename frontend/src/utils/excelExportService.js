@@ -1,6 +1,15 @@
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { format } from 'date-fns';
+import { formatOperationalDate, operationalWeekLabel, getOperationalDate } from './dateUtils';
+
+// Ordena por fecha operativa (Kardex) descendente y luego por hora real descendente
+const compareByOperationalDateDesc = (a, b) => {
+    const opA = getOperationalDate(a) || '';
+    const opB = getOperationalDate(b) || '';
+    if (opA !== opB) return opB.localeCompare(opA);
+    return new Date(b?.date || 0) - new Date(a?.date || 0);
+};
 
 const applyBaseStyles = (worksheet, title, subtitle, dateRangeText) => {
     // 1. Título principal
@@ -106,8 +115,8 @@ export const exportSupplierReport = async (data, dateRangeText) => {
 
     data.forEach(item => {
         worksheet.addRow({
-            fecha: item.date ? format(new Date(item.date), 'dd/MM/yyyy') : '',
-            semana: `Semana ${Math.ceil(new Date(item.date || new Date()).getDate() / 7)}`,
+            fecha: formatOperationalDate(item),
+            semana: operationalWeekLabel(item),
             accion: item.action,
             codigo: item.cylinder?.serial_number,
             modelo: item.cylinder?.ownership_type || 'PRAXAIR',
@@ -184,7 +193,7 @@ export const exportLocationReport = async (data, dateRangeText) => {
         groupedData.push(group);
     });
 
-    groupedData.sort((a, b) => new Date(b.baseItem.date) - new Date(a.baseItem.date));
+    groupedData.sort((a, b) => compareByOperationalDateDesc(a.baseItem, b.baseItem));
 
     groupedData.forEach(group => {
         const base = group.baseItem;
@@ -200,8 +209,8 @@ export const exportLocationReport = async (data, dateRangeText) => {
         const modelo2 = ingreso ? ingreso.cylinder?.ownership_type : (base.cylinder_status === 'empty' ? base.cylinder?.ownership_type : '');
 
         worksheet.addRow({
-            fecha: base.date ? format(new Date(base.date), 'dd/MM/yyyy') : '',
-            semana: `Semana ${Math.ceil(new Date(base.date || new Date()).getDate() / 7)}`,
+            fecha: formatOperationalDate(base),
+            semana: operationalWeekLabel(base),
             servicio: base.location?.name,
             ubicacion: base.location?.detail || base.location?.name,
             lleno_codigo: lleno,
@@ -276,7 +285,7 @@ export const exportPadomiExchangeReport = async (data, dateRangeText) => {
         const rx = mov.prescription || {};
 
         worksheet.addRow({
-            fecha: mov.movement_at ? format(new Date(mov.movement_at), 'dd/MM/yyyy HH:mm') : '',
+            fecha: formatOperationalDate(mov, 'movement_at'),
             
             lleno_codigo: lleno?.serial_number || '-',
             capacidad: lleno?.capacity || '-',
@@ -405,7 +414,7 @@ export const exportPadomiPatientReport = async (data, dateRangeText, filterMode 
     });
 
     // Ordenar cronológicamente descendente
-    groupedData.sort((a, b) => new Date(b.baseItem.date) - new Date(a.baseItem.date));
+    groupedData.sort((a, b) => compareByOperationalDateDesc(a.baseItem, b.baseItem));
 
     groupedData.forEach(group => {
         const base = group.baseItem;
@@ -423,8 +432,8 @@ export const exportPadomiPatientReport = async (data, dateRangeText, filterMode 
 
         if (filterMode === 'EXCHANGE') {
             worksheet.addRow({
-                fecha: base.date ? format(new Date(base.date), 'dd/MM/yyyy') : '',
-                semana: `Semana ${Math.ceil(new Date(base.date || new Date()).getDate() / 7)}`,
+                fecha: formatOperationalDate(base),
+                semana: operationalWeekLabel(base),
                 cod_intercambio: codIntercambio !== '-' ? codIntercambio : (base.location?.patient_code || '-'),
                 dni: dniClean,
                 usuario: usuarioNombre,
@@ -437,8 +446,8 @@ export const exportPadomiPatientReport = async (data, dateRangeText, filterMode 
             });
         } else if (filterMode === 'TRASIEGO') {
             worksheet.addRow({
-                fecha: base.date ? format(new Date(base.date), 'dd/MM/yyyy') : '',
-                semana: `Semana ${Math.ceil(new Date(base.date || new Date()).getDate() / 7)}`,
+                fecha: formatOperationalDate(base),
+                semana: operationalWeekLabel(base),
                 cod_trasiego: codTrasiego !== '-' ? codTrasiego : (base.location?.patient_code || '-'),
                 dni: dniClean,
                 usuario: usuarioNombre,
@@ -453,8 +462,8 @@ export const exportPadomiPatientReport = async (data, dateRangeText, filterMode 
         } else {
             // AMBOS
             worksheet.addRow({
-                fecha: base.date ? format(new Date(base.date), 'dd/MM/yyyy') : '',
-                semana: `Semana ${Math.ceil(new Date(base.date || new Date()).getDate() / 7)}`,
+                fecha: formatOperationalDate(base),
+                semana: operationalWeekLabel(base),
                 modalidad: isTrasiego ? 'TRASIEGO' : 'INTERCAMBIO',
                 cod_intercambio: codIntercambio,
                 cod_trasiego: codTrasiego,
@@ -567,7 +576,7 @@ export const exportIpressReport = async (data, dateRangeText) => {
     data.forEach((item, index) => {
         worksheet.addRow({
             nro: index + 1,
-            fecha: item.date ? format(new Date(item.date), 'dd/MM/yyyy') : '',
+            fecha: formatOperationalDate(item),
             ipress: item.location?.name,
             ubicacion: item.action === 'Ingreso' ? 'CENTRAL' : item.location?.name,
             accion: item.action,
@@ -614,8 +623,8 @@ export const exportTrasiegosReport = async (data, dateRangeText) => {
         worksheet.addRow({
             nro: index + 1,
             destino: destino,
-            fecha: item.date ? format(new Date(item.date), 'dd/MM/yyyy') : '',
-            semana: `Semana ${Math.ceil(new Date(item.date || new Date()).getDate() / 7)}`,
+            fecha: formatOperationalDate(item),
+            semana: operationalWeekLabel(item),
             cod_paciente: item.location?.service_abbreviation || item.location?.patient_code || item.location?.detail?.replace('DNI: ', ''),
             codigo_cil: item.cylinder?.serial_number,
             usuario: item.location?.name,
@@ -1020,15 +1029,15 @@ export const exportLiquidRefillsReport = async (data, dateRangeText) => {
 
     data.forEach(item => {
         worksheet.addRow({
-            fecha_recarga: item.refilled_at || '-',
-            proveedor: item.supplier_name || 'PRAXAIR / LINDE',
-            guia: item.guide_number || '-',
-            cantidad: item.ticket_quantity || '-',
-            peso_ini: item.initial_weight || '-',
-            peso_fin: item.final_weight || '-',
-            nivel_antes: item.tank_level_before || '-',
-            nivel_despues: item.tank_level_after || '-',
-            operario: item.operator_name || '-'
+            fecha_recarga: formatOperationalDate(item, 'refilled_at', '-'),
+            proveedor: item.supplier_name || item.supplier?.name || 'PRAXAIR / LINDE',
+            guia: item.guide_number || item.reference_document || '-',
+            cantidad: item.ticket_quantity ?? item.ticket_amount ?? '-',
+            peso_ini: item.initial_weight ?? item.weight_before ?? '-',
+            peso_fin: item.final_weight ?? item.weight_after ?? '-',
+            nivel_antes: item.tank_level_before ?? item.level_before ?? '-',
+            nivel_despues: item.tank_level_after ?? item.level_after ?? '-',
+            operario: item.operator_name || item.user?.name || '-'
         });
     });
 

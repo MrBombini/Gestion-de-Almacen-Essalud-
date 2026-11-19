@@ -14,6 +14,18 @@ use Illuminate\Pagination\LengthAwarePaginator;
 class ReportController extends Controller
 {
     /**
+     * Fecha operativa del Kardex: el día va de 07:00 a 07:00 del día siguiente.
+     * Un movimiento registrado antes de las 07:00 pertenece al día anterior.
+     */
+    public static function operationalDate($dateTime): ?string
+    {
+        if (empty($dateTime)) return null;
+        $d = Carbon::parse($dateTime)->setTimezone(config('app.timezone'));
+        if ($d->hour < 7) $d->subDay();
+        return $d->toDateString();
+    }
+
+    /**
      * Aplica un cambio de inventario (+ o -) intentando afectar CENTRAL primero, luego ALMACEN.
      * Si no existe, lo crea en CENTRAL.
      */
@@ -936,15 +948,18 @@ class ReportController extends Controller
             });
         }
 
+        // Rango por día operativo del Kardex (07:00 → 07:00 del día siguiente)
         if ($startDate) {
-            $cmQuery->whereHas('inventoryMovement', function ($q) use ($startDate) {
-                $q->whereDate('movement_at', '>=', $startDate);
+            $cmStart = Carbon::parse($startDate)->setTime(7, 0, 0);
+            $cmQuery->whereHas('inventoryMovement', function ($q) use ($cmStart) {
+                $q->where('movement_at', '>=', $cmStart);
             });
         }
 
         if ($endDate) {
-            $cmQuery->whereHas('inventoryMovement', function ($q) use ($endDate) {
-                $q->whereDate('movement_at', '<=', $endDate);
+            $cmEnd = Carbon::parse($endDate)->addDay()->setTime(7, 0, 0);
+            $cmQuery->whereHas('inventoryMovement', function ($q) use ($cmEnd) {
+                $q->where('movement_at', '<', $cmEnd);
             });
         }
 
@@ -1094,6 +1109,7 @@ class ReportController extends Controller
                 'id' => 'M-' . $cm->id,
                 'movement_id' => $im->id,
                 'date' => $im->movement_at,
+                'operational_date' => self::operationalDate($im->movement_at),
                 'shift' => $im->shift,
                 'type' => $typeLabel,
                 'action' => $actionLabel,
@@ -1149,6 +1165,7 @@ class ReportController extends Controller
                 'id' => 'T-' . $dec->id,
                 'movement_id' => null,
                 'date' => $dec->decanted_at,
+                'operational_date' => self::operationalDate($dec->decanted_at),
                 'shift' => $dec->shift,
                 'type' => 'Trasiego (Decantación)',
                 'action' => 'Recarga',
@@ -1324,9 +1341,10 @@ class ReportController extends Controller
         }
 
         if ($startDate && $endDate) {
-            $start = Carbon::parse($startDate)->startOfDay();
-            $end = Carbon::parse($endDate)->endOfDay();
-            $query->whereBetween('movement_at', [$start, $end]);
+            // Día operativo del Kardex (07:00 → 07:00)
+            $start = Carbon::parse($startDate)->setTime(7, 0, 0);
+            $end = Carbon::parse($endDate)->addDay()->setTime(7, 0, 0);
+            $query->where('movement_at', '>=', $start)->where('movement_at', '<', $end);
         }
 
         $query->orderBy('movement_at', 'desc');
@@ -1779,7 +1797,7 @@ class ReportController extends Controller
             if ($opDate->hour < 7) $opDate->subDay();
             $dateKey = $opDate->toDateString();
 
-            $provName = $mov->supplier?->name ?? 'LINDE-PERU';
+            $provName = $mov->supplier?->name ?? 'Linde-Praxair';
 
             if (!isset($byDate[$dateKey])) {
                 $byDate[$dateKey] = [
@@ -1803,7 +1821,9 @@ class ReportController extends Controller
                         $byDate[$dateKey]['ingreso_lleno'][$brand] += 1;
                     }
                 } elseif ($action === 'exit' || $action === 'salida') {
-                    if ($isEmpty) {
+                    // Las salidas al proveedor se registran como 'in_transit' (balón vacío que va a recarga)
+                    $isSupplierEmptyExit = $isEmpty || in_array($status, ['in_transit', 'en_transito', '']);
+                    if ($isSupplierEmptyExit) {
                         $ownerName = strtoupper($cm->cylinder?->ownershipType?->name ?? '');
                         $supName   = strtoupper($cm->cylinder?->supplier?->name ?? '');
                         if (str_contains($ownerName, 'LINDE') || str_contains($supName, 'LINDE') ||
@@ -1866,7 +1886,7 @@ class ReportController extends Controller
             } else {
                 $entries[] = [
                     'fecha'                   => $fechaDisplay,
-                    'dist_prov'               => 'LINDE-PERU',
+                    'dist_prov'               => 'Linde-Praxair',
                     'ingreso_lleno'           => ['essalud_8' => 0, 'essalud_6' => 0, 'essalud_10' => 0, 'periferie_10' => 0, 'linde_10' => 0],
                     'salida_vacio'            => ['essalud' => 0, 'linde' => 0, 'periferie' => 0],
                     'rechazados'              => ['malogrados' => 0, 'no_aceptados' => 0],
@@ -1881,7 +1901,7 @@ class ReportController extends Controller
         // Fila de totales
         $entries[] = array_merge($totals, [
             'fecha'      => '1/' . sprintf('%02d', (int) substr($month, 5, 2)) . '/' . substr($month, 0, 4),
-            'dist_prov'  => 'LINDE-PERU',
+            'dist_prov'  => 'Linde-Praxair',
             'observacion' => '',
             'is_total'   => true,
         ]);

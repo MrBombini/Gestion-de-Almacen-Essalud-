@@ -28,6 +28,7 @@ import {
     exportLiquidRefillsReport
 } from '../utils/excelExportService';
 import { isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns';
+import { formatOperationalDate, getOperationalDate } from '../utils/dateUtils';
 
 const PREVIEW_PER_PAGE = 20;
 
@@ -111,8 +112,11 @@ const ExcelExportsPanel = () => {
               const data = rawData.filter(item => {
                   if (!startDate || !endDate) return true;
                   if (!item[dateField]) return false;
-                  // Handle potential date-time strings by extracting the date part
-                  const dateStr = item[dateField].split('T')[0];
+                  // Recargas: usar la fecha operativa del Kardex (corte 07:00); lecturas ya traen su fecha de turno
+                  const dateStr = type === 'liquid_refills'
+                      ? getOperationalDate(item, dateField)
+                      : item[dateField].split('T')[0];
+                  if (!dateStr) return false;
                   const itemDate = parseISO(dateStr);
                   return isWithinInterval(itemDate, {
                       start: startOfDay(parseISO(startDate)),
@@ -598,12 +602,12 @@ const ExcelExportsPanel = () => {
                                     paginatedPreview.map((item, index) => (
                                         <tr key={item.id || index} className="hover:bg-blue-50/50 transition-colors">
                                             <td className="px-4 py-3 text-slate-400 font-medium">{(previewPage - 1) * PREVIEW_PER_PAGE + index + 1}</td>
-                                            <td className="px-4 py-3 font-bold text-slate-800">{item.refilled_at || '-'}</td>
-                                            <td className="px-4 py-3 text-slate-600 font-semibold">{item.supplier_name || 'PRAXAIR / LINDE'}</td>
-                                            <td className="px-4 py-3 font-medium text-slate-700">{item.guide_number || '-'}</td>
-                                            <td className="px-4 py-3 text-emerald-700 font-bold">{item.ticket_quantity || '0'} Kg</td>
-                                            <td className="px-4 py-3 text-slate-600">{item.tank_level_before || '0'}</td>
-                                            <td className="px-4 py-3 text-blue-700 font-bold">{item.tank_level_after || '0'}</td>
+                                            <td className="px-4 py-3 font-bold text-slate-800">{formatOperationalDate(item, 'refilled_at', '-')}</td>
+                                            <td className="px-4 py-3 text-slate-600 font-semibold">{item.supplier_name || item.supplier?.name || 'PRAXAIR / LINDE'}</td>
+                                            <td className="px-4 py-3 font-medium text-slate-700">{item.guide_number || item.reference_document || '-'}</td>
+                                            <td className="px-4 py-3 text-emerald-700 font-bold">{item.ticket_quantity ?? item.ticket_amount ?? '0'} Kg</td>
+                                            <td className="px-4 py-3 text-slate-600">{item.tank_level_before ?? item.level_before ?? '0'}</td>
+                                            <td className="px-4 py-3 text-blue-700 font-bold">{item.tank_level_after ?? item.level_after ?? '0'}</td>
                                         </tr>
                                     ))
                                 )}
@@ -637,7 +641,7 @@ const ExcelExportsPanel = () => {
                                         return (
                                             <tr key={index} className="hover:bg-purple-50/40 transition-colors">
                                                 <td className="px-4 py-3 text-slate-400 font-medium">{(previewPage - 1) * PREVIEW_PER_PAGE + index + 1}</td>
-                                                <td className="px-4 py-3 text-slate-700">{item.date ? format(new Date(item.date), 'dd/MM/yyyy') : ''}</td>
+                                                <td className="px-4 py-3 text-slate-700">{formatOperationalDate(item)}</td>
                                                 <td className="px-4 py-3">
                                                     <span className={`px-2 py-0.5 rounded text-xs font-bold ${isTrasiego ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-blue-100 text-blue-800 border border-blue-200'}`}>
                                                         {isTrasiego ? 'TRASIEGO' : 'INTERCAMBIO'}
@@ -679,7 +683,7 @@ const ExcelExportsPanel = () => {
                                         <tr key={index} className="hover:bg-blue-50/50 transition-colors">
                                             <td className="px-4 py-3 text-slate-400 font-medium">{(previewPage - 1) * PREVIEW_PER_PAGE + index + 1}</td>
                                             <td className="px-4 py-3 text-slate-700">
-                                                {item.date ? format(new Date(item.date), 'dd/MM/yyyy') : ''}
+                                                {formatOperationalDate(item)}
                                             </td>
                                             <td className="px-4 py-3 font-medium">
                                                 <span className={`px-2 py-1 rounded-md text-xs font-bold ${
