@@ -98,8 +98,8 @@ class InventoryMovementController extends Controller
 
             // Determinar la nueva ubicación según el destino
             $newLocation = 'CENTRAL';
-            if ($validated['patient_id']) $newLocation = 'PADOMI';
-            elseif ($validated['service_id']) $newLocation = 'HOSPITALIZACION';
+            if (!empty($validated['patient_id'])) $newLocation = 'PADOMI';
+            elseif (!empty($validated['service_id'])) $newLocation = 'HOSPITALIZACION';
 
             // 1. Cilindro Recibido (Entra vacío al almacén si se provee)
             if (!empty($validated['cylinder_in'])) {
@@ -199,8 +199,8 @@ class InventoryMovementController extends Controller
 
             // Ubicación según destino de trasiego
             $newLocation = 'CENTRAL';
-            if ($validated['patient_id']) $newLocation = 'PADOMI';
-            elseif ($validated['service_id']) $newLocation = 'HOSPITALIZACION';
+            if (!empty($validated['patient_id'])) $newLocation = 'PADOMI';
+            elseif (!empty($validated['service_id'])) $newLocation = 'HOSPITALIZACION';
 
             // [A-4] DB pessimistic locking
             $cylinder = Cylinder::where('id', $validated['cylinder_id'])->lockForUpdate()->first();
