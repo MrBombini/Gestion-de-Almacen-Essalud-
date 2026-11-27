@@ -434,39 +434,43 @@ El sistema adopta una arquitectura **Cliente-Servidor desacoplada** de tres capa
 
 ```plantuml
 @startuml Arquitectura_Sistema_EsSalud
+top to bottom direction
 skinparam componentStyle uml2
 skinparam defaultFontName Arial
+skinparam defaultFontSize 11
 skinparam shadowing false
 skinparam packageStyle rectangle
-
-left to right direction
+skinparam nodesep 20
+skinparam ranksep 24
+skinparam padding 4
+scale max 720 width
 
 package "Capa de Presentación (Frontend SPA)" #EBF5FB {
     [React 19 + Tailwind CSS 4] as UI
-    [React Router DOM v7\n(Lazy Loading / Suspense)] as Router
+    [React Router DOM v7\n(Lazy / Suspense)] as Router
     [Motor Exportación\n(ExcelJS)] as Excel
     [Cliente HTTP\n(Axios + Interceptors)] as Axios
 
-    UI --> Router : Navegación SPA
-    UI --> Excel : Exporta .xlsx
-    Router --> Axios : Peticiones API
+    UI -right-> Router : Navegación
+    UI -left-> Excel : Exporta .xlsx
+    Router -down-> Axios : Peticiones API
 }
 
 package "Capa de Negocio (Backend API - Laravel 12)" #FEF9E7 {
-    [Middleware Auth:Sanctum\n& Control de Roles (RBAC)] as Sanctum
+    [Middleware Auth:Sanctum\n& Control Roles (RBAC)] as Sanctum
     [Controladores REST\n(Inventory, Report, Liquid,\nHospitalization, Catalogs)] as Controllers
-    [Eloquent ORM &\nGestor de Transacciones] as Models
+    [Eloquent ORM &\nGestor Transacciones] as Models
 
-    Sanctum --> Controllers : Autoriza Request
-    Controllers --> Models : Lógica de Negocio
+    Sanctum -right-> Controllers : Autoriza
+    Controllers -right-> Models : Lógica
 }
 
 package "Capa de Datos" #EAFAF1 {
     database "Base de Datos Relacional\n(MySQL / SQLite)" as DB
 }
 
-Axios <--> Sanctum : JSON / HTTPS\n(Bearer Token)
-Models <--> DB : Consultas SQL\n(Transacciones ACID)
+Axios <--> Sanctum : JSON / HTTPS (Bearer Token)
+Models <--> DB : Consultas SQL (Transacciones ACID)
 
 @enduml
 ```
@@ -476,147 +480,154 @@ Models <--> DB : Consultas SQL\n(Transacciones ACID)
 ```plantuml
 @startuml Modelo_Entidad_Relacion_EsSalud
 hide circle
+top to bottom direction
 skinparam linetype ortho
 skinparam defaultFontName Arial
+skinparam defaultFontSize 10
 skinparam shadowing false
+skinparam nodesep 16
+skinparam ranksep 18
+skinparam padding 2
+scale max 750 width
 
-entity "users" as users {
-    *id : bigint <<PK>>
-    --
-    *name : varchar
-    *email : varchar <<UK>>
-    *password : varchar
-    *role : varchar (Administrator | Engineer | Operator)
-    *is_active : boolean
+together {
+    entity "users" as users {
+        *id : bigint <<PK>>
+        --
+        *name : varchar
+        *email : varchar <<UK>>
+        *password : varchar
+        *role : varchar
+        *is_active : boolean
+    }
+    entity "user_drafts" as drafts {
+        *id : bigint <<PK>>
+        --
+        *user_id : bigint <<FK>>
+        *module : varchar
+        *payload : json
+    }
+    entity "patients" as patients {
+        *id : bigint <<PK>>
+        --
+        *document_number : varchar <<UK>>
+        *full_name : varchar
+        *patient_type : varchar
+        phone : varchar
+        address : varchar
+    }
+    entity "prescriptions" as prescriptions {
+        *id : bigint <<PK>>
+        --
+        *patient_id : bigint <<FK>>
+        *flow_rate : decimal
+        *start_date : date
+        *end_date : date
+    }
 }
 
-entity "user_drafts" as drafts {
-    *id : bigint <<PK>>
-    --
-    *user_id : bigint <<FK>>
-    *module : varchar
-    *payload : json
+together {
+    entity "services" as services {
+        *id : bigint <<PK>>
+        --
+        *name : varchar
+        *type : varchar
+    }
+    entity "beds" as beds {
+        *id : bigint <<PK>>
+        --
+        *code : varchar
+        *service_id : bigint <<FK>>
+        *status : varchar
+    }
+    entity "suppliers" as suppliers {
+        *id : bigint <<PK>>
+        --
+        *ruc : varchar <<UK>>
+        *name : varchar
+        contact : varchar
+    }
+    entity "liquid_refills" as refills {
+        *id : bigint <<PK>>
+        --
+        *supplier_id : bigint <<FK>>
+        *refill_date : datetime
+        *quantity_m3 : decimal
+        guide_number : varchar
+    }
 }
 
-entity "ownership_types" as ownership {
-    *id : bigint <<PK>>
-    --
-    *name : varchar
-    description : varchar
+together {
+    entity "inventory_movements" as movements {
+        *id : bigint <<PK>>
+        --
+        *movement_type : varchar
+        *voucher_number : varchar
+        *movement_date : datetime
+        *user_id : bigint <<FK>>
+        service_id : bigint <<FK>>
+        patient_id : bigint <<FK>>
+        supplier_id : bigint <<FK>>
+    }
+    entity "movement_details" as details {
+        *id : bigint <<PK>>
+        --
+        *movement_id : bigint <<FK>>
+        *cylinder_id : bigint <<FK>>
+        *direction : varchar
+    }
+    entity "cylinders" as cylinders {
+        *id : bigint <<PK>>
+        --
+        *code : varchar <<UK>>
+        *capacity_m3 : decimal
+        *status : varchar
+        *current_location : varchar
+        *ownership_type_id : bigint <<FK>>
+    }
+    entity "ownership_types" as ownership {
+        *id : bigint <<PK>>
+        --
+        *name : varchar
+        description : varchar
+    }
 }
 
-entity "cylinders" as cylinders {
-    *id : bigint <<PK>>
-    --
-    *code : varchar <<UK>>
-    *capacity_m3 : decimal
-    *status : varchar (full | empty | maintenance)
-    *current_location : varchar
-    *ownership_type_id : bigint <<FK>>
+together {
+    entity "hospitalization_readings" as hosp_readings {
+        *id : bigint <<PK>>
+        --
+        *cylinder_id : bigint <<FK>>
+        *bed_id : bigint <<FK>>
+        *pressure_psi : decimal
+        *reading_date : datetime
+    }
+    entity "daily_readings" as daily_readings {
+        *id : bigint <<PK>>
+        --
+        *reading_date : date
+        *level_inches : decimal
+        *volume_m3 : decimal
+        *consumption_m3 : decimal
+    }
 }
 
-entity "services" as services {
-    *id : bigint <<PK>>
-    --
-    *name : varchar
-    *type : varchar (Hospital | Periferia)
-}
-
-entity "beds" as beds {
-    *id : bigint <<PK>>
-    --
-    *code : varchar
-    *service_id : bigint <<FK>>
-    *status : varchar
-}
-
-entity "patients" as patients {
-    *id : bigint <<PK>>
-    --
-    *document_number : varchar <<UK>>
-    *full_name : varchar
-    *patient_type : varchar (PADOMI | Hospitalizado)
-    phone : varchar
-    address : varchar
-}
-
-entity "prescriptions" as prescriptions {
-    *id : bigint <<PK>>
-    --
-    *patient_id : bigint <<FK>>
-    *flow_rate : decimal
-    *start_date : date
-    *end_date : date
-}
-
-entity "suppliers" as suppliers {
-    *id : bigint <<PK>>
-    --
-    *ruc : varchar <<UK>>
-    *name : varchar
-    contact : varchar
-}
-
-entity "inventory_movements" as movements {
-    *id : bigint <<PK>>
-    --
-    *movement_type : varchar (exchange | loan | return | supplier | decanting | periphery)
-    *voucher_number : varchar
-    *movement_date : datetime
-    *user_id : bigint <<FK>>
-    service_id : bigint <<FK>>
-    patient_id : bigint <<FK>>
-    supplier_id : bigint <<FK>>
-}
-
-entity "movement_details" as details {
-    *id : bigint <<PK>>
-    --
-    *movement_id : bigint <<FK>>
-    *cylinder_id : bigint <<FK>>
-    *direction : varchar (OUT_FULL | IN_EMPTY | IN_FULL | OUT_EMPTY)
-}
-
-entity "hospitalization_readings" as hosp_readings {
-    *id : bigint <<PK>>
-    --
-    *cylinder_id : bigint <<FK>>
-    *bed_id : bigint <<FK>>
-    *pressure_psi : decimal
-    *reading_date : datetime
-}
-
-entity "daily_readings" as daily_readings {
-    *id : bigint <<PK>>
-    --
-    *reading_date : date
-    *level_inches : decimal
-    *volume_m3 : decimal
-    *consumption_m3 : decimal
-}
-
-entity "liquid_refills" as refills {
-    *id : bigint <<PK>>
-    --
-    *supplier_id : bigint <<FK>>
-    *refill_date : datetime
-    *quantity_m3 : decimal
-    guide_number : varchar
-}
+users ||-right-o{ drafts : "guarda"
+patients ||-right-o{ prescriptions : "tiene"
+services ||-right-o{ beds : "contiene"
+suppliers ||-right-o{ refills : "recarga"
+ownership ||-left-o{ cylinders : "clasifica"
 
 users ||--o{ movements : "registra"
-users ||--o{ drafts : "guarda"
-ownership ||--o{ cylinders : "clasifica"
-services ||--o{ beds : "contiene"
-services ||--o{ movements : "solicita"
-patients ||--o{ prescriptions : "tiene"
 patients ||--o{ movements : "recibe"
+services ||--o{ movements : "solicita"
 suppliers ||--o{ movements : "abastece"
-suppliers ||--o{ refills : "recarga_tanque"
-movements ||--|{ details : "detalla"
-cylinders ||--o{ details : "participa_en"
+
+movements ||-right-|{ details : "detalla"
+cylinders ||-left-o{ details : "participa"
 cylinders ||--o{ hosp_readings : "monitorea_psi"
 beds ||--o{ hosp_readings : "ubica"
+hosp_readings -[hidden]right- daily_readings
 
 @enduml
 ```
@@ -626,42 +637,45 @@ beds ||--o{ hosp_readings : "ubica"
 ```plantuml
 @startuml Secuencia_Canje_Balones_EsSalud
 autonumber
+hide footbox
 skinparam defaultFontName Arial
+skinparam defaultFontSize 10
 skinparam shadowing false
 skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 8
+skinparam BoxPadding 4
+skinparam maxMessageSize 170
+scale max 720 width
 
-actor "Operador / Almacén" as Op
+actor "Operador /\nAlmacén" as Op
 participant "Frontend\n(React SPA)" as SPA
-participant "Backend API\n(InventoryMovementController)" as API
+participant "Backend API\n(InventoryMovement)" as API
 database "Base de Datos\nRelacional" as DB
 
-Op -> SPA : Selecciona servicio/paciente, balones llenos (salida) y vacíos (retorno)
+Op -> SPA : Selecciona destino y balones (llenos/vacíos)
 activate SPA
-SPA -> SPA : Valida campos obligatorios y sincroniza borrador (UserDraft)
-SPA -> API : POST /api/inventory/exchange\n(Bearer Token + Payload JSON)
+SPA -> SPA : Valida campos y guarda UserDraft
+SPA -> API : POST /api/inventory/exchange (Token + JSON)
 activate API
 
-API -> API : Verifica autenticación (auth:sanctum)\ny rol (Operator / Administrator / Engineer)
-API -> DB : BEGIN TRANSACTION
+API -> API : Verifica auth:sanctum y rol RBAC
+API -> DB : BEGIN TRANSACTION & verifica estado balones
 activate DB
-API -> DB : Verifica disponibilidad y estado actual de cada balón
 
 alt Balones válidos y disponibles
-    API -> DB : INSERT INTO inventory_movements (cabecera y N° vale)
-    API -> DB : INSERT INTO movement_details (OUT_FULL / IN_EMPTY)
-    API -> DB : UPDATE cylinders SET status, current_location
-    API -> DB : DELETE FROM user_drafts WHERE module = 'exchange'
+    API -> DB : INSERT cabecera (inventory_movements) y detalle
+    API -> DB : UPDATE cylinders (status, location) & limpia borrador
     API -> DB : COMMIT
-    DB --> API : Confirmación de transacción
-    API --> SPA : 201 Created (Movimiento registrado + N° Vale)
-    SPA --> Op : Muestra notificación de éxito y actualiza Kardex / Dashboard
+    DB --> API : Transacción confirmada
+    API --> SPA : 201 Created (Movimiento + N° Vale)
+    SPA --> Op : Notifica éxito y actualiza Kardex
 else Conflicto de estado o balón no disponible
     API -> DB : ROLLBACK
     DB --> API : Transacción revertida
     deactivate DB
-    API --> SPA : 422 Unprocessable Entity (Detalle del error)
+    API --> SPA : 422 Unprocessable Entity (Detalle error)
     deactivate API
-    SPA --> Op : Muestra alerta de validación al operador
+    SPA --> Op : Muestra alerta de validación
     deactivate SPA
 end
 
@@ -675,36 +689,52 @@ end
 left to right direction
 skinparam packageStyle rectangle
 skinparam defaultFontName Arial
+skinparam defaultFontSize 10
 skinparam shadowing false
+skinparam nodesep 10
+skinparam ranksep 22
+skinparam usecase {
+    Padding 4
+}
+scale max 750 width
 
 actor "Operador" as Op
 actor "Ingeniero" as Eng
 actor "Administrador" as Admin
 
-Op <|-- Eng
-Eng <|-- Admin
+Op <|-down- Eng
+Eng <|-down- Admin
 
-rectangle "Sistema de Gestión y Control de Inventario de Oxígeno Medicinal - EsSalud" {
-    usecase "CU-01: Iniciar sesión" as CU01
-    usecase "CU-02: Gestionar usuarios" as CU02
-    usecase "CU-03: Gestionar catálogo de balones" as CU03
-    usecase "CU-04: Gestionar pacientes y prescripciones" as CU04
-    usecase "CU-05: Gestionar catálogos hospitalarios" as CU05
-    usecase "CU-06: Registrar canje y préstamo de balones" as CU06
-    usecase "CU-07: Controlar devolución de balones" as CU07
-    usecase "CU-08: Registrar trasvase de balones" as CU08
-    usecase "CU-09: Registrar movimientos con proveedores y almacenes" as CU09
-    usecase "CU-10: Gestionar oxígeno líquido" as CU10
-    usecase "CU-11: Monitorear balones en hospitalización" as CU11
-    usecase "CU-12: Generar reportes y Kardex" as CU12
+rectangle "Sistema de Inventario de Oxígeno Medicinal - EsSalud" {
+    together {
+        usecase "CU-01: Iniciar sesión" as CU01
+        usecase "CU-02: Gestionar usuarios" as CU02
+        usecase "CU-03: Gestionar balones" as CU03
+        usecase "CU-04: Gestionar pacientes\ny prescripciones" as CU04
+        usecase "CU-05: Gestionar catálogos\nhospitalarios" as CU05
+        usecase "CU-06: Registrar canje\ny préstamo" as CU06
+    }
+    together {
+        usecase "CU-07: Controlar devolución\nde balones" as CU07
+        usecase "CU-08: Registrar trasvase" as CU08
+        usecase "CU-09: Movimientos con\nproveedores y almacenes" as CU09
+        usecase "CU-10: Gestionar O2 líquido" as CU10
+        usecase "CU-11: Monitorear balones\nen hospitalización" as CU11
+        usecase "CU-12: Generar reportes\ny Kardex" as CU12
+    }
 
-    usecase "Verificar disponibilidad de balón" as CUVerif
-    usecase "Exportar reporte a Excel" as CUExcel
+    usecase "Verificar disponibilidad\nde balón" as CUVerif
+    usecase "Exportar reporte\na Excel" as CUExcel
+
+    CU01 -[hidden]right-> CU07
+    CU03 -[hidden]right-> CU08
+    CU04 -[hidden]right-> CU09
+    CU06 -[hidden]right-> CU12
 
     CU06 ..> CUVerif : <<include>>
     CU08 ..> CUVerif : <<include>>
     CU09 ..> CUVerif : <<include>>
-    CUExcel ..> CU12 : <<extend>>
+    CUExcel .up.> CU12 : <<extend>>
 }
 
 Op --> CU01
@@ -717,9 +747,7 @@ Op --> CU09
 Op --> CU10
 Op --> CU11
 Op --> CU12
-
 Eng --> CU05
-
 Admin --> CU02
 @enduml
 ```
@@ -731,23 +759,38 @@ Admin --> CU02
 left to right direction
 skinparam packageStyle rectangle
 skinparam defaultFontName Arial
+skinparam defaultFontSize 10
 skinparam shadowing false
+skinparam nodesep 10
+skinparam ranksep 22
+skinparam usecase {
+    Padding 4
+}
+scale max 720 width
 
 actor "Administrador" as Admin
 
-rectangle "Sistema de Gestión y Control de Inventario de Oxígeno Medicinal - EsSalud (Administrador)" {
-    usecase "Iniciar sesión" as CUA01
-    usecase "Gestionar usuarios" as CUA02
-    usecase "Gestionar catálogo de balones" as CUA03
-    usecase "Gestionar pacientes y prescripciones" as CUA04
-    usecase "Gestionar servicios y camas" as CUA05
-    usecase "Gestionar proveedores y tipos de propiedad" as CUA06
-    usecase "Gestionar autoridades firmantes" as CUA07
-    usecase "Consultar dashboard gerencial" as CUA08
-    usecase "Generar reportes y Kardex" as CUA09
-    usecase "Exportar reporte a Excel" as CUA10
+rectangle "Sistema de Oxígeno Medicinal - EsSalud (Administrador)" {
+    together {
+        usecase "Iniciar sesión" as CUA01
+        usecase "Gestionar usuarios" as CUA02
+        usecase "Gestionar catálogo\nde balones" as CUA03
+        usecase "Gestionar pacientes\ny prescripciones" as CUA04
+        usecase "Gestionar servicios\ny camas" as CUA05
+    }
+    together {
+        usecase "Gestionar proveedores y\ntipos de propiedad" as CUA06
+        usecase "Gestionar autoridades\nfirmantes" as CUA07
+        usecase "Consultar dashboard\ngerencial" as CUA08
+        usecase "Generar reportes\ny Kardex" as CUA09
+        usecase "Exportar reporte\na Excel" as CUA10
+    }
 
-    CUA10 ..> CUA09 : <<extend>>
+    CUA01 -[hidden]right-> CUA06
+    CUA02 -[hidden]right-> CUA07
+    CUA03 -[hidden]right-> CUA08
+    CUA04 -[hidden]right-> CUA09
+    CUA10 .up.> CUA09 : <<extend>>
 }
 
 Admin --> CUA01
@@ -769,29 +812,45 @@ Admin --> CUA09
 left to right direction
 skinparam packageStyle rectangle
 skinparam defaultFontName Arial
+skinparam defaultFontSize 10
 skinparam shadowing false
+skinparam nodesep 10
+skinparam ranksep 22
+skinparam usecase {
+    Padding 4
+}
+scale max 720 width
 
 actor "Operador" as Op
 
-rectangle "Sistema de Gestión y Control de Inventario de Oxígeno Medicinal - EsSalud (Operador)" {
-    usecase "Iniciar sesión" as CUO01
-    usecase "Gestionar catálogo de balones" as CUO02
-    usecase "Gestionar pacientes y prescripciones" as CUO03
-    usecase "Registrar canje y préstamo de balones" as CUO04
-    usecase "Controlar devolución de balones" as CUO05
-    usecase "Registrar trasvase de balones" as CUO06
-    usecase "Registrar movimientos con proveedores y almacenes" as CUO07
-    usecase "Gestionar oxígeno líquido" as CUO08
-    usecase "Monitorear balones en hospitalización" as CUO09
-    usecase "Generar reportes y Kardex" as CUO10
+rectangle "Sistema de Oxígeno Medicinal - EsSalud (Operador)" {
+    together {
+        usecase "Iniciar sesión" as CUO01
+        usecase "Gestionar catálogo\nde balones" as CUO02
+        usecase "Gestionar pacientes\ny prescripciones" as CUO03
+        usecase "Registrar canje y\npréstamo de balones" as CUO04
+        usecase "Controlar devolución\nde balones" as CUO05
+    }
+    together {
+        usecase "Registrar trasvase\nde balones" as CUO06
+        usecase "Movimientos proveedores\ny almacenes" as CUO07
+        usecase "Gestionar oxígeno\nlíquido" as CUO08
+        usecase "Monitorear balones\nen hospitalización" as CUO09
+        usecase "Generar reportes\ny Kardex" as CUO10
+    }
 
-    usecase "Verificar disponibilidad de balón" as CUOVerif
-    usecase "Exportar reporte a Excel" as CUOExcel
+    usecase "Verificar disponibilidad\nde balón" as CUOVerif
+    usecase "Exportar reporte\na Excel" as CUOExcel
+
+    CUO01 -[hidden]right-> CUO06
+    CUO02 -[hidden]right-> CUO07
+    CUO03 -[hidden]right-> CUO08
+    CUO05 -[hidden]right-> CUO10
 
     CUO04 ..> CUOVerif : <<include>>
     CUO06 ..> CUOVerif : <<include>>
     CUO07 ..> CUOVerif : <<include>>
-    CUOExcel ..> CUO10 : <<extend>>
+    CUOExcel .up.> CUO10 : <<extend>>
 }
 
 Op --> CUO01
@@ -809,62 +868,203 @@ Op --> CUO10
 
 ---
 
-### 3.2.3. Planificación de Tareas y Cronograma
+### 3.2.3. Planificación de Tareas y Cronograma (Metodología en Cascada)
 
-El proyecto se estructuró bajo un enfoque iterativo incremental dividido en **6 fases** a lo largo de **12 semanas**, asegurando entregas funcionales tempranas desde los catálogos base hasta los reportes ejecutivos y puesta en producción.
+La planificación temporal y asignación de recursos del proyecto se estructuró aplicando el **Modelo de Ciclo de Vida en Cascada (*Waterfall*)**, organizando la ejecución en **cinco (5) fases secuenciales y disciplinadas**: **1) Análisis y Especificación de Requisitos**, **2) Diseño del Sistema y Base de Datos**, **3) Implementación y Codificación**, **4) Integración y Pruebas**, y **5) Despliegue, Operación y Mantenimiento Evolutivo**. Bajo este enfoque tradicional, cada fase genera un entregable formal verificado que actúa como línea base (*baseline*) obligatoria antes de iniciar la etapa siguiente.
 
-#### A. Asignación de Responsabilidades y Roles del Equipo
+El cronograma abarca desde el **08 de mayo de 2026** hasta **noviembre de 2026** (**29 semanas / 7 meses**), reflejando fielmente la evolución técnica y organizativa del equipo ejecutor en las instalaciones de **GLAES S.A.C. — Hospital Nacional Adolfo Guevara Velasco (EsSalud Cusco)**.
 
-| Rol en el Proyecto | Responsabilidades Principales | Entregables Clave |
-| :--- | :--- | :--- |
-| **Líder de Proyecto / Analista Funcional** | Relevamiento de procesos en EsSalud, definición de reglas de negocio (Kardex, PADOMI, Periferia, Oxígeno Líquido) y validación con usuarios clave. | Especificación de Requisitos (RF/RNF), formatos oficiales de control y actas de validación. |
-| **Arquitecto / Desarrollador Backend** | Diseño del modelo de datos, construcción de la API REST en Laravel 12, seguridad con Sanctum, lógica transaccional de movimientos y consultas optimizadas de reportes. | Migraciones DB, Controladores API (`InventoryMovementController`, `ReportController`, etc.) y pruebas de endpoints. |
-| **Desarrollador Frontend** | Desarrollo de la SPA en React 19 + Tailwind CSS, gestión de estado de autenticación, carga diferida (`lazy`), formularios interactivos y exportación a Excel con `ExcelJS`. | Vistas de Catálogos, Módulos de Inventario, Dashboards interactivos y generador de reportes Excel. |
-| **Especialista QA / Despliegue** | Pruebas funcionales e integrales de cuadre de Kardex, validación de alertas de hospitalización, configuración de entorno de servidor y capacitación a operadores. | Plan de pruebas, manual de usuario/operación y despliegue en entorno productivo. |
+#### A. Organización del Equipo y Asignación de Responsabilidades por Etapas
 
-#### B. Estructura de Desglose de Trabajo (EDT / WBS)
+El equipo del proyecto estuvo conformado por dos (2) responsables técnicos, cuya distribución de funciones se especializó conforme el proyecto avanzó desde la codificación inicial hasta la puesta en producción en servidor VPS:
 
-1. **Fase 1: Inicio y Análisis de Requisitos (Semanas 1 - 2)**
-   - **T1.1:** Levantamiento de información en planta/almacén de oxígeno y revisión de formatos físicos de EsSalud.
-   - **T1.2:** Definición de requisitos funcionales, no funcionales y reglas de cálculo de volumen ($\text{m}^3$).
-2. **Fase 2: Diseño de Arquitectura y Base de Datos (Semanas 2 - 3)**
-   - **T2.1:** Diseño del modelo relacional (Balones, Movimientos, Pacientes, Recetas, Lecturas Líquido y Hospitalización).
-   - **T2.2:** Diseño de la arquitectura API REST, definición de rutas protegidas por roles y prototipado UI/UX.
-3. **Fase 3: Desarrollo de Seguridad y Catálogos Maestros (Semanas 4 - 5)**
-   - **T3.1:** Implementación de autenticación (`Laravel Sanctum`), gestión de usuarios, roles y sistema de borradores (`UserDrafts`).
-   - **T3.2:** Desarrollo CRUD de Balones, Pacientes (con sub-módulo de Prescripciones), Servicios, Camas, Proveedores, Propiedades y Autoridades.
-4. **Fase 4: Desarrollo de Módulos Operativos de Inventario y Oxígeno Líquido (Semanas 6 - 8)**
-   - **T4.1:** Implementación de Canjes (Servicios, PADOMI, Periferia), Préstamos, Control de Devoluciones y Transferencias entre Almacenes.
-   - **T4.2:** Implementación de Movimientos con Proveedores y Proceso de Trasvase (`Decanting`).
-   - **T4.3:** Desarrollo del módulo de Oxígeno Líquido (Lecturas diarias y Recargas) y Control de Hospitalización (lecturas PSI por cama y alertas).
-5. **Fase 5: Desarrollo de Reportes, Kardex y Analítica Gerencial (Semanas 9 - 10)**
-   - **T5.1:** Construcción de motores de consulta para Kardex Diario/General, Formato de Control, Tickets y Trazabilidad por Balón.
-   - **T5.2:** Desarrollo de Dashboard de Consumo, Reporte Ejecutivo, Resumen/Ingresos Mensuales y exportación automatizada a Excel.
-6. **Fase 6: Pruebas Integrales, Capacitación y Despliegue (Semanas 11 - 12)**
-   - **T6.1:** Pruebas de conciliación de saldos de inventario, rendimiento (carga diferida) y seguridad por roles.
-   - **T6.2:** Puesta en marcha, migración de inventario inicial de balones y capacitación al personal operativo e ingenieros.
+**Tabla 27**  
+*Asignación de Roles, Responsables y Evolución Operativa en el Ciclo de Vida en Cascada*
 
-#### C. Cronograma de Actividades (12 Semanas)
+| Integrante del Equipo | Rol en Etapas 1 a 3 (Análisis, Diseño y Codificación Inicial) | Rol en Etapas 4 y 5 (Integración, Despliegue VPS y Mantenimiento) | Responsabilidades y Entregables Principales |
+| :--- | :--- | :--- | :--- |
+| **Jose Miguel Peralta Poblete** | **Analista Funcional / Desarrollador Backend** | **Desarrollador Fullstack (Backend Laravel 12 + Frontend React 19)** | • Levantamiento de requerimientos y reglas del Kardex en planta.<br>• Construcción de controladores API REST, middleware RBAC (`Sanctum`) y transacciones ACID.<br>• Unificación Fullstack de módulos avanzados (Hospitalización PSI, Oxígeno Líquido, Kardex Diario/Mensual y exportación institucional con `ExcelJS`).<br>• Ejecución de pruebas unitarias, de integración y validación funcional. |
+| **Rodrigo Sergio Cayalta Huaman** | **Diseñador UI/UX / Desarrollador Frontend** | **Administrador de Base de Datos y Servidor (DBA / DevOps)** | • Prototipado de interfaces y maquetación inicial de la SPA en React 19 + Tailwind CSS 4.<br>• Diseño físico, normalización, índices y gestión de migraciones en MySQL.<br>• Aprovisionamiento y aseguramiento del servidor web **VPS** (dominio, SSL/HTTPS, Nginx/Apache, variables de entorno).<br>• Automatización de copias de seguridad (*backups*), snapshots diarios de Kardex y monitoreo en producción. |
 
-| ID | Fase / Actividad Principal | Responsable | S1 | S2 | S3 | S4 | S5 | S6 | S7 | S8 | S9 | S10 | S11 | S12 |
-| :-: | :--- | :--- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
-| **F1** | **Análisis de Requisitos** | | | | | | | | | | | | | |
-| 1.1 | Relevamiento de procesos y formatos de EsSalud | Analista Funcional | ██ | | | | | | | | | | | |
-| 1.2 | Especificación de Requisitos (RF/RNF) y reglas de Kardex | Analista Funcional | ██ | ██ | | | | | | | | | | |
-| **F2** | **Diseño del Sistema** | | | | | | | | | | | | | |
-| 2.1 | Modelado de Base de Datos y migraciones Eloquent | Arquitecto Backend | | ██ | ██ | | | | | | | | | |
-| 2.2 | Diseño de arquitectura API REST y prototipos de interfaz | Backend / Frontend | | | ██ | | | | | | | | | |
-| **F3** | **Seguridad y Catálogos Base** | | | | | | | | | | | | | |
-| 3.1 | Autenticación Sanctum, RBAC, Usuarios y Borradores | Backend / Frontend | | | | ██ | | | | | | | | |
-| 3.2 | CRUD de Balones, Pacientes, Recetas, Servicios y Camas | Backend / Frontend | | | | ██ | ██ | | | | | | | |
-| **F4** | **Operaciones de Inventario y O2 Líquido** | | | | | | | | | | | | | |
-| 4.1 | Canjes, Préstamos, Devoluciones, Periferia y Almacenes | Backend / Frontend | | | | | | ██ | ██ | | | | | |
-| 4.2 | Movimientos con Proveedores y Trasvase (Decanting) | Backend / Frontend | | | | | | | ██ | ██ | | | | |
-| 4.3 | Oxígeno Líquido (Lecturas/Recargas) y Hospitalización | Backend / Frontend | | | | | | | | ██ | | | | |
-| **F5** | **Reportes, Kardex y Analítica** | | | | | | | | | | | | | |
-| 5.1 | Kardex General/Diario, Formato Control y Trazabilidad | Backend / Frontend | | | | | | | | | ██ | | | |
-| 5.2 | Dashboards Gerenciales, Resumen Mensual y ExcelJS | Backend / Frontend | | | | | | | | | ██ | ██ | | |
-| **F6** | **Calidad, Despliegue y Cierre** | | | | | | | | | | | | | |
-| 6.1 | Pruebas integrales de inventario, seguridad y optimización | Especialista QA | | | | | | | | | | | ██ | |
-| 6.2 | Despliegue en servidor, carga inicial y capacitación | Todo el Equipo | | | | | | | | | | | ██ | ██ |
+#### B. Estructura de Desglose de Trabajo (EDT / WBS) Secuencial
+
+1. **Fase 1: Análisis y Especificación de Requisitos (08/05/2026 – 04/06/2026)**
+   - **1.1:** Diagnóstico presencial en planta/almacén de oxígeno de GLAES S.A.C. y recopilación de cuadernos de ruta y formatos físicos de EsSalud.
+   - **1.2:** Definición y validación de los 14 Requisitos Funcionales (`RF-01` a `RF-14`) y 6 Requisitos No Funcionales (`RNF-01` a `RNF-06`).
+   - **1.3:** Modelado de actores y especificación formal de los 12 Casos de Uso del sistema (`CU-01` a `CU-12`).
+2. **Fase 2: Diseño del Sistema y Base de Datos (05/06/2026 – 02/07/2026)**
+   - **2.1:** Diseño de la Arquitectura Cliente-Servidor en tres capas (SPA React + API REST Laravel + MySQL) y contratos de endpoints.
+   - **2.2:** Diseño del Modelo Entidad-Relación (MER), diccionario de datos y Diagrama Físico relacional para trazabilidad de activos retornables.
+   - **2.3:** Diseño de diagramas de secuencia transaccionales y prototipos de interfaz de usuario orientados a operación rápida en planta.
+3. **Fase 3: Implementación y Codificación de Módulos (03/07/2026 – 24/09/2026)**
+   - **3.1:** Configuración del monorepo Git, estructura base de Backend (Laravel 12) y Frontend (React 19 + Vite 8), autenticación `Sanctum` y control de roles (RBAC).
+   - **3.2:** Codificación del Módulo de Catálogos Maestros (Balones, Pacientes, Prescripciones Médicas, Servicios, Camas, Proveedores, Propiedades y Autoridades).
+   - **3.3:** Codificación del núcleo transaccional de Oxígeno Gaseoso (Canjes, Préstamos PADOMI, Devoluciones, Periferia, Proveedores, Trasvase y Borradores `UserDrafts`).
+   - **3.4:** Reorganización técnica (Fullstack + DBA/DevOps) y desarrollo de los módulos de Oxígeno Líquido (tanque criogénico), Monitoreo PSI en Hospitalización y Alertas.
+   - **3.5:** Codificación del motor analítico de Reportes, Kardex Diario/General (corte operativo 07:00 AM), Trazabilidad Unitaria y exportación `.xlsx` con `ExcelJS`.
+4. **Fase 4: Integración y Pruebas de Software (25/09/2026 – 22/10/2026)**
+   - **4.1:** Integración integral Frontend–Backend–BD, optimización de carga diferida (`React.lazy` / `Suspense`) y afinamiento de consultas SQL.
+   - **4.2:** Ejecución de Pruebas Unitarias (`PU-01` a `PU-06`) y Pruebas de Integración transaccional ACID (`PI-01` a `PI-05`).
+   - **4.3:** Ejecución de Pruebas de Sistema y Validación Funcional End-to-End (`PS-01` a `PS-05`) y prueba piloto en red local de planta con operadores reales.
+5. **Fase 5: Despliegue en Producción y Mantenimiento Evolutivo (23/10/2026 – 27/11/2026 / En operación continua)**
+   - **5.1:** Configuración de infraestructura en servidor VPS, base de datos productiva MySQL, certificados SSL y políticas automatizadas de *backups*.
+   - **5.2:** Migración del padrón real de cilindros/pacientes, despliegue oficial en producción y capacitación al personal operativo e ingenieros.
+   - **5.3:** Operación asistida, mantenimiento perfectivo/evolutivo de reportes mensuales de cierre de Kardex y elaboración de documentación técnica y Manual de Usuario.
+
+#### C. Cronograma Detallado de Ejecución en Cascada (Fechas, Predecesoras y Entregables)
+
+**Tabla 28**  
+*Programación Secuencial de Fases, Tareas, Predecesoras y Entregables (Mayo – Noviembre 2026)*
+
+| Código EDT | Fase / Actividad del Modelo en Cascada | Predecesora | Fecha Inicio | Fecha Fin | Duración (Días Cal.) | Responsable Directo | Entregable / Verificador |
+| :-: | :--- | :-: | :-: | :-: | :-: | :--- | :--- |
+| **F1** | **FASE 1: ANÁLISIS DE REQUISITOS** | **—** | **08/05/2026** | **04/06/2026** | **28 días** | **Ambos tesistas** | **Especificación SRS aprobada** |
+| 1.1 | Levantamiento de información en planta GLAES S.A.C. y análisis de formatos EsSalud | — | 08/05/2026 | 17/05/2026 | 10 días | J. M. Peralta / R. S. Cayalta | Diagnóstico situacional y formatos base |
+| 1.2 | Definición y validación de Requisitos Funcionales (RF-01..14) y No Funcionales (RNF-01..06) | 1.1 | 18/05/2026 | 27/05/2026 | 10 días | J. M. Peralta / R. S. Cayalta | Matriz de requisitos RF y RNF |
+| 1.3 | Modelado de actores y especificación detallada de Casos de Uso (CU-01 al CU-12) | 1.2 | 28/05/2026 | 04/06/2026 | 8 días | J. M. Peralta / R. S. Cayalta | Diagramas y fichas CU-01 a CU-12 |
+| **F2** | **FASE 2: DISEÑO DEL SISTEMA** | **F1** | **05/06/2026** | **02/07/2026** | **28 días** | **Ambos tesistas** | **Documento de Diseño Técnico** |
+| 2.1 | Diseño de Arquitectura en 3 capas, seguridad Sanctum/RBAC y rutas API REST | 1.3 | 05/06/2026 | 14/06/2026 | 10 días | J. M. Peralta (Backend) | Diagrama de Arquitectura y API spec |
+| 2.2 | Diseño del Modelo Entidad-Relación (MER) y Modelo Físico de Base de Datos | 1.3 | 12/06/2026 | 24/06/2026 | 13 días | R. S. Cayalta / J. M. Peralta | Diagramas MER y Físico normalizado |
+| 2.3 | Diseño de secuencias transaccionales y prototipos de vistas UI/UX | 2.1, 2.2 | 25/06/2026 | 02/07/2026 | 8 días | R. S. Cayalta (Frontend) | Diagrama de Secuencia y maquetas UI |
+| **F3** | **FASE 3: IMPLEMENTACIÓN Y CODIFICACIÓN** | **F2** | **03/07/2026** | **24/09/2026** | **84 días** | **Equipo (División / Reorg.)** | **Módulos de Software v1.0** |
+| 3.1 | Inicialización del repositorio Git, Seguridad (`AuthController`), Usuarios y Roles | 2.3 | 03/07/2026 | 16/07/2026 | 14 días | J. M. Peralta (Back) / R. S. Cayalta (Front) | Módulo 1 operativo + Login SPA |
+| 3.2 | Desarrollo de Catálogos Maestros (Balones, Pacientes, Recetas, Servicios, Camas, Proveedores) | 3.1 | 17/07/2026 | 06/08/2026 | 21 días | J. M. Peralta (Back) / R. S. Cayalta (Front) | Módulo 2 CRUD + migraciones base |
+| 3.3 | Desarrollo de Operaciones de Inventario Gaseoso (Canjes, PADOMI, Devoluciones, Trasvase, Proveedor) | 3.2 | 07/08/2026 | 27/08/2026 | 21 días | J. M. Peralta (Back) / R. S. Cayalta (Front) | Módulo 3 transaccional + `UserDrafts` |
+| 3.4 | Desarrollo de Oxígeno Líquido y Monitoreo PSI en Hospitalización con Alertas | 3.3 | 28/08/2026 | 10/09/2026 | 14 días | J. M. Peralta (Fullstack) / R. S. Cayalta (DBA) | Módulos 4 y 5 + tablas de lecturas PSI |
+| 3.5 | Desarrollo de Kardex Diario/General, Trazabilidad, Resumen Mensual y exportación `ExcelJS` | 3.4 | 11/09/2026 | 24/09/2026 | 14 días | J. M. Peralta (Fullstack) / R. S. Cayalta (DBA) | Módulo 6 analítico + reportes `.xlsx` |
+| **F4** | **FASE 4: INTEGRACIÓN Y PRUEBAS** | **F3** | **25/09/2026** | **22/10/2026** | **28 días** | **Fullstack + DBA/DevOps** | **Informe de Pruebas Aprobado** |
+| 4.1 | Integración de módulos, Code Splitting (`React.lazy`) y optimización de índices en BD | 3.5 | 25/09/2026 | 04/10/2026 | 10 días | J. M. Peralta / R. S. Cayalta | SPA integrada y consultas optimizadas |
+| 4.2 | Ejecución de Pruebas Unitarias (PU-01..06) y Pruebas de Integración ACID (PI-01..05) | 4.1 | 05/10/2026 | 14/10/2026 | 10 días | J. M. Peralta (Fullstack) | Suites automatizadas en PHPUnit |
+| 4.3 | Pruebas de Sistema (PS-01..05) y validación en servidor piloto local en planta | 4.2 | 15/10/2026 | 22/10/2026 | 8 días | J. M. Peralta / R. S. Cayalta | Conformidad funcional de planta |
+| **F5** | **FASE 5: DESPLIEGUE Y MANTENIMIENTO** | **F4** | **23/10/2026** | **27/11/2026*** | **36 días** | **DBA/DevOps + Fullstack** | **Sistema en Producción (VPS)** |
+| 5.1 | Configuración de servidor VPS, seguridad SSL/HTTPS, BD productiva y *backups* automáticos | 4.3 | 23/10/2026 | 02/11/2026 | 11 días | R. S. Cayalta (DBA / DevOps) | Servidor VPS productivo y respaldos |
+| 5.2 | Migración de inventario real de cilindros, puesta en marcha oficial y capacitación a operadores | 5.1 | 03/11/2026 | 12/11/2026 | 10 días | R. S. Cayalta / J. M. Peralta | Sistema en vivo + personal capacitado |
+| 5.3 | Mantenimiento evolutivo (ajustes de corte Kardex 07:00 AM y reportes mensuales) y cierre documental | 5.2 | 13/11/2026 | 27/11/2026* | 15 días | J. M. Peralta (Fullstack) / R. S. Cayalta (DBA) | Versión estable actual + Manuales |
+
+*\*Nota: La Fase 5 (Mantenimiento y Evolución Operativa) permanece activa en producción, atendiendo mejoras continuas sobre la plataforma desplegada.*
+
+#### D. Hitos de Control del Ciclo de Vida en Cascada
+
+**Tabla 29**  
+*Hitos de Verificación y Cierre de Fase (Milestones)*
+
+| Código | Hito de Control | Fecha de Cierre | Fase Completada | Criterio de Aceptación / Entregable Validado |
+| :-: | :--- | :-: | :--- | :--- |
+| **H-01** | **Aprobación de Línea Base de Requisitos** | 04/06/2026 | Fase 1: Análisis | 14 RF, 6 RNF y 12 Casos de Uso revisados con el área operativa de GLAES S.A.C. |
+| **H-02** | **Aprobación de Arquitectura y Esquema de BD** | 02/07/2026 | Fase 2: Diseño | Diagramas de Arquitectura, MER, Modelo Físico y Secuencia validados sin ambigüedades. |
+| **H-03** | **Culminación de Construcción de los 6 Módulos** | 24/09/2026 | Fase 3: Implementación | API REST Laravel 12 y SPA React 19 completadas con Kardex y reportes institucionales. |
+| **H-04** | **Conformidad de Pruebas y Piloto Local** | 22/10/2026 | Fase 4: Pruebas | 100% de pruebas unitarias, de integración y de sistema aprobadas sin errores críticos. |
+| **H-05** | **Puesta en Producción en VPS y Operación Activa** | 12/11/2026 | Fase 5: Despliegue | Plataforma desplegada en VPS con SSL, respaldos automáticos de BD y uso diario en EsSalud. |
+
+#### E. Matriz Visual del Cronograma ( Mayo – Noviembre 2026 )
+
+En la siguiente matriz cada columna representa una quincena operativa (`Q1` = primera mitad del mes, `Q2` = segunda mitad del mes) desde **mayo hasta noviembre de 2026**:
+
+| ID | Fase / Actividad (Cascada) | May Q1 | May Q2 | Jun Q1 | Jun Q2 | Jul Q1 | Jul Q2 | Ago Q1 | Ago Q2 | Sep Q1 | Sep Q2 | Oct Q1 | Oct Q2 | Nov Q1 | Nov Q2 |
+| :-: | :--- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| **F1** | **1. Análisis de Requisitos** | | | | | | | | | | | | | | |
+| 1.1 | Diagnóstico en planta y formatos físicos | ██ | | | | | | | | | | | | | |
+| 1.2 | Requisitos Funcionales y No Funcionales | | ██ | | | | | | | | | | | | |
+| 1.3 | Especificación de Casos de Uso (CU-01..12) | | ██ | ██ | | | | | | | | | | | |
+| **F2** | **2. Diseño del Sistema y BD** | | | | | | | | | | | | | | |
+| 2.1 | Arquitectura en 3 capas y diseño API REST | | | ██ | | | | | | | | | | | |
+| 2.2 | Modelo Entidad-Relación y Físico MySQL | | | ██ | ██ | | | | | | | | | | |
+| 2.3 | Diagramas de Secuencia y prototipos UI | | | | ██ | | | | | | | | | | |
+| **F3** | **3. Implementación y Codificación** | | | | | | | | | | | | | | |
+| 3.1 | Seguridad Sanctum, RBAC y Usuarios | | | | | ██ | | | | | | | | | |
+| 3.2 | Catálogos Maestros y Prescripciones | | | | | | ██ | ██ | | | | | | | |
+| 3.3 | Operaciones Inventario Gaseoso y Borradores | | | | | | | ██ | ██ | | | | | | |
+| 3.4 | Oxígeno Líquido y Monitoreo Hospitalización | | | | | | | | | ██ | | | | | |
+| 3.5 | Kardex, Trazabilidad y Reportes `ExcelJS` | | | | | | | | | | ██ | | | | |
+| **F4** | **4. Integración y Pruebas** | | | | | | | | | | | | | | |
+| 4.1 | Integración SPA-API, Lazy Loading e Índices | | | | | | | | | | | ██ | | | |
+| 4.2 | Pruebas Unitarias e Integración ACID | | | | | | | | | | | ██ | | | |
+| 4.3 | Pruebas de Sistema y Piloto Local en Planta | | | | | | | | | | | | ██ | | |
+| **F5** | **5. Despliegue VPS y Mantenimiento** | | | | | | | | | | | | | | |
+| 5.1 | Servidor VPS, SSL, BD Productiva y Backups | | | | | | | | | | | | ██ | ██ | |
+| 5.2 | Migración de datos, Puesta en Vivo y Capacitación | | | | | | | | | | | | | ██ | |
+| 5.3 | Mantenimiento evolutivo de Kardex y Cierre | | | | | | | | | | | | | | ██ |
+
+#### F. Diagrama de Gantt Compacto en PlantUML (Modelo en Cascada)
+
+```plantuml
+@startgantt Cronograma_Cascada_GLAES_EsSalud
+Project starts 2026-05-08
+printscale weekly zoom 2
+hide footbox
+
+<style>
+ganttDiagram {
+    task {
+        FontName Arial
+        FontSize 10
+        BackGroundColor #D6EAF8
+        LineColor #2E86C1
+    }
+    milestone {
+        FontName Arial
+        FontSize 10
+        BackGroundColor #1B4F72
+        LineColor #1B4F72
+    }
+    separator {
+        FontName Arial
+        FontSize 11
+        FontStyle bold
+        BackGroundColor #F2F4F4
+    }
+}
+</style>
+
+-- Fase 1: Análisis de Requisitos --
+[1.1 Diagnóstico en planta y formatos] as [T11] lasts 10 days
+[1.2 Especificación RF y RNF] as [T12] lasts 10 days
+[1.3 Casos de Uso (CU-01..12)] as [T13] lasts 8 days
+[T11] -> [T12]
+[T12] -> [T13]
+[H-01: Requisitos Aprobados] happens at [T13]'s end
+
+-- Fase 2: Diseño del Sistema y BD --
+[2.1 Arquitectura 3 capas y API] as [T21] lasts 10 days
+[2.2 Modelo E-R y Físico MySQL] as [T22] lasts 13 days
+[2.3 Secuencias y Prototipos UI] as [T23] lasts 8 days
+[T13] -> [T21]
+[T13] -> [T22]
+[T22] -> [T23]
+[H-02: Diseño Aprobado] happens at [T23]'s end
+
+-- Fase 3: Implementación y Codificación --
+[3.1 Seguridad Sanctum y Usuarios] as [T31] lasts 14 days
+[3.2 Catálogos y Prescripciones] as [T32] lasts 21 days
+[3.3 Operaciones O2 Gaseoso] as [T33] lasts 21 days
+[3.4 O2 Líquido y Hospitalización] as [T34] lasts 14 days
+[3.5 Kardex y Reportes ExcelJS] as [T35] lasts 14 days
+[T23] -> [T31]
+[T31] -> [T32]
+[T32] -> [T33]
+[T33] -> [T34]
+[T34] -> [T35]
+[H-03: Software v1.0 Construido] happens at [T35]'s end
+
+-- Fase 4: Integración y Pruebas --
+[4.1 Integración SPA-API y BD] as [T41] lasts 10 days
+[4.2 Pruebas Unitarias e Integración] as [T42] lasts 10 days
+[4.3 Pruebas Sistema y Piloto Local] as [T43] lasts 8 days
+[T35] -> [T41]
+[T41] -> [T42]
+[T42] -> [T43]
+[H-04: Pruebas y Piloto Validados] happens at [T43]'s end
+
+-- Fase 5: Despliegue VPS y Mantenimiento --
+[5.1 Servidor VPS, SSL y Backups BD] as [T51] lasts 11 days
+[5.2 Carga Inicial y Puesta en Vivo] as [T52] lasts 10 days
+[5.3 Mantenimiento Evolutivo y Cierre] as [T53] lasts 15 days
+[T43] -> [T51]
+[T51] -> [T52]
+[T52] -> [T53]
+[H-05: Sistema en Producción] happens at [T52]'s end
+
+@endgantt
+```
+
 

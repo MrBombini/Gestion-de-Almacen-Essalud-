@@ -59,10 +59,15 @@ El flujo de trabajo en Git se organizó separando el código estable de producci
 
 ```plantuml
 @startuml Flujo_Control_Versiones_Git_EsSalud
-left to right direction
+top to bottom direction
 skinparam defaultFontName Arial
+skinparam defaultFontSize 10
 skinparam shadowing false
 skinparam packageStyle rectangle
+skinparam nodesep 16
+skinparam ranksep 20
+skinparam padding 3
+scale max 700 width
 
 package "Repositorio Git (Monorepo: backend/ + frontend/ + docs/)" #F8F9F9 {
 
@@ -72,26 +77,28 @@ package "Repositorio Git (Monorepo: backend/ + frontend/ + docs/)" #F8F9F9 {
         [feature/kardex-excel-reports] as F3
     }
 
-    rectangle "Rama de Integración (develop)" #FEF9E7 {
-        [Integración API Laravel 12 + SPA React 19] as DEV
-        [Pruebas Unitarias y de Integración] as QA
-    }
+    together {
+        rectangle "Rama de Integración (develop)" #FEF9E7 {
+            [Integración API Laravel 12 + SPA React 19] as DEV
+            [Pruebas Unitarias y de Integración] as QA
+            DEV -down-> QA : Validación conjunta
+        }
 
-    rectangle "Rama de Corrección (fix/*)" #FDEDEC {
-        [fix/kardex-m3-calculation] as FIX
+        rectangle "Rama de Corrección (fix/*)" #FDEDEC {
+            [fix/kardex-m3-calculation] as FIX
+        }
     }
 
     rectangle "Rama Estable (main)" #EAFAF1 {
-        [Versión Estable Validada v1.0\n(Entorno Operativo EsSalud)] as MAIN
+        [Versión Estable Validada v1.0 (Entorno Operativo EsSalud)] as MAIN
     }
 
-    F1 --> DEV : git merge
-    F2 --> DEV : git merge
-    F3 --> DEV : git merge
-    DEV --> QA : Validación conjunta
-    QA --> FIX : Si se detecta error
-    FIX --> DEV : Corrección verificada\n( o git revert si falla )
-    QA --> MAIN : Release aprobado
+    F1 -down-> DEV : git merge
+    F2 -down-> DEV : git merge
+    F3 -down-> DEV : git merge
+    QA -right-> FIX : Si detecta error
+    FIX -up-> DEV : Corrección / git revert
+    QA -down-> MAIN : Release aprobado
 }
 
 @enduml

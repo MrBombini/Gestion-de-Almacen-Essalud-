@@ -68,35 +68,43 @@ La integración de los módulos se diseñó para asegurar que el Frontend SPA, l
 
 ```plantuml
 @startuml Integracion_Modulos_Sistema_EsSalud
+top to bottom direction
 skinparam componentStyle uml2
 skinparam defaultFontName Arial
+skinparam defaultFontSize 10
 skinparam shadowing false
 skinparam packageStyle rectangle
-
-left to right direction
+skinparam nodesep 14
+skinparam ranksep 20
+skinparam padding 3
+scale max 740 width
 
 package "Frontend SPA (React 19 + Vite 8)" #EBF5FB {
+    together {
+        [Módulos Catálogos\n(Balones, Pacientes, Serv.)] as FE_Cat
+        [Módulos Operativos\n(Canjes, Préstamos, O2)] as FE_Inv
+        [Módulo Hospitalización\n(Control PSI y Alertas)] as FE_Hosp
+        [Módulo Reportes & ExcelJS\n(Kardex, Control, Mensual)] as FE_Rep
+    }
     [AuthContext & Axios Interceptor] as FE_Auth
-    [Módulos de Catálogos\n(Balones, Pacientes, Servicios)] as FE_Cat
-    [Módulos Operativos\n(Canjes, Préstamos, Trasvase, O2 Líquido)] as FE_Inv
-    [Módulo Hospitalización\n(Control PSI en Cama y Alertas)] as FE_Hosp
-    [Módulo Reportes & ExcelJS\n(Kardex, Formato Control, Mensual)] as FE_Rep
 }
 
 package "Capa de Integración y Seguridad (Laravel 12 API)" #FDEDEC {
-    [Router API (routes/api.php)\nMiddleware auth:sanctum & role] as API_GW
+    [Router API (routes/api.php) · Middleware auth:sanctum & role] as API_GW
 }
 
-package "Núcleo de Lógica de Negocio y Servicios Backend" #FEF9E7 {
-    [Controladores de Catálogos\ny Prescripciones] as BE_Cat
-    [Gestor Transaccional de Inventario\n(InventoryMovementController)] as BE_Inv
-    [Gestor de Borradores\n(UserDraftController)] as BE_Draft
-    [Gestor O2 Líquido y Hospitalización\n(Liquid & Hospitalization)] as BE_LiqHosp
-    [Motor Analítico y Kardex\n(ReportController)] as BE_Rep
+package "Núcleo de Lógica de Negocio Backend" #FEF9E7 {
+    together {
+        [Controladores Catálogos\ny Prescripciones] as BE_Cat
+        [Gestor Transaccional\n(InventoryMovement)] as BE_Inv
+        [Gestor Borradores\n(UserDraftController)] as BE_Draft
+        [Gestor O2 Líquido y\nHospitalización] as BE_LiqHosp
+        [Motor Analítico y Kardex\n(ReportController)] as BE_Rep
+    }
 }
 
 package "Persistencia Transaccional ACID" #EAFAF1 {
-    database "Base de Datos Relacional\n(Tablas: cylinders, patients, prescriptions,\ninventory_movements, movement_details,\ndaily_readings, hospitalization_readings)" as DB
+    database "Base de Datos Relacional\n(cylinders, patients, prescriptions, inventory_movements,\nmovement_details, daily_readings, hospitalization_readings)" as DB
 }
 
 FE_Cat --> FE_Auth
@@ -104,7 +112,7 @@ FE_Inv --> FE_Auth
 FE_Hosp --> FE_Auth
 FE_Rep --> FE_Auth
 
-FE_Auth <--> API_GW : HTTPS / JSON\n(Bearer Token)
+FE_Auth <--> API_GW : HTTPS / JSON (Bearer Token)
 
 API_GW --> BE_Cat
 API_GW --> BE_Inv
@@ -112,16 +120,16 @@ API_GW --> BE_Draft
 API_GW --> BE_LiqHosp
 API_GW --> BE_Rep
 
-BE_Inv ..> BE_Draft : Limpia borrador\nal confirmar
-BE_Inv ..> BE_Cat : Valida estado balón\ny receta activa
-BE_Rep ..> BE_Inv : Consolida Kardex\ny Trazabilidad
-BE_Rep ..> BE_LiqHosp : Consolida m3 Líquido\ny Alertas PSI
+BE_Inv .right.> BE_Draft : Limpia borrador
+BE_Inv .left.> BE_Cat : Valida balón/receta
+BE_Rep .left.> BE_Inv : Consolida Kardex
+BE_Rep .left.> BE_LiqHosp : Consolida m3 / PSI
 
 BE_Cat <--> DB
-BE_Inv <--> DB : DB::transaction\n(COMMIT / ROLLBACK)
+BE_Inv <--> DB : DB::transaction
 BE_Draft <--> DB
 BE_LiqHosp <--> DB
-BE_Rep <-- DB : Consultas Agregadas
+BE_Rep <-- DB : Agregaciones
 
 @enduml
 ```
