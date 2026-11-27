@@ -1,0 +1,137 @@
+<?php
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\PatientController;
+use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\BedController;
+use App\Http\Controllers\CylinderController;
+use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\LiquidController;
+use App\Http\Controllers\InventoryMovementController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\OwnershipTypeController;
+use App\Http\Controllers\DailyReadingController;
+use App\Http\Controllers\PrescriptionController;
+use App\Http\Controllers\AuthorityController;
+use App\Http\Controllers\UserDraftController;
+use App\Http\Controllers\HospitalizationController;
+
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+*/
+
+// ==========================================
+// 1. PUBLIC ROUTES
+// ==========================================
+Route::post('/auth/login', [AuthController::class, 'login']);
+
+// ==========================================
+// PROTECTED ROUTES (Requires Sanctum Bearer Token)
+// ==========================================
+Route::middleware(['auth:sanctum'])->group(function () {
+    
+    // 2. General Session Routes
+    Route::post('/auth/logout', [AuthController::class, 'logout']);
+    Route::get('/auth/me', function (Request $request) {
+        return response()->json([
+            'user' => $request->user(),
+        ]);
+    });
+
+    // 3. Operator Routes (Operators, Administrators, Engineers)
+    Route::middleware(['role:Operator,Administrator,Engineer'])->group(function () {
+        
+        Route::get('/dashboard/stats', [ReportController::class, 'dashboardStats']);
+
+        // User Drafts
+        Route::get('/drafts/{module}', [UserDraftController::class, 'show']);
+        Route::post('/drafts/{module}', [UserDraftController::class, 'store']);
+        Route::delete('/drafts/{module}', [UserDraftController::class, 'destroy']);
+
+        // Catalogs (CRUD)
+        Route::get('patients/next-codes', [PatientController::class, 'nextCodes']); // ← ANTES del apiResource
+        Route::apiResource('patients', PatientController::class);
+        Route::apiResource('services', ServiceController::class);
+        Route::apiResource('beds', BedController::class);
+        Route::apiResource('cylinders', CylinderController::class);
+        Route::apiResource('suppliers', SupplierController::class);
+        Route::apiResource('daily-readings', DailyReadingController::class);
+        Route::apiResource('ownership-types', OwnershipTypeController::class);
+        Route::apiResource('authorities', AuthorityController::class);
+
+        // Prescriptions (Sub-CRUD de Pacientes)
+        Route::get('prescriptions', [PrescriptionController::class, 'index']);
+        Route::get('prescriptions/{id}', [PrescriptionController::class, 'show']);
+        Route::post('prescriptions', [PrescriptionController::class, 'store']);
+        Route::put('prescriptions/{id}', [PrescriptionController::class, 'update']);
+        Route::delete('prescriptions/{id}', [PrescriptionController::class, 'destroy']);
+
+        // Liquid Module
+        Route::prefix('liquid')->group(function () {
+            Route::get('/refills', [LiquidController::class, 'index']);
+            Route::post('/refill', [LiquidController::class, 'storeRefill']);
+            Route::delete('/refills/{id}', [LiquidController::class, 'destroy']);
+        });
+
+        // Inventory Movements Module
+        Route::prefix('inventory')->group(function () {
+            Route::get('/movements', [InventoryMovementController::class, 'index']);
+            Route::get('/decantings', [InventoryMovementController::class, 'indexDecantings']);
+            Route::post('/exchange', [InventoryMovementController::class, 'createExchange']);
+            Route::post('/decanting', [InventoryMovementController::class, 'createDecanting']);
+            Route::post('/supplier', [InventoryMovementController::class, 'createSupplierMovement']);
+            Route::post('/periphery-exchange', [InventoryMovementController::class, 'createServiceBulkExchange']);
+            Route::post('/supplier-entry', [InventoryMovementController::class, 'createSupplierEntry']);
+            Route::post('/loan-return', [InventoryMovementController::class, 'createLoanReturn']);
+            Route::post('/patient-return', [InventoryMovementController::class, 'createPatientReturn']);
+            Route::post('/patient-loan', [InventoryMovementController::class, 'createPatientLoan']);
+            Route::post('/warehouse-transfer', [InventoryMovementController::class, 'createWarehouseTransfer']);
+        });
+        
+        // Reports
+        Route::prefix('reports')->group(function () {
+            Route::get('/movements-search', [ReportController::class, 'movementsSearch']);
+            Route::get('/inventory', [ReportController::class, 'inventoryReport']);
+            Route::get('/stagnant', [ReportController::class, 'stagnantCylinders']);
+            Route::get('/history/{id}', [ReportController::class, 'cylinderHistory']);
+            Route::get('/shift-closure', [ReportController::class, 'shiftClosure']);
+            Route::get('/consumption', [ReportController::class, 'consumptionReport']);
+            Route::get('/daily-kardex', [ReportController::class, 'dailyKardex']);
+            Route::get('/consumption-dashboard', [ReportController::class, 'dailyConsumptionDashboard']);
+            Route::get('/kardex', [ReportController::class, 'kardexGeneral']);
+            Route::get('/padomi-exchanges', [ReportController::class, 'padomiExchanges']);
+            Route::get('/patient-alerts', [ReportController::class, 'patientAlerts']);
+            Route::get('/hospitalization-control', [ReportController::class, 'hospitalizationControl']);
+            Route::get('/executive-consumption', [ReportController::class, 'executiveConsumption']);
+            Route::get('/monthly-summary', [ReportController::class, 'monthlySummary']);
+            Route::get('/monthly-entries', [ReportController::class, 'monthlyEntries']);
+        });
+
+        // Hospitalization Module
+        Route::prefix('hospitalization')->group(function () {
+            Route::get('/cylinders', [HospitalizationController::class, 'index']);
+            Route::get('/alerts', [HospitalizationController::class, 'alerts']);
+            Route::post('/readings', [HospitalizationController::class, 'storeReading']);
+            Route::get('/readings/{cylinderId}', [HospitalizationController::class, 'readingHistory']);
+            Route::post('/bed-transfer', [HospitalizationController::class, 'bedTransfer']);
+            Route::get('/bed-transfer/{cylinderId}', [HospitalizationController::class, 'transferHistory']);
+        });
+        
+    });
+
+    // 4. Superadmin Routes
+    Route::middleware(['role:Administrator'])->group(function () {
+        
+        // Users Management
+        Route::apiResource('users', UserController::class);
+        Route::patch('/users/{id}/deactivate', [UserController::class, 'deactivate']);
+        Route::patch('/users/{id}/activate', [UserController::class, 'activate']);
+        Route::patch('/users/{id}/toggle-status', [UserController::class, 'toggleStatus']);
+        
+    });
+});

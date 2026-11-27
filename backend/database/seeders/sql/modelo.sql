@@ -1,0 +1,10 @@
+INSERT INTO `ownership_types` (`id`, `name`) VALUES ('1', 'MAT');
+INSERT INTO `ownership_types` (`id`, `name`) VALUES ('2', 'YA');
+INSERT INTO `ownership_types` (`id`, `name`) VALUES ('3', 'JD');
+INSERT INTO `ownership_types` (`id`, `name`) VALUES ('4', 'KIOSHI');
+INSERT INTO `ownership_types` (`id`, `name`) VALUES ('5', 'KIOSHI PRO');
+INSERT INTO `ownership_types` (`id`, `name`) VALUES ('6', 'PRAXAIR');
+INSERT INTO `ownership_types` (`id`, `name`) VALUES ('7', 'EsSalud');
+INSERT INTO `ownership_types` (`id`, `name`) VALUES ('8', 'PX');
+INSERT INTO `ownership_types` (`id`, `name`) VALUES ('9', 'PERIFERIE');
+INSERT INTO `ownership_types` (`id`, `name`) VALUES ('10', 'PROPIO');
